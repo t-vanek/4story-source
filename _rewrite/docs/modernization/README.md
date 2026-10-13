@@ -1,6 +1,6 @@
 # Modern server implementation status
 
-Updated 2026-10-11 (Europe/Prague). Target: original client → compatible C++20 server → native
+Updated 2026-10-13 (Europe/Prague). Target: original client → compatible C++20 server → native
 PostgreSQL, primarily Linux containers. The overall reimplementation is **in
 progress**. No claim of complete gameplay or real-client compatibility is made.
 Older C#/.NET plans and percentage estimates in `GAP_ANALYSIS.md`,
@@ -24,6 +24,14 @@ Phase A implementation precedes all new test, migration and container runs.
 The [working status](full-rewrite-status.md) records changed production paths as
 unverified and tracks the remaining implementation gate. Historical results below
 belong to their stated revisions and scopes.
+
+Code `85bf923` / `feea4a1` / `b4ff581` adds **INTEGRATED_UNVERIFIED** native ordinary
+player mail sending, protected-list CRUD/admission/handoff, recipient live notification
+time and superseding. Migrations061–062 and the exact historical protected importer
+are written only. Map/World Debug/Release compile/link passed; tests, migrations,
+runtime and containers were not run. Full World social persistence, reserved/
+quest/event/admin mail, offline jobs and gameplay remain required.
+[Source contracts and compilation evidence](evidence/phase-a-mail-send-protected-20261013/README.md).
 
 Code `d3904c5` adds **INTEGRATED_UNVERIFIED** POSTRETURN/payment, sender-owned
 online bill expiry and durable current-primary POSTRECV receipts. Server-only

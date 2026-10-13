@@ -1,0 +1,108 @@
+[0/1] Re-running CMake...
+-- OpenSSL legacy provider: /usr/lib/ossl-modules/legacy.so
+-- Configuring done (0.1s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/tomasvanek/RiderProjects/4story-source/build/phase-a-quest-release
+[1/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/config.cpp.o
+[2/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/map_server.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp: In member function ‘boost::asio::awaitable<void> tmapsvr::MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession>)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp:203:17: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  203 |                 if(ctx.skill_cooldown&&identity->phase!=SessionPhase::TransferOut)
+      |                 ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/map_server.cpp:205:21: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  205 |                     auto* player = ctx.player_service;
+      |                     ^~~~
+[3/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_world.cpp.o
+[4/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_native_entry.cpp.o
+[5/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers_main_transfer.cpp.o
+[6/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/dispatch.cpp.o
+[7/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/session.cpp.o
+[8/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/movement.cpp.o
+[9/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/skill.cpp.o
+[10/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/inventory.cpp.o
+[11/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/title.cpp.o
+[12/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/secure_code.cpp.o
+[13/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/maintained_effect.cpp.o
+[14/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/character_statistics.cpp.o
+[15/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/combat.cpp.o
+[16/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/loot.cpp.o
+[17/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/quest.cpp.o
+[18/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/handlers/bow.cpp.o
+[19/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/soci_player_service.cpp.o
+[20/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_service.cpp.o
+[21/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_load.cpp.o
+[22/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_checkpoint.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp: In lambda function:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:1127:9: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+ 1127 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |         ^~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:1127:129: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+ 1127 |         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
+      |                                                                                                                                 ^~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp: In member function ‘virtual tmapsvr::FinishSkillCommit tmapsvr::PostgreSQLMapService::FinishSkill(const tmapsvr::MapSessionClaim&, std::span<const std::byte>, const tmapsvr::CharSnapshot&)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp:1193:11: warning: suggest explicit braces to avoid ambiguous ‘else’ [-Wdangling-else]
+ 1193 |         if(!after.dwMP)for(std::size_t i=0;i<after.payload->effects->size();)
+      |           ^
+[23/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_quest.cpp.o
+[24/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_quest_items.cpp.o
+[25/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_quest_rewards.cpp.o
+[26/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_progression.cpp.o
+[27/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_during.cpp.o
+[28/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_use.cpp.o
+[29/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_soul_lottery.cpp.o
+[30/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_economy.cpp.o
+[31/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_shop.cpp.o
+[32/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_expiration.cpp.o
+[33/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_mail.cpp.o
+[34/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_mail_return.cpp.o
+[35/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_protected.cpp.o
+[36/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_mail_send.cpp.o
+[37/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_pvp_balance.cpp.o
+[38/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_refine.cpp.o
+[39/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_gamble.cpp.o
+[40/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_upgrade.cpp.o
+[41/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_cooldown.cpp.o
+[42/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_reagent.cpp.o
+[43/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_cast.cpp.o
+[44/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_inventory.cpp.o
+[45/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_transfer.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp: In member function ‘virtual bool tmapsvr::PostgreSQLMapService::PrepareTransfer(const tmapsvr::MapSessionClaim&, const tmapsvr::CharSnapshot&, std::span<const std::byte>)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:93:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   93 |         if(!sql.got_data())return false;tx->commit();return true;
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:93:41: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   93 |         if(!sql.got_data())return false;tx->commit();return true;
+      |                                         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp: In member function ‘std::optional<tmapsvr::TransferredCharacter> tmapsvr::PostgreSQLMapService::AcceptTransferOrConfirm(const tmapsvr::MapSessionClaim&, std::span<const std::byte>, bool)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:137:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  137 |     if(!LockAccount(sql,c))return {};CheckCatalogs(sql);
+      |     ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:137:38: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  137 |     if(!LockAccount(sql,c))return {};CheckCatalogs(sql);
+      |                                      ^~~~~~~~~~~~~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:166:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  166 |         if(!sql.got_data())return {};tx->commit();return TransferredCharacter{std::move(s),static_cast<std::uint64_t>(target_epoch)};
+      |         ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_transfer.cpp:166:38: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  166 |         if(!sql.got_data())return {};tx->commit();return TransferredCharacter{std::move(s),static_cast<std::uint64_t>(target_epoch)};
+      |                                      ^~
+[46/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_route.cpp.o
+[47/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_replica.cpp.o
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_replica.cpp: In member function ‘virtual bool tmapsvr::PostgreSQLMapService::LoadReplica(const tmapsvr::MapSessionClaim&, uint16_t, float, float)’:
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_replica.cpp:105:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  105 |     if(!sql.got_data())return false;tx->commit();return true;
+      |     ^~
+/home/tomasvanek/RiderProjects/4story-source/Server/TMapSvrAsio/services/postgresql_map_replica.cpp:105:37: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  105 |     if(!sql.got_data())return false;tx->commit();return true;
+      |                                     ^~
+[48/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/main_transfer_codec.cpp.o
+[49/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/main_transfer_runtime.cpp.o
+[50/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/monster_ai.cpp.o
+[51/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/world_senders.cpp.o
+[52/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/client_senders.cpp.o
+[53/59] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/handlers/handlers_friend.cpp.o
+[54/59] Linking CXX static library lib/libtmapsvr_asio_core.a
+[55/59] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio.dir/main.cpp.o
+[56/59] Linking CXX static library lib/libtworldsvr_asio_core.a
+[57/59] Linking CXX executable bin/tmapsvr_asio
+[58/59] Linking CXX executable bin/tworldsvr_asio

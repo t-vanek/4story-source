@@ -20,10 +20,24 @@ Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
 source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
 tournament producers, conditional NPC discounts and premium branches are still
 missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
-Migrations044–060 and archival/import tools are written, not executed. Debug and
+Migrations044–062 and archival/import tools are written, not executed. Debug and
 Release compilation of all six modern binaries succeeded; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
 [Latest source scope and limitations](evidence/phase-a-refine-events-20261011/README.md).
+
+Code `85bf923` / `feea4a1` / `b4ff581` adds **INTEGRATED_UNVERIFIED** native ordinary
+player mail sending, protected-list CRUD/admission/handoff, recipient live notification
+time and superseding. Migrations061–062 and the exact historical protected importer
+are written only. Map/World Debug/Release compile/link passed; tests, migrations,
+runtime and containers were not run. Full World social persistence, reserved/
+quest/event/admin mail, offline jobs and gameplay remain required.
+[Source contracts and compilation evidence](evidence/phase-a-mail-send-protected-20261013/README.md).
+
+| Capability | Implemented runtime path | Remaining scope / acceptance |
+|---|---|---|
+| Player mail normal/package/bill | Original53A2 → source recipient/country/block/capacity/funds/raw item gates → fenced PG transaction → ordered53A3 response | Trade reservation producers; native name/collation profile; World/event/offline mail; no Phase B/client acceptance |
+| Protected lists | Original5377/5379/5472 → native remembered bytes/options → admission5376 and original graph transfer | Chat/invite/deal/duel consumers; atomic World friend persistence; no database/import/client acceptance |
+| Queued mail notifications | Enqueue audit retained; original recipient live second; return cancels obsolete receipt; current primary timer delivers53A4 | Failure/recovery/counter tests and receipt retention |
 
 Code `d3904c5` adds **INTEGRATED_UNVERIFIED** POSTRETURN/payment, sender-owned
 online bill expiry and durable current-primary POSTRECV receipts. Server-only

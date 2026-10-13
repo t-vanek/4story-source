@@ -1,0 +1,214 @@
+{
+  "recorded_at": "2026-10-13T18:44:38.342027+00:00",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "importer_state": "IMPLEMENTED_UNVERIFIED",
+  "code_commit": "b4ff58170bd12cd5eaea8d27434c9ebfaec42d8c",
+  "base_commit": "8cd91ff",
+  "branch": "main",
+  "published": false,
+  "scope": "Native ordinary player mail send, protected-list CRUD/load/transfer, recipient live notification seconds and superseding; not full mail, social systems or complete rewrite",
+  "cpp_standard": "C++20",
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "cmake": "cmake version 4.3.0",
+  "builds": [
+    {
+      "configuration": "Debug",
+      "command": "cmake --build build/phase-a-compile --target tmapsvr_asio tworldsvr_asio -j1",
+      "exit_code": 0,
+      "incremental": true,
+      "build_testing": false,
+      "executables_run": false,
+      "logs": [
+        "debug-parent-build.log",
+        "debug-time-build.log",
+        "debug-build.log",
+        "debug-source-time-build.log"
+      ]
+    },
+    {
+      "configuration": "Release",
+      "command": "cmake --build build/phase-a-quest-release --target tmapsvr_asio tworldsvr_asio -j1",
+      "exit_code": 0,
+      "incremental": true,
+      "build_testing": false,
+      "executables_run": false,
+      "logs": [
+        "release-parent-build.log",
+        "release-build.log",
+        "release-source-time-build.log"
+      ]
+    }
+  ],
+  "source_references": [
+    "Server/TMapSvr/CSHandler.cpp:8635 OnCS_POSTSEND_REQ",
+    "Server/TMapSvr/SSHandler.cpp:10816 OnDM_POSTCANSEND_ACK",
+    "Server/TMapSvr/TItem.cpp:699 CanDeal",
+    "Server/TMapSvr/TPlayer.cpp:635 CheckDealItem",
+    "Server/TMapSvr/TMapSvr.cpp:7832 GetPostMoney",
+    "Server/TMapSvr/CSHandler.cpp:10490 OnCS_PROTECTEDADD_REQ",
+    "Server/TMapSvr/CSHandler.cpp:10522 OnCS_PROTECTEDERASE_REQ",
+    "Server/TMapSvr/CSHandler.cpp:15185 OnCS_PROTECTEDOPTION_REQ",
+    "Server/TMapSvr/CSSender.cpp:3557 SendCS_PROTECTEDLIST_ACK",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TProtectedInsert.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TProtectedDelete.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TSaveProtectedOption.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TPostCanSend.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TSavePost.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TDeleteChar.sql",
+    "Server/TMapSvr/SSHandler.cpp:10710 OnMW_POSTRECV_REQ",
+    "Server/TMapSvr/SSHandler.cpp:10943 OnDM_POSTRECV_REQ",
+    "Server/TMapSvr/SSHandler.cpp:11049 OnDM_POSTRECV_ACK",
+    "Server/TMapSvr/SSSender.cpp:1687 SendDM_POSTRECV_REQ"
+  ],
+  "files": [
+    {
+      "path": "Server/TMapSvrAsio/CMakeLists.txt",
+      "sha256": "5e2335777c5d3f851b660922fa3d168f436c70e3f3d1f1bc09f7ef138bcb94fb"
+    },
+    {
+      "path": "Server/TMapSvrAsio/config.cpp",
+      "sha256": "f65f63a0b3741a2966bb455a42186c55b2a545c8ed85bae7a4f8b71622f9f102"
+    },
+    {
+      "path": "Server/TMapSvrAsio/config.h",
+      "sha256": "c07f843d82a53bc95858ca1aa5f5dc7802eaeec974dab47fb7cb4b1e77b6ea48"
+    },
+    {
+      "path": "Server/TMapSvrAsio/domain/character_payload.h",
+      "sha256": "a2eae16554fdd24648644c25652866b5e63d955f1e51bbb7bd39751480d558c4"
+    },
+    {
+      "path": "Server/TMapSvrAsio/handlers/dispatch.cpp",
+      "sha256": "e2d2a394f61e4e6200273be069cb5b74a85fc521653b5e9a135b7f59283d09ae"
+    },
+    {
+      "path": "Server/TMapSvrAsio/handlers/quest.cpp",
+      "sha256": "e0911fa19d10819ab27644dbca4ae0b0e452ca8e87f3ddc9997278a39ad427a1"
+    },
+    {
+      "path": "Server/TMapSvrAsio/main.cpp",
+      "sha256": "5eb2423e4be4b56e241dc64cb3c9332bafce01faebf8b125925c20d2fa223dc4"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/main_transfer_runtime.cpp",
+      "sha256": "2d9cd9d662d641a2f3799b32e10646dba5d2bd7eada145379b4f4474a2da86e4"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/native_mail_lock.h",
+      "sha256": "33b50dbdcfc555d7cc1c0c0e319ef4ba23d93bcdd9b9f093d6e3516c6569f79e"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/native_wire_text.h",
+      "sha256": "54694a16cc050206f6f2ec96b028a0e8488fd5a68c1a500df4f24b00200e4daa"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_checkpoint.cpp",
+      "sha256": "0bebb720ba5f705cb330088ea0a5554768baa591f627993e38875a1f80a72426"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_item_mail.cpp",
+      "sha256": "536ffab4db871b8fa06a180c16de7d2710602911894e4022da39aa7f762ac232"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_load.cpp",
+      "sha256": "0fd5d27b83d9ccdf48aac60a929102349781f39411523d71377d779ef8090136"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_mail_return.cpp",
+      "sha256": "6eaae617b8515550a8fb7cd1c17556de1bba88fbc4b8ec38808ad25a865e5366"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_mail_send.cpp",
+      "sha256": "a98172d035893f8185000940bb66d0c2f8b6d2b502831b380b8343e58b0aa0bd"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_protected.cpp",
+      "sha256": "f069b3feb16f504acae057f9c6c2800c30fcd9f1aa6b79c196dc31ef0d4d83bf"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/postgresql_map_service.h",
+      "sha256": "24e805469e5e24cca445f7def929029b53adbc08642e3bfacfe63026cedf9369"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/handlers/handlers_friend.cpp",
+      "sha256": "3b6ef6eafc39dbdbcbb006ba6b43c4ceafc4a316fbe36893661330b4fc094a39"
+    },
+    {
+      "path": "database/postgresql/061-native-protected-mail-send.sql",
+      "sha256": "b6ad3ffd45380762b0b8a5348cca49d876dd07075dd5fc3220eb56c75d1d0a4c"
+    },
+    {
+      "path": "deploy/sql/map-runtime-grants.sql",
+      "sha256": "4333cb9f6da5d8eb88e9019d8e851e622bbdb202310430cf807b0ab89d38f5f0"
+    },
+    {
+      "path": "deploy/tmapsvr-native.example.toml",
+      "sha256": "1c9a1e5ef7436d3cc4bff367ff0a17b41c1466749d85482932b675fa47516c37"
+    },
+    {
+      "path": "tools/database/import_protected_characters.py",
+      "sha256": "e50baf1aaf67a034aa718fd1a7a3ca7929765a8621f9f4bc20c2cefa544da3d7"
+    },
+    {
+      "path": "database/postgresql/062-mail-notification-time-contract.sql",
+      "sha256": "854c3071de5e00c76661a4a3625aa86482a051bfbb4c6a8ce2c0e7dec3b1819e"
+    }
+  ],
+  "preserved_backups": [
+    {
+      "path": "TGAME_RAGEZONE.bak",
+      "size_bytes": 34009088,
+      "sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259"
+    },
+    {
+      "path": "TGLOBAL_RAGEZONE.bak",
+      "size_bytes": 36560896,
+      "sha256": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+    }
+  ],
+  "migrations_001_060_unchanged": true,
+  "new_migrations": [
+    "061-native-protected-mail-send.sql",
+    "062-mail-notification-time-contract.sql"
+  ],
+  "migrations_applied": 0,
+  "importer_execution_count": 0,
+  "importer_syntax": "Python AST only; no imported modules executed",
+  "tests_executed": 0,
+  "sanitizer_runs": 0,
+  "server_runs": 0,
+  "client_sessions": 0,
+  "container_builds": 0,
+  "container_starts": 0,
+  "skipped_verification": [
+    "Unit/integration/regression/protocol/TCP/PG tests",
+    "Migration upgrade and archive/runtime imports",
+    "Concurrent send/block/capacity/return and stale-owner scenarios",
+    "Disconnect/restart/DB failure/unknown commit",
+    "ASan/UBSan and original client acceptance",
+    "Container cluster"
+  ],
+  "supported_client_binary": null,
+  "original_client_assets_available": false,
+  "runtime_postgresql_only": false,
+  "preserved_unrelated_work": [
+    "_rewrite/docs/audits/"
+  ],
+  "historical_backup_profile": {
+    "source": "_rewrite/docs/database-reconstruction/evidence/data-profiles.json",
+    "protected_rows": 0,
+    "post_error_rows": 0,
+    "not_a_new_database_run": true
+  },
+  "code_commits": [
+    "85bf9232c5fdfc4a957bfc2ebc4b87e219915903",
+    "feea4a1021cc50db381b098a9058722669739034",
+    "b4ff58170bd12cd5eaea8d27434c9ebfaec42d8c"
+  ],
+  "cpp_compiled_commit": "b4ff58170bd12cd5eaea8d27434c9ebfaec42d8c",
+  "builds_note": "Final Debug/Release incremental compilation includes b4ff581 source time correction; earlier logs retain intermediate compilation results only.",
+  "notification_time_contract": "Recipient Map current second, as source OnMW_POSTRECV_REQ/OnDM_POSTRECV_ACK. World wire carries no timestamp; 062 renames enqueue receipt metadata, without editing 061.",
+  "migration_061_preserved_from_85bf923": true
+}

@@ -8,12 +8,43 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–060 are **written, not applied**.
-Latest code increment: `d3904c5` (native mail returns/payment/notifications/importer),
+evidence remain unchanged. New migrations044–062 are **written, not applied**.
+Latest code increments: `85bf923` / `feea4a1` / `b4ff581` (player mail send/protected lists/importer), based on `8cd91ff`.
+Previous code increment: `d3904c5` (native mail returns/payment/notifications/importer),
 based on `802a232`. Previous `18ee496` implements item expiration and mail, based on `abc40d4`.
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Player mail sending and native protected lists — `85bf923` / `feea4a1` / `b4ff581`
+
+- Original POSTSEND53A2 now reaches the existing PostgreSQL primary transaction:
+  source secure/tutorial/tournament/deal/store gates, saved countries, mailbox
+  capacity, any-row protected blocking, funds/title checks, whole raw attachment,
+  post/error audit and notification receipt. Commit precedes DELITEM, MONEY and
+  POSTSEND53A3. Original item IDs/extensions and money DWORD arithmetic remain.
+- PROTECTEDADD/ERASE/OPTION reach native remembered-name/options persistence.
+  Fresh/recovered/transferred primaries hydrate SQL authority and capture the
+  original protected transfer fields. Admission sends source PROTECTEDLIST after
+  POSTINFO. World presence relay now requires the exact registered ready primary.
+- Explicit security repairs reject privileged mail types on the player opcode,
+  equipped-item mailing without equipment cleanup, embedded NUL and oversized
+  responses. Non-ASCII mail requires an explicit ANSI profile; arbitrary native
+  historical names/collation and client binary compatibility remain unproven.
+- Migration061 adds protected state, original package gold-error audit, native
+  notification enqueue provenance/superseding and the historical import receipt.
+  The importer requires full pinned archives, exact reviewed identity/byte/codec
+  maps and offline owners; it was AST-parsed only. Previous001–060 and backups
+  are unchanged. All new scope is **INTEGRATED_UNVERIFIED** (tool/migration
+  **IMPLEMENTED_UNVERIFIED**); no migration, test, server or container was run.
+- Written062 corrects notification audit naming: the receiving Map sends its current
+  second, because the original World message carries no timestamp. Map and World
+  compile/link in Debug/Release; full World native social authority,
+  reserved/quest/event/admin producers, offline bill jobs, receipt retention,
+  trade reservations and other protected consumers remain implementation work.
+  The full runtime is not PG-only and Phase A remains incomplete.
+
+[Contracts, explicit differences and compilation evidence](evidence/phase-a-mail-send-protected-20261013/README.md).
 
 ## Mail return/payment and historical importer — `d3904c5`
 
@@ -30,7 +61,7 @@ historical evidence retain their original scope.
   The importer checks complete pinned archives, exact mappings/bytes/clock/codec
   profiles, native ownership and allocation indices; nonempty obsolete
   TPOSTITEMTABLE is an explicit unresolved contract. No import was executed.
-- Migration060/grants are written only. Full POSTSEND, World reserved/event/admin
+- Migration060/grants are written only. World reserved/event/admin
   producers, offline expiry/job reconciliation and notification lifecycle remain.
   The full runtime is not PG-only. No test/server/container was run.
   [Exact source scope and compilation evidence](evidence/phase-a-mail-returns-20261013/README.md).

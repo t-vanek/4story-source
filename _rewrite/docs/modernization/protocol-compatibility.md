@@ -13,6 +13,19 @@ prototype; missing action/world integrations still reject rather than issue a
 fabricated success. See [working status](full-rewrite-status.md) for explicit
 changes to tie ordering, randomness, UTC expiration and transaction boundaries.
 
+Code `85bf923` / `feea4a1` / `b4ff581` adds **INTEGRATED_UNVERIFIED** POSTSEND53A2:
+three INT32-length raw strings, BYTE type, three DWORD funds and BYTE bag/slot;
+POSTSEND53A3 returns the original BYTE result. INVEN_NULL is0xFC, while default
+bag0xFF remains a valid attachment origin. PROTECTEDADD5377/ERASE5379 carry a
+string; OPTION5472 carries DWORD/BYTE without a response. LIST5376 uses BYTE
+count then DWORD/string/BYTE; ADD5378 uses BYTE/DWORD/string/BYTE; ERASE537A uses
+BYTE/string. Source presence/client response order is retained. Notifications
+use the receiving Map current second as in the original World relay. Immediate option durability,
+commit-before-send and named security repairs are explicit differences. Raw
+non-ASCII mail requires `native_map.client_text_encoding`; ASCII equality remains
+the existing native name profile, not proof of full historical collation or a
+particular executable. [Exact contracts and deferred scenarios](evidence/phase-a-mail-send-protected-20261013/README.md).
+
 Code `d3904c5` adds **unverified** POSTRETURN53AC (DWORD postID/BYTE type).
 Payment retains MONEY then POSTRETURN53AD BYTE0; return retains POSTDEL53A9
 DWORD ID. Cross-Map notifications keep POSTRECV53A4. Receipt/watermark metadata

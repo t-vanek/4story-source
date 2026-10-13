@@ -1,0 +1,4 @@
+[1/4] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_protected.cpp.o
+[2/4] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_mail_send.cpp.o
+[3/4] Linking CXX static library lib/libtmapsvr_asio_core.a
+[4/4] Linking CXX executable bin/tmapsvr_asio

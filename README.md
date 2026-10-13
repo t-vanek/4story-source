@@ -26,7 +26,16 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–060** and native code extend quest state/actions, skill audit,
+Code `85bf923` / `feea4a1` / `b4ff581` adds native ordinary player mail sending and
+protected-list persistence through admission and Map transfer. Notification
+receipts retain enqueue audit data and cancel obsolete recipient/type routing.
+POSTRECV uses the recipient Map’s current second, as the source handler does. Migrations061–062/import tooling are written only.
+Map and World compile/link
+in Debug/Release; no new tests, database runs or cluster startup occurred.
+Full World/social/economy/gameplay remains incomplete.
+[Exact source scope and evidence](_rewrite/docs/modernization/evidence/phase-a-mail-send-protected-20261013/README.md).
+
+New migrations **044–062** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -90,9 +99,9 @@ jobs and World reserved/event/admin producers remain required.
 
 Compilation results for the changed Map target are recorded with that increment.
 Earlier evidence covers all six modern targets at its stated commits. Historical
-import tools and migrations044–060 are written, not executed. No tests, database
+import tools and migrations044–062 are written, not executed. No tests, database
 migration, server startup or container run belongs to this increment. Previous
-migrations001–059 remain unchanged; the next unused migration number is061.
+migrations001–061 remain unchanged; the next unused migration number is063.
 
 ## Historical verification through `2fa2396`
 

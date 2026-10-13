@@ -198,7 +198,8 @@ int main(int argc, char** argv)
                     *db_pool_owner);
             friend_repo = std::make_unique<tworldsvr::SociFriendRepository>(
                 *db_pool_owner,[&io,&friend_persistence_failed] {
-                    friend_persistence_failed.store(true);
+                    if(!friend_persistence_failed.exchange(true))
+                        spdlog::critical("mutual friend persistence failed; World stopped for reconciliation");
                     io.stop();
                 });
             item_state_repo =

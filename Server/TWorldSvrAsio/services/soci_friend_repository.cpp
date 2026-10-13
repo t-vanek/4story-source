@@ -8,6 +8,7 @@
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
 #include <bit>
+#include <stdexcept>
 
 namespace tworldsvr {
 

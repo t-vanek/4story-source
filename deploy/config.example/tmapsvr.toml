@@ -28,3 +28,5 @@ drain_ms = 2000
 
 [log]
 level = "info"
+# Native Map now requires written migrations001-067 and existing runtime/social
+# grants plus deploy/sql/soulmate-runtime-grants.sql during later acceptance.

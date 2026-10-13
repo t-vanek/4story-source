@@ -92,12 +92,20 @@ bool PostgreSQLMapService::PrepareTransfer(const MapSessionClaim& c,const CharSn
             soci::use(target,"target"),soci::use(hex,"body"),soci::into(found);
         if(!sql.got_data())return false;tx->commit();return true;
     }
-    sql<<"SELECT 1 FROM app_world.map_checkpoints WHERE world_id=:w AND char_id=:c AND user_id=:u AND session_key=:k "
+    int recovery_contract=0;
+    sql<<"SELECT recovery_contract FROM app_world.map_checkpoints WHERE world_id=:w AND char_id=:c AND user_id=:u AND session_key=:k "
          "AND server_id=:s AND owner_token=:t AND connection_id=:g AND authority_epoch=:e AND outcome='active' AND recovery_contract IN (1,2,3,4) "
          "AND app_world.map_checkpoint_matches(map_checkpoints) FOR UPDATE",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(user,"u"),soci::use(key,"k"),soci::use(source,"s"),
-        soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(epoch,"e"),soci::into(found);
+        soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(epoch,"e"),soci::into(recovery_contract);
     if(!sql.got_data())return false;
+    // The frozen body must be this sampled snapshot's complete graph; a core
+    // fingerprint alone does not authorize a different buff/inventory graph.
+    SkillCooldownTracker frozen_timers;frozen_timers.Restore(c.char_id,snapshot.payload->skills,0);
+    if(transfer::Encode(transfer::Capture(snapshot,c.key,frozen_timers,0))!=std::vector<std::byte>(body.begin(),body.end()))return false;
+    auto baseline=snapshot;
+    if(recovery_contract!=2){auto p=std::make_shared<CharacterPayload>(*snapshot.payload);p->transfer_state.reset();baseline.payload=std::move(p);}
+    ValidateInventoryState(sql,c,baseline,recovery_contract!=2);
     std::string target_token;long long target_connection=0;
     // No target-owner row lock after the account lock. Replacement may invalidate
     // this prepared token; target consumption independently fences its own owner.

@@ -4,7 +4,27 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
+Latest local source-reviewed increment based on `75125a2` connects original
+SEARCH21532/READY21538/REG21534 through native Map/World offers. Existing MW
+layouts are unchanged; receipt IDs/owner/key/connection/epoch metadata stay in
+PostgreSQL. SEARCH/REG replies retain their BYTE result, DWORD target, original
+string, DWORD region and three DWORD purse fields even on failure, as the
+original server sends; the independent client consumes purse only on success.
+READY remains BYTE/string/BYTE/BYTE. MONEY precedes economic success, and
+source title/caller ordering and secure-before-decode guards are preserved.
+No `MW_SOULMATE_ACK` body is invented. Cache polling emits no duplicate success.
+Initial level-gap END now waits for ready-primary maintenance; source level0
+guild lookup is restored. These timing/atomicity differences require subsequent
+acceptance. World relay message entries now use the source DWORD key plus STRING
+value; the native51-row catalog retains original bytes. TMS no-receiver text
+retains the uppercase eight-hex-digit BuildNetString envelope, and event
+announcements use the published operator name. Maintained effects now sample
+exact milliseconds at checkpoint/logout/transfer without extra wire fields;
+transfer expiry sends original SKILLEND. Full Map chat/TMS and general effect
+simulation remain open. No build, service, test or client ran, and real executable compatibility
+remains unverified. [Exact source comparisons and acceptance plan](evidence/phase-a-source-review-20261013/README.md).
+
+Earlier code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
 soulmate persistence (written migration066), original Map friend/group relays,
 conditional soulmate FRIENDLIST fields and Map soulmate state/end handling.
 Native social/mail transactions fence the current World; social writes also

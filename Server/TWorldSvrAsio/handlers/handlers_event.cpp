@@ -81,12 +81,11 @@ OnEventQuarterNotifyReq(std::shared_ptr<PeerSession> peer,
     }
 
     // Broadcast the announcement as a world-chat line from the
-    // operator. The operator display name (legacy GetSvrMsg(
-    // NAME_OPERATOR)) is deferred — same server-message-table gap as
-    // the W4-5 operator-whisper — so the sender name is left empty.
+    // operator, using the original published NAME_OPERATOR bytes.
+    const auto operator_name=ServerMessage(ctx.server_messages,kOperatorNameMessage);
     for (auto& p : ctx.peers->Snapshot())
         co_await senders::SendMwChatReq(p, /*char_id=*/0, /*key=*/0,
-            /*channel=*/0, /*sender_id=*/0, /*sender_name=*/std::string{},
+            /*channel=*/0, /*sender_id=*/0, operator_name,
             kCountryNeutral, kCountryNeutral, /*type=*/chat::kWorld,
             /*group=*/chat::kWorld, /*target_id=*/0, announce);
     co_return;

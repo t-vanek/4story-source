@@ -181,11 +181,8 @@ OnTmsSendAck(std::shared_ptr<PeerSession> peer,
                     p, t_id, t_key, char_id, key, tms_id, message);
             co_return;
         }
-        // No receiver: legacy substitutes a localized server message
-        // (TMS_NORECEIVER); the server-message table isn't ported, so
-        // the message is blanked (same deferral as the chat operator
-        // sub-case) and echoed back to the lone member.
-        message.clear();
+        // Source uses its localized text inside BuildNetString(NAME_NULL,...).
+        message=ServerNetString({},ServerMessage(ctx.server_messages,kTmsNoReceiverMessage));
     }
 
     co_await BroadcastRecv(ctx, member_ids, tms_id, sender.name, message);
@@ -247,7 +244,7 @@ OnTmsInviteAskAck(std::shared_ptr<PeerSession> peer,
         }
     }
     else
-        message.clear();   // NORECEIVER — see OnTmsSendAck note
+        message=ServerNetString({},ServerMessage(ctx.server_messages,kTmsNoReceiverMessage));
 
     co_await BroadcastRecv(ctx, MemberIds(group), tms_id, sender.name,
                            message);

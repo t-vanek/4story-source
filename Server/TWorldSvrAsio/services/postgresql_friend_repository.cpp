@@ -103,6 +103,19 @@ void PostgreSQLFriendRepository::GuardActor(soci::session& sql,std::uint32_t cha
          soci::use(m_world,"w"),soci::use(id,"c"),soci::use(key,"k"),soci::use(server,"s"),soci::use(load,"loading"),soci::into(found);
     if(!sql.got_data()||found!=1)throw StaleActor{};
 }
+bool PostgreSQLFriendRepository::AuthorizeSoulmateOffer(soci::session& sql,std::uint32_t character,
+                                                       std::uint32_t target,FriendAuthority a) {
+    try {
+        LockActors(sql,character,target,a,target!=0);
+        if(!target){GuardActor(sql,character,a);return true;}
+        if(character<target) {
+            GuardActor(sql,character,a);GuardActor(sql,target,{a.other_key,a.other_server});
+        } else {
+            GuardActor(sql,target,{a.other_key,a.other_server});GuardActor(sql,character,a);
+        }
+        return true;
+    } catch(const StaleActor&) {return false;}
+}
 FriendLoad PostgreSQLFriendRepository::LoadForChar(std::uint32_t character,FriendAuthority a) {
     std::lock_guard guard(m_mutex);if(m_failed)throw std::runtime_error("Native social persistence stopped");
     try {
@@ -212,8 +225,14 @@ bool PostgreSQLFriendRepository::Mutate(const std::string& kind,std::uint32_t ch
             soci::use(m_world,"w"),soci::use(id,"c"),soci::use(other,"t");
         else if(kind=="soulmate_del")sql<<"DELETE FROM app_world.\"TSOULMATETABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c AND \"dwTarget\"=:t",
             soci::use(m_world,"w"),soci::use(id,"c"),soci::use(other,"t");
-        else if(kind=="soulmate_end")sql<<"UPDATE app_world.\"TSOULMATETABLE\" SET \"dwTime\"=:time WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c",
-            soci::use(stamp,"time"),soci::use(m_world,"w"),soci::use(id,"c");
+        else if(kind=="soulmate_end") {
+            int changed=0;
+            sql<<"WITH ended AS (UPDATE app_world.\"TSOULMATETABLE\" SET \"dwTime\"=:time "
+                "WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c AND (:target=0 OR \"dwTarget\"=:target) AND \"dwTime\"=0 RETURNING 1) "
+                "SELECT count(*) FROM ended",soci::use(stamp,"time"),soci::use(m_world,"w"),soci::use(id,"c"),
+                soci::use(other,"target"),soci::into(changed);
+            if(changed!=1)return false;
+        }
         else throw std::logic_error("Unknown native social operation");
         // One audit entry per accepted invocation, not a hash of request bytes.
         // Identical valid repeated commands remain distinct source actions.
@@ -234,4 +253,5 @@ bool PostgreSQLFriendRepository::EraseFriend(std::uint32_t c,std::uint32_t f,Fri
 bool PostgreSQLFriendRepository::RegSoulmate(std::uint32_t c,std::uint32_t t,FriendAuthority a){return Mutate("soulmate_reg",c,t,0,"",0,a);}
 bool PostgreSQLFriendRepository::DelSoulmate(std::uint32_t c,std::uint32_t t,FriendAuthority a){return Mutate("soulmate_del",c,t,0,"",0,a);}
 bool PostgreSQLFriendRepository::EndSoulmate(std::uint32_t c,std::uint32_t time,FriendAuthority a){return Mutate("soulmate_end",c,0,0,"",time,a);}
+bool PostgreSQLFriendRepository::EndSoulmateExact(std::uint32_t c,std::uint32_t target,std::uint32_t time,FriendAuthority a){return Mutate("soulmate_end",c,target,0,"",time,a);}
 }

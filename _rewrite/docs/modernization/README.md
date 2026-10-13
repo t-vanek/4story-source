@@ -1,5 +1,22 @@
 # Modern server implementation status
 
+Latest local Phase A work (2026-10-13), based on `75125a2`: original soulmate
+SEARCH/REGREADY/REG now use fenced native offers and atomic Map purse/caller/link/
+checkpoint finalization, followed by original packets. Ready-primary World
+maintenance handles source initial level gaps and cache-only committed receipts.
+Written067/068 add soulmate offers and verified native guild-level publication;
+World selects the typed15-column loader and the cache retains source level0.
+**INTEGRATED_UNVERIFIED**, with written tools/SQL **IMPLEMENTED_UNVERIFIED**.
+No build, test, migration, importer, service, client or container was executed;
+historical build/test results do not cover this code. Full native World bootstrap,
+guild gameplay, soulmate party XP/HP and the complete original inventory remain
+required. [Source audit, integration boundaries and deferred acceptance](evidence/phase-a-source-review-20261013/README.md).
+The same increment reuses059's full server-message publication for World relay/
+event/TMS texts and repairs relay DWORD keys. Maintained effects now persist
+exact sampled timers at periodic checkpoint/logout/transfer. Full client chat/
+TMS, general expiry producers and source save filters remain open; no historical
+build/test evidence is transferred to these additions.
+
 Updated 2026-10-13 (Europe/Prague). Target: original client → compatible C++20 server → native
 PostgreSQL, primarily Linux containers. The overall reimplementation is **in
 progress**. No claim of complete gameplay or real-client compatibility is made.
@@ -25,7 +42,7 @@ The [working status](full-rewrite-status.md) records changed production paths as
 unverified and tracks the remaining implementation gate. Historical results below
 belong to their stated revisions and scopes.
 
-Code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
+Earlier code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
 soulmate persistence (written migration066), original Map friend/group relays,
 conditional soulmate FRIENDLIST fields and Map soulmate state/end handling.
 Native social/mail transactions fence the current World; social writes also

@@ -115,6 +115,8 @@ public:
                              std::uint32_t target, FriendAuthority authority = {}) = 0;
     // Stamp this char's existing row for the source silence period.
     virtual bool EndSoulmate(std::uint32_t char_id, std::uint32_t time, FriendAuthority authority = {}) = 0;
+    virtual bool EndSoulmateExact(std::uint32_t char_id,std::uint32_t target,std::uint32_t time,FriendAuthority authority = {})
+    {return EndSoulmate(char_id,time,authority);}
     // Delete only this char's row when it points at `target`.
     virtual bool DelSoulmate(std::uint32_t char_id,
                              std::uint32_t target, FriendAuthority authority = {}) = 0;

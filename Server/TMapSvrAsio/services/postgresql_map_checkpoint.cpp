@@ -77,6 +77,21 @@ bool PostgreSQLMapService::MaintainCheckpointMatches(soci::session& sql,const Ma
         soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"effects"),soci::into(matches);
     return matches==1;
 }
+void PostgreSQLMapService::CheckMaintainedTimers(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    if(!s.payload)throw std::runtime_error("Maintained timers require native hydration");
+    const int world=c.group,character=c.char_id;std::vector<MaintainedEffect> stored;
+    soci::rowset<soci::row> rows=(sql.prepare<<
+        "SELECT skill_id,skill_level,remaining,attack_type,attack_id,host_type,host_id,attack_country "
+        "FROM app_world.map_maintained_effects WHERE world_id=:w AND char_id=:c ORDER BY ordinal FOR UPDATE",
+        soci::use(world,"w"),soci::use(character,"c"));
+    for(const auto& row:rows) {
+        MaintainedEffect e;e.skill=static_cast<std::uint16_t>(row.get<int>(0));e.level=static_cast<std::uint8_t>(row.get<int>(1));
+        e.remaining=static_cast<std::uint32_t>(row.get<long long>(2));e.attack_type=static_cast<std::uint8_t>(row.get<int>(3));
+        e.attack_id=static_cast<std::uint32_t>(row.get<long long>(4));e.host_type=static_cast<std::uint8_t>(row.get<int>(5));
+        e.host_id=static_cast<std::uint32_t>(row.get<long long>(6));e.attack_country=static_cast<std::uint8_t>(row.get<int>(7));stored.push_back(e);
+    }
+    CheckMaintainedProjection(stored,*s.payload);
+}
 void PostgreSQLMapService::WriteMaintainedEffects(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     const int world=c.group,character=c.char_id;const auto json=MaintainJson(s);
     sql<<"DELETE FROM app_world.map_maintained_effects WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c");
@@ -97,7 +112,8 @@ void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSess
     CheckItemCooldowns(sql,c,s);
     WriteItemCooldowns(sql,c,s);
     const int world=c.group,character=c.char_id;const auto skills=OrderedSkills(s);
-    if(!MaintainCheckpointMatches(sql,c,s))throw std::runtime_error("Core checkpoint cannot mutate maintained effects");
+    CheckMaintainedTimers(sql,c,s);
+    WriteMaintainedEffects(sql,c,s);
     // This operation only persists timers. Learning, forgetting or changing a
     // rank must not be smuggled through a core save. Lock and validate every row
     // before writing, preserving the source signed SMALLINT/INT bit patterns.
@@ -163,6 +179,7 @@ void PostgreSQLMapService::CheckpointAuthorized(const MapSessionClaim& claim,con
     if(!r.found||!r.core_matches||r.outcome!="active")throw std::runtime_error("Native checkpoint receipt missing or durable state drifted");
     if(revision==static_cast<std::uint64_t>(r.revision)&&fingerprint==r.fingerprint&&TransferFingerprint(claim,s)==r.transfer_hash&&((r.contract!=3&&r.contract!=4)||SkillCheckpointMatches(sql,claim,s))){tx->commit();return;}
     if(revision!=static_cast<std::uint64_t>(r.revision)+1)throw std::runtime_error("Native checkpoint revision conflict");
+    if(s.payload->transfer_state)ValidateInventoryState(sql,claim,s,false);
     WriteCore(sql,claim,s,0);RecordCheckpoint(sql,claim,static_cast<long long>(revision),fingerprint,"active");StoreTransferCheckpoint(sql,claim,s);tx->commit();
 }
 void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const CharSnapshot& s){
@@ -200,6 +217,11 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
             soci::use(world,"w"),soci::use(character,"c"),soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),
             soci::use(epoch,"e"),soci::use(fingerprint,"f"),soci::into(cancelled);
         if(!sql.got_data())throw std::runtime_error("Frozen transfer changed before abort save");
+    }
+    if(phase!="transferring"&&s.payload->transfer_state) {
+        auto baseline=s;
+        if(r.contract!=2){auto p=std::make_shared<CharacterPayload>(*s.payload);p->transfer_state.reset();baseline.payload=std::move(p);}
+        ValidateInventoryState(sql,claim,baseline,r.contract!=2);
     }
     WriteCore(sql,claim,s,1);RecordCheckpoint(sql,claim,r.revision+1,fingerprint,"logout");
     if(phase=="transferring") {
@@ -502,9 +524,13 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool mail_get=message==MessageId::CS_POSTGETITEM_REQ;
     const bool mail=mail_get||message==MessageId::CS_POSTLIST_REQ||message==MessageId::CS_POSTVIEW_REQ||message==MessageId::CS_POSTDEL_REQ||message==MessageId::CS_POSTRETURN_REQ;
     const bool lottery=message==MessageId::CS_SOULLOTTERY_REQ||message==MessageId::CS_SOULLOTTERY_TRIGGER_REQ;
+    const bool soulmate=message==MessageId::CS_SOULMATESEARCH_REQ||message==MessageId::CS_SOULMATEREG_REQ||
+        message==MessageId::CS_SOULMATEREGREADY_REQ||message==MessageId::MW_SOULMATESEARCH_REQ||message==MessageId::MW_SOULMATEREG_REQ;
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry||mail_poll) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(soulmate) {
+        if(body.size()>65527)throw std::runtime_error("Invalid soulmate request length");
     } else if(mail_send||protected_change) {
         if(message==MessageId::CS_PROTECTEDOPTION_REQ) {
             if(body.size()!=5)throw std::runtime_error("Invalid PROTECTEDOPTION request length");
@@ -542,7 +568,8 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
         throw std::runtime_error("Quest mutation requires authoritative primary");
     if(facts.map!=before.wMapID||facts.channel!=c.channel)throw std::runtime_error("Quest event Map context changed");
     auto lease=m_pool.Acquire();auto& sql=*lease;
-    auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token,false,soulmate);
+    if(soulmate)LockNativeSoulmateTarget(sql,c,opcode,body);
     std::string phase;
     if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Quest claim is not ready");
     CheckCatalogs(sql);
@@ -552,13 +579,18 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     sql << "SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(current);
     if(!sql.got_data())throw std::runtime_error("Quest session revoked");
     ValidateInventoryState(sql,c,before,true);
+    if(progress_tick||mail_poll)CheckNativeSoulmateDeadline(sql,c);
     QuestCommit committed;
     auto after=before;auto payload=std::make_shared<CharacterPayload>(*before.payload);after.payload=payload;
     payload->event_ms=facts.sample_ms;payload->event_time=std::time(nullptr);
     quest_runtime::HydrateLevels(*payload,chart);
     bool other_state_changed=false;
+    std::optional<SoulmateOfferCommit> soulmate_offer;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
-    if(mail_poll) {
+    if(soulmate) {
+        other_state_changed=ChangeNativeSoulmate(sql,c,after,opcode,body,facts,committed.packets,soulmate_offer);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(mail_poll) {
         other_state_changed=PollNativeMail(sql,c,after,committed.packets);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
     }else if(protected_change) {
@@ -928,6 +960,14 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
         soci::use(m_config.owner_token,"token"),soci::use(generation,"generation"),soci::use(epoch,"epoch"),soci::use(op,"op"),
         soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::use(events,"events"),soci::use(before_pvp,"before_pvp"),soci::use(after_pvp,"after_pvp"),soci::into(operation);
     payload->last_quest_id=static_cast<std::uint64_t>(operation);
+    if(soulmate_offer) {
+        const auto id=soulmate_offer->id;const auto status=soulmate_offer->linked?std::string{"consumed"}:std::string{"cancelled"};
+        long long finalized=0;
+        sql<<"UPDATE app_world.soulmate_offers SET status=:status,committed_operation_id=:op,consumed_at=clock_timestamp() "
+             "WHERE offer_id=:id AND status='prepared' RETURNING offer_id",
+            soci::use(status,"status"),soci::use(operation,"op"),soci::use(id,"id"),soci::into(finalized);
+        if(!sql.got_data()||finalized!=id)throw std::runtime_error("Soulmate offer finalization changed");
+    }
     WriteQuestProgress(sql,c,after);
     if(!after.payload->transfer_state)WriteMaintainedEffects(sql,c,after);
     WriteDuringItems(sql,c,after);

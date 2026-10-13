@@ -5,12 +5,15 @@
 #include "services/player_service.h"
 #include "services/main_transfer_runtime.h"
 #include "services/main_transfer_codec.h"
+#include "services/maintained_effects.h"
+#include "services/client_senders.h"
 #include "services/world_client.h"
 #include "services/world_senders.h"
 #include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
 #include "MessageId.h"
 #include <cmath>
+#include <chrono>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -38,9 +41,11 @@ boost::asio::awaitable<void> OnMWReleaseMainReq(std::vector<std::byte> body,cons
     std::optional<CharSnapshot> frozen;
     try {frozen=ctx.char_state->Freeze(cid,[&](CharSnapshot& s){
         s.fPosX=x;s.fPosY=y;s.fPosZ=z;
+        const auto now=SkillClockMs();
+        s=transfer::PersistenceSnapshot(s,key,*ctx.skill_cooldown,now,true);
         auto p=std::make_shared<CharacterPayload>(*s.payload);
-        auto graph=std::make_shared<transfer::State>(transfer::Capture(s,key,*ctx.skill_cooldown,SkillClockMs()));
-        p->skills=graph->skills;p->transfer_state=std::move(graph);s.payload=std::move(p);
+        auto graph=std::make_shared<transfer::State>(transfer::Capture(s,key,*ctx.skill_cooldown,now));
+        p->skills=graph->skills;p->transfer_state=std::move(graph);p->transfer_received_ms=now;s.payload=std::move(p);
     });}catch(...){client->Close();co_return;}
     if(!frozen){client->Close();co_return;}
     std::vector<std::byte> encoded;
@@ -55,6 +60,20 @@ boost::asio::awaitable<void> OnMWReleaseMainReq(std::vector<std::byte> body,cons
     operation.Finish();
     if(!prepared){client->Close();co_return;}
     if(!client->IsOpen())co_return;
+    // RELEASEMAIN samples and omits expired effects, then broadcasts their
+    // original SKILLEND notification. It does not grant automatic EXP or run
+    // the periodic 903 entitlement renewal merely because a transfer occurs.
+    const auto& sample=*frozen->payload->effect_sample;
+    std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{client};
+    const auto cell=[](float value)->int{return std::isfinite(value)&&value>=0&&value<65536?static_cast<std::uint16_t>(value)/64:-10000;};
+    if(ctx.presence)ctx.presence->ForEachInChannel(channel,cid,[&](const ChannelPresenceEntry& entry,auto session){
+        if(entry.map_id==map&&std::abs(cell(entry.pos.x)-cell(x))<=1&&std::abs(cell(entry.pos.z)-cell(z))<=1)
+            neighbors.push_back(std::move(session));
+    });
+    for(const auto& e:sample.before)if(e.remaining&&sample.at_ms-e.sampled_ms>=e.remaining) {
+        const auto packet=EncodeSkillEnd(cid,e.skill);
+        for(auto& session:neighbors)co_await session->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SKILLEND_ACK),packet);
+    }
     if(!co_await ctx.world_client->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::MW_RELEASEMAIN_ACK),std::move(encoded)))client->Close();
 }
 

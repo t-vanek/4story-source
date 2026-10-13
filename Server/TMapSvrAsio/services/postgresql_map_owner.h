@@ -20,6 +20,6 @@ private:
     int m_world{},m_server{},m_backend_pid{},m_orphaned{},m_recovered{};
 };
 std::unique_ptr<soci::transaction> BeginMapTransaction(soci::session& sql,
-    int world, int server, const std::string& token, bool repeatable_read=false);
+    int world, int server, const std::string& token, bool repeatable_read=false, bool world_fence=false);
 int RecoverPreparedMapTransfers(soci::session&,int world,int server,const std::string& new_token);
 }

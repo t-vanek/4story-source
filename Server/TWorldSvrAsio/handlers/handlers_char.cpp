@@ -810,8 +810,8 @@ OnLevelUpAck(std::shared_ptr<PeerSession>  peer,
         auto main=ctx.peers->Find(static_cast<std::uint16_t>(0x0400U|server));if(!main)continue;
         if(ctx.friend_repo) {
             const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
-                [repo=ctx.friend_repo,owner_id,owner_key,server,ended]
-                {return repo->EndSoulmate(owner_id,ended,{owner_key,server});});
+                [repo=ctx.friend_repo,owner_id,owner_key,server,ended,target]
+                {return repo->EndSoulmateExact(owner_id,target,ended,{owner_key,server});});
             if(!saved)continue;
         }
         if(ctx.chars->Find(owner_id)!=owner||ctx.peers->Find(main->Wid())!=main)continue;

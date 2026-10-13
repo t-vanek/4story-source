@@ -1,4 +1,5 @@
 #include "services/main_transfer_runtime.h"
+#include "services/maintained_effects.h"
 #include "services/item_expiration.h"
 #include "services/posture_effects.h"
 #include <algorithm>
@@ -556,12 +557,29 @@ int main(int argc, char** argv)
                         tmapsvr::SessionOperation checkpoint_operation(session_reg,client.get());
                         auto snap=char_state.Get(identity.char_id);
                         if(!snap){client->Close();continue;}
+                        const auto sampled_at=tmapsvr::SkillClockMs();
+                        try {
+                            // The source periodic timer runs CheckMaintainSkill
+                            // before SAVECHAR. Let the native progression timer
+                            // perform expiry/903 renewal before this core save.
+                            if(!snap->payload||!tmapsvr::ExpiredMaintainedSkills(*snap->payload,sampled_at).empty())continue;
+                        }catch(...){client->Close();continue;}
                         const auto revision=revisions[{identity.connection_id,identity.authority_epoch}]+1;
                         ++background_operations;
                         try {
-                        *snap=tmapsvr::transfer::PersistenceSnapshot(*snap,identity.key,skill_cooldown,tmapsvr::SkillClockMs());
+                            *snap=tmapsvr::transfer::PersistenceSnapshot(*snap,identity.key,skill_cooldown,sampled_at,true);
                             co_await fourstory::db::CoOffloadVoidIf(db_thread_pool.get(),[&native_map,&snap,claim=identity.Claim(ctx.expected_group),revision]{
                                 native_map->CheckpointAuthorized(claim,*snap,revision);
+                            });
+                            // Publish only the acknowledged timer observations.
+                            // Movement can update the live core while DB awaits.
+                            char_state.Update(identity.char_id,[&](tmapsvr::CharSnapshot& live_state){
+                                if(!live_state.payload)return;
+                                auto p=std::make_shared<tmapsvr::CharacterPayload>(*live_state.payload);
+                                p->effects=snap->payload->effects;p->effect_sample.reset();
+                                if(p->transfer_state){auto graph=std::make_shared<tmapsvr::transfer::State>(*p->transfer_state);
+                                    graph->buffs=*p->effects;p->transfer_state=std::move(graph);}
+                                live_state.payload=std::move(p);
                             });
                             revisions[{identity.connection_id,identity.authority_epoch}]=revision;
                         }catch(...){

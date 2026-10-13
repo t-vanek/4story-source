@@ -40,6 +40,7 @@ public:
     SkillCastCommit CommitSkillCast(const MapSessionClaim&,const SkillCastRequest&,const CharSnapshot&,const CharSnapshot&) override;
     SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) override;
     bool ConfirmReplicaLevel(const MapSessionClaim&,std::uint8_t) override;
+    bool ConfirmSoulmateState(const MapSessionClaim&,std::uint32_t,const std::string&,std::uint32_t) override;
     QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) override;
     TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
@@ -100,6 +101,11 @@ private:
     static void EarnNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,QuestPackets&);
     static bool UseNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,bool,QuestPackets&);
     static bool ChangeSoulLottery(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,QuestPackets&);
+    void LockNativeSoulmateTarget(soci::session&,const MapSessionClaim&,std::uint16_t,std::span<const std::byte>) const;
+    struct SoulmateOfferCommit {long long id{};bool linked{};};
+    bool ChangeNativeSoulmate(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,
+        std::span<const std::byte>,const QuestMapFacts&,QuestPackets&,std::optional<SoulmateOfferCommit>&) const;
+    void CheckNativeSoulmateDeadline(soci::session&,const MapSessionClaim&) const;
     static void DebitNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,std::uint8_t,std::uint64_t,std::uint8_t,QuestPackets&);
     static PvpBalance ReadPvpBalance(soci::session&,const MapSessionClaim&);
     static void HydratePvpBalance(soci::session&,const MapSessionClaim&,CharacterPayload&);
@@ -133,6 +139,7 @@ private:
     static void StoreSkillCheckpoint(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static bool SkillCheckpointMatches(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static bool MaintainCheckpointMatches(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static void CheckMaintainedTimers(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static void WriteMaintainedEffects(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     void StoreTransferCheckpoint(soci::session&,const MapSessionClaim&,const CharSnapshot&) const;
     std::string TransferFingerprint(const MapSessionClaim&,const CharSnapshot&) const;

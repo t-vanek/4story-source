@@ -13,7 +13,18 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
     if(pool.GetBackend()!=fourstory::db::Backend::PostgreSQL||!Hash(m_config.owner_token)||
        !Hash(m_config.character_manifest)||!Hash(m_config.routing_manifest)||!Hash(m_config.actor_manifest))
         throw std::runtime_error("Native Map requires owned PostgreSQL and all verified catalog hashes");
-    try{auto lease=pool.Acquire();soci::transaction tx(*lease);*lease<<"SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY";CheckCatalogs(*lease);tx.commit();}
+    try{auto lease=pool.Acquire();soci::transaction tx(*lease);*lease<<"SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY";
+        CheckCatalogs(*lease);
+        // These native paths require migration 067. Keep all existing catalog
+        // checks and reject a missing social/offer schema before accepting TCP.
+        int columns=0;
+        *lease<<"SELECT count(*) FROM (SELECT owner_token,backend_pid FROM app_world.world_runtime_owner WHERE false) required",soci::into(columns);
+        *lease<<"SELECT count(*) FROM (SELECT \"dwTarget\",\"dwTime\" FROM app_world.\"TSOULMATETABLE\" WHERE false) required",soci::into(columns);
+        *lease<<"SELECT count(*) FROM (SELECT offer_id,world_id,char_id,session_key,source_server,map_owner_token,"
+            "connection_id,authority_epoch,request_opcode,request,world_owner_token,response_opcode,response,target_id,target_name,"
+            "target_region,target_level,target_class,target_session_key,target_server,status,committed_operation_id,created_at,prepared_at,consumed_at "
+            "FROM app_world.soulmate_offers WHERE false) required",soci::into(columns);
+        tx.commit();}
     catch(...){throw std::runtime_error("Native Map schema/catalog validation failed");}
 }
 void PostgreSQLMapService::CheckCatalogs(soci::session& sql) const {

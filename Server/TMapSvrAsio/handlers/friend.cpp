@@ -5,6 +5,8 @@
 #include "services/session_registry.h"
 #include "services/world_client.h"
 #include "services/secure_code.h"
+#include "services/player_service.h"
+#include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
 #include "MessageId.h"
 #include <boost/asio/steady_timer.hpp>
@@ -129,12 +131,40 @@ boost::asio::awaitable<void> OnWorldFriendReq(std::uint16_t opcode,std::vector<s
     if(!client->IsOpen()||!current||current->key!=key||current->connection_id!=identity->connection_id||current->role!=MapSessionRole::Primary||
        (current->phase!=SessionPhase::Loaded&&current->phase!=SessionPhase::Admitted&&current->phase!=SessionPhase::Ready))co_return;
     const auto state=ctx.char_state->Get(character);if(!state||!state->payload||state->persistence_uncertain)co_return;
+    if(static_cast<MessageId>(opcode)==MessageId::MW_SOULMATESEARCH_REQ||static_cast<MessageId>(opcode)==MessageId::MW_SOULMATEREG_REQ) {
+        if(current->phase!=SessionPhase::Ready)co_return;
+        // The original request lease ended after its World relay. Take an
+        // exclusive checkpoint lease for its delayed, atomic Map finalizer.
+        while(!ctx.session_reg->BeginCheckpoint(client.get())) {
+            if(std::chrono::steady_clock::now()>=deadline){client->Close();co_return;}
+            const auto now=ctx.session_reg->Identity(client.get());
+            if(!client->IsOpen()||!now||now->phase!=SessionPhase::Ready||now->role!=MapSessionRole::Primary||
+               now->key!=key||now->connection_id!=identity->connection_id)co_return;
+            wait.expires_after(std::chrono::milliseconds(5));co_await wait.async_wait(boost::asio::use_awaitable);
+        }
+        SessionOperation operation(*ctx.session_reg,client.get());
+        co_await OnNativeQuestReq(client,opcode,std::move(body),ctx);co_return;
+    }
     MessageId response{};std::string name;std::uint8_t result=0,group=0,level=0,klass=0,connected=0,count=0;
     switch(static_cast<MessageId>(opcode)) {
     case MessageId::MW_SOULMATE_REQ: {
         std::uint32_t silence=0;
         if(!r.Read(target)||!r.ReadString(name)||!r.Read(silence)||!r.Eof())throw std::runtime_error("Invalid soulmate state");
         Text(name);
+        while(!ctx.session_reg->BeginProjection(client.get())) {
+            if(std::chrono::steady_clock::now()>=deadline){client->Close();co_return;}
+            const auto now=ctx.session_reg->Identity(client.get());
+            if(!client->IsOpen()||!now||now->key!=key||now->connection_id!=identity->connection_id||now->role!=MapSessionRole::Primary||
+               (now->phase!=SessionPhase::Loaded&&now->phase!=SessionPhase::Admitted&&now->phase!=SessionPhase::Ready))co_return;
+            wait.expires_after(std::chrono::milliseconds(5));co_await wait.async_wait(boost::asio::use_awaitable);
+        }
+        SessionOperation projection(*ctx.session_reg,client.get());
+        if(!ctx.player_service)throw std::runtime_error("Soulmate projection authority unavailable");
+        auto* service=ctx.player_service;
+        const auto confirmed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [service,claim=current->Claim(ctx.expected_group),target,name,silence]{return service->ConfirmSoulmateState(claim,target,name,silence);});
+        const auto now=ctx.session_reg->Identity(client.get());
+        if(!confirmed||!client->IsOpen()||!now||now->role!=MapSessionRole::Primary||now->key!=key||now->connection_id!=identity->connection_id)co_return;
         ctx.char_state->Update(character,[&](CharSnapshot& s){
             s.cluster.soulmate=target;s.cluster.soulmate_name=name;s.cluster.soul_silence=silence;
         });
@@ -148,6 +178,23 @@ boost::asio::awaitable<void> OnWorldFriendReq(std::uint16_t opcode,std::vector<s
     case MessageId::MW_SOULMATEEND_REQ: {
         std::uint32_t silence=0;
         if(!r.Read(result)||!r.Read(silence)||!r.Eof())throw std::runtime_error("Invalid soulmate end result");
+        std::optional<SessionOperation> projection;
+        if(result==0) {
+            while(!ctx.session_reg->BeginProjection(client.get())) {
+                if(std::chrono::steady_clock::now()>=deadline){client->Close();co_return;}
+                const auto now=ctx.session_reg->Identity(client.get());
+                if(!client->IsOpen()||!now||now->key!=key||now->connection_id!=identity->connection_id||now->role!=MapSessionRole::Primary||
+                   (now->phase!=SessionPhase::Loaded&&now->phase!=SessionPhase::Admitted&&now->phase!=SessionPhase::Ready))co_return;
+                wait.expires_after(std::chrono::milliseconds(5));co_await wait.async_wait(boost::asio::use_awaitable);
+            }
+            projection.emplace(*ctx.session_reg,client.get());
+            if(!ctx.player_service)throw std::runtime_error("Soulmate end projection authority unavailable");
+            auto* service=ctx.player_service;
+            const auto confirmed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [service,claim=current->Claim(ctx.expected_group),silence]{return service->ConfirmSoulmateState(claim,0,{},silence);});
+            const auto now=ctx.session_reg->Identity(client.get());
+            if(!confirmed||!client->IsOpen()||!now||now->role!=MapSessionRole::Primary||now->key!=key||now->connection_id!=identity->connection_id)co_return;
+        }
         if(result==0)ctx.char_state->Update(character,[&](CharSnapshot& s){
             s.cluster.soulmate=0;s.cluster.soulmate_name.clear();s.cluster.soul_silence=silence;
         });

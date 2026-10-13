@@ -9,7 +9,7 @@ boost::asio::awaitable<void>
 SendRwRelaysvrAck(std::shared_ptr<PeerSession>      peer,
                   std::uint8_t                       nation,
                   const std::vector<std::uint32_t>&  operators,
-                  const std::map<std::string, std::string>& svr_msgs)
+                  const std::map<std::uint32_t, std::string>& svr_msgs)
 {
     using namespace wire;
     std::vector<std::byte> body;
@@ -20,7 +20,7 @@ SendRwRelaysvrAck(std::shared_ptr<PeerSession>      peer,
     WritePOD<std::uint16_t>(body, static_cast<std::uint16_t>(svr_msgs.size()));
     for (const auto& [k, v] : svr_msgs)
     {
-        WriteString(body, k);
+        WritePOD<std::uint32_t>(body, k);
         WriteString(body, v);
     }
     co_await peer->Wire()->SendPacket(

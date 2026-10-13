@@ -59,10 +59,10 @@ int main()
             MakeRow(1, 100,  20, {1, 0, 0, 0, 0}),
             MakeRow(2, 500,  30, {2, 1, 0, 0, 0}),
             MakeRow(5, 4000, 60, {5, 3, 2, 1, 1}),
-            MakeRow(0, 0,    0,  {0, 0, 0, 0, 0}), // dropped
+            MakeRow(0, 0,    0,  {0, 0, 0, 0, 0}), // source supports level zero
             MakeRow(99, 0,   0,  {0, 0, 0, 0, 0}), // dropped (> kMaxGuildLevel)
         });
-        EXPECT(cache.Size() == 3);
+        EXPECT(cache.Size() == 4);
 
         auto* r1 = cache.Find(1);
         EXPECT(r1 != nullptr);
@@ -79,16 +79,21 @@ int main()
             EXPECT(r5->peer_slots[4] == 1);
         }
         EXPECT(cache.Find(3) == nullptr);   // not seeded
-        EXPECT(cache.Find(0) == nullptr);   // sentinel
+        EXPECT(cache.Find(0) != nullptr);
     }
 
     // --- 3: second LoadFrom replaces --------------------------------
     {
         GuildLevelCache cache;
-        cache.LoadFrom({MakeRow(1, 100, 20, {1, 0, 0, 0, 0})});
+        cache.LoadFrom({MakeRow(0, 0, 0, {0, 0, 0, 0, 0}),
+                        MakeRow(1, 100, 20, {1, 0, 0, 0, 0}),
+                        MakeRow(1, 200, 25, {2, 0, 0, 0, 0})});
+        EXPECT(cache.Size() == 2);          // duplicate key replaces, not another level
+        EXPECT(cache.Find(1)->exp == 200);
         EXPECT(cache.Find(1) != nullptr);
         cache.LoadFrom({MakeRow(2, 500, 30, {2, 1, 0, 0, 0})});
         EXPECT(cache.Find(1) == nullptr);   // old row gone
+        EXPECT(cache.Find(0) == nullptr);
         EXPECT(cache.Find(2) != nullptr);
         EXPECT(cache.Size() == 1);
     }

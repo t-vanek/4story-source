@@ -54,12 +54,12 @@ namespace tworldsvr::senders {
 //   WORD operator_count
 //   DWORD operators[operator_count]
 //   WORD msg_count
-//   { STRING key, STRING value } × msg_count
+//   { DWORD key, STRING value } × msg_count
 boost::asio::awaitable<void> SendRwRelaysvrAck(
     std::shared_ptr<PeerSession>      peer,
     std::uint8_t                       nation,
     const std::vector<std::uint32_t>&  operators,
-    const std::map<std::string, std::string>& svr_msgs);
+    const std::map<std::uint32_t, std::string>& svr_msgs);
 
 // --- MW family (guild) ----------------------------------------------
 
@@ -1888,6 +1888,9 @@ boost::asio::awaitable<void> SendMwFriendGroupChangeReq(
 //   Wire (SSSender.cpp): DWORD char_id, key, BYTE result,
 //     DWORD soul_id, STRING soul_name, DWORD region,
 //     BYTE npc_inven, BYTE npc_item
+std::vector<std::byte> EncodeMwSoulmateSearchReq(std::uint32_t char_id,std::uint32_t key,
+    std::uint8_t result,std::uint32_t soul_id,const std::string& soul_name,std::uint32_t region,
+    std::uint8_t npc_inven,std::uint8_t npc_item);
 boost::asio::awaitable<void> SendMwSoulmateSearchReq(
     std::shared_ptr<PeerSession> peer,
     std::uint32_t                char_id,
@@ -1906,6 +1909,9 @@ boost::asio::awaitable<void> SendMwSoulmateReq(std::shared_ptr<PeerSession>,
 // MW_SOULMATEREG_REQ — register/preview result.
 //   Wire: DWORD char_id, key, BYTE result, reg, npc_inven,
 //     npc_item, DWORD soulmate, STRING soul_name, DWORD region
+std::vector<std::byte> EncodeMwSoulmateRegReq(std::uint32_t char_id,std::uint32_t key,
+    std::uint8_t result,std::uint8_t reg,std::uint8_t npc_inven,std::uint8_t npc_item,
+    std::uint32_t soulmate,const std::string& soul_name,std::uint32_t region);
 boost::asio::awaitable<void> SendMwSoulmateRegReq(
     std::shared_ptr<PeerSession> peer,
     std::uint32_t                char_id,

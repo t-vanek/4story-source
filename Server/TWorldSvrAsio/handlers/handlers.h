@@ -52,6 +52,8 @@
 #include "../services/tournament_registry.h"
 #include "../services/tournament_repository.h"
 #include "../services/peer_registry.h"
+#include "../services/postgresql_soulmate_offers.h"
+#include "../services/server_messages.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
@@ -89,6 +91,7 @@ struct HandlerContext
     // in-memory registry is the only store, e.g. the no-[database]
     // dev path + tests that don't seed a fake).
     IFriendRepository*        friend_repo = nullptr;
+    PostgreSQLSoulmateOffers* soulmate_offers = nullptr;
     std::shared_ptr<SocialOperationGate> friend_operations=std::make_shared<SocialOperationGate>();
 
     // W3a-4d: TGUILDCHART mirror loaded at boot. Handlers consult
@@ -96,6 +99,7 @@ struct HandlerContext
     // slot limits). Read-only after main wires it; nullptr means
     // "not loaded" (dev path without [database] + no fake seed).
     const GuildLevelCache*    guild_levels = nullptr;
+    const ServerMessages*     server_messages = nullptr;
 
     // W3a-11: cluster-wide list of "we are recruiting" postings.
     // One entry per guild, filtered cross-country on read. Owned
@@ -228,6 +232,8 @@ struct HandlerContext
 };
 
 namespace handlers {
+
+boost::asio::awaitable<void> RunSoulmateMaintenance(const HandlerContext&,std::int64_t& cursor);
 
 // Top-level dispatch. The session arg now carries map-server
 // identity (wID + nation) once RW_RELAYSVR_REQ has run.

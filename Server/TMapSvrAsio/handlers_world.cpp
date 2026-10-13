@@ -854,6 +854,8 @@ DispatchWorld(std::uint16_t          wId,
     case MessageId::MW_FRIENDCONNECTION_REQ:
     case MessageId::MW_FRIENDREGION_REQ:
     case MessageId::MW_SOULMATE_REQ:
+    case MessageId::MW_SOULMATESEARCH_REQ:
+    case MessageId::MW_SOULMATEREG_REQ:
     case MessageId::MW_SOULMATEEND_REQ:
         co_await OnWorldFriendReq(wId,std::move(body),ctx);break;
     case MessageId::MW_CHARINFO_REQ:

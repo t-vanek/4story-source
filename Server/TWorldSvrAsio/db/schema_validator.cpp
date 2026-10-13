@@ -87,13 +87,17 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
         { "TGUILDMEMBERTABLE", "dwService" },
     });
 
-    // W3a-4d additions: TGUILDCHART (guild-level cap table).
-    // Loaded once at boot into GuildLevelCache; handlers consult
-    // it for per-level member / cabinet / peerage limits. Missing
-    // table = empty cache → CheckPeerage falls back to "always
-    // allow" (legacy refuses without the chart; we relax for dev
-    // setups so a missing migration doesn't brick the binary).
-    fourstory::db::CheckColumns(*lease, "world", {
+    // Native guild-level publication is schema-qualified. The selected
+    // repository additionally validates the complete verified 11-row release.
+    // Keep required unported guild/war/event checks below; this is not a
+    // PostgreSQL-only World-bootstrap bypass.
+    if(pool.GetBackend()==fourstory::db::Backend::PostgreSQL) {
+        int rows=0;
+        *lease<<"SELECT count(*) FROM (SELECT \"bLevel\",\"dwEXP\",\"bMaxCnt\",\"bMinCnt\",\"bCabinetCnt\","
+            "\"bTacticsCnt\",\"bBattleSetCnt\",\"bGuardCnt\",\"bRoyalGuardCnt\",\"bTurretCnt\","
+            "\"bPeer1\",\"bPeer2\",\"bPeer3\",\"bPeer4\",\"bPeer5\" FROM world_compat.\"TGUILDCHART\" WHERE false) c",
+            soci::into(rows);
+    } else fourstory::db::CheckColumns(*lease, "world", {
         { "TGUILDCHART", "bLevel" },
         { "TGUILDCHART", "dwEXP" },
         { "TGUILDCHART", "bMaxCnt" },

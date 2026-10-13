@@ -201,7 +201,7 @@ MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> session)
                 bool saved = false;
                 try {
                 if(ctx.skill_cooldown&&identity->phase!=SessionPhase::TransferOut)
-                    *snap=transfer::PersistenceSnapshot(*snap,identity->key,*ctx.skill_cooldown,SkillClockMs());
+                    *snap=transfer::PersistenceSnapshot(*snap,identity->key,*ctx.skill_cooldown,SkillClockMs(),true);
                     auto* player = ctx.player_service;
                     co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
                         [player, &snap, claim=identity->Claim(ctx.expected_group)] { player->SaveAuthorized(claim,*snap); });

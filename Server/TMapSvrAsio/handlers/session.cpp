@@ -21,8 +21,12 @@
 #include "MessageId.h"
 
 #include <spdlog/spdlog.h>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/this_coro.hpp>
+#include <boost/asio/use_awaitable.hpp>
 
 #include <cstddef>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
@@ -157,6 +161,17 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
     }
     if (!body.empty() || !identity || identity->phase != SessionPhase::Admitted) {
         sess->Close(); co_return;
+    }
+    // Initial World soulmate state may be confirming its native row while the
+    // client's CONREADY arrives. Use its completed projection in admission's
+    // snapshot and never close a valid client merely because that read awaits.
+    boost::asio::steady_timer projection_wait(co_await boost::asio::this_coro::executor);
+    const auto projection_deadline=std::chrono::steady_clock::now()+std::chrono::seconds(3);
+    while(ctx.session_reg->HasOperation(sess.get())) {
+        const auto current=ctx.session_reg->Identity(sess.get());
+        if(!sess->IsOpen()||!current||current->key!=identity->key||current->connection_id!=identity->connection_id||current->phase!=SessionPhase::Admitted)co_return;
+        if(std::chrono::steady_clock::now()>=projection_deadline){sess->Close();co_return;}
+        projection_wait.expires_after(std::chrono::milliseconds(5));co_await projection_wait.async_wait(boost::asio::use_awaitable);
     }
     const auto cid=identity->char_id;
     auto snap=ctx.char_state?ctx.char_state->Get(cid):std::nullopt;

@@ -69,6 +69,7 @@ struct CharacterPayload {
     // Optional only for legacy/test projections which have not hydrated effects.
     // Native fresh and transferred primaries always load the complete collection.
     std::optional<std::vector<MaintainedEffect>> effects;
+    std::optional<MaintainedEffectSample> effect_sample;
     std::array<PostureTemplate,2> posture_templates{};
     std::vector<ProgressEffectTemplate> progress_effect_templates;
     std::optional<DuringItemState> during;

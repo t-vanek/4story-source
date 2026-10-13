@@ -6,11 +6,25 @@ authoritative for historical values, original code/client for supported behavior
 
 Owner instruction renewed (2026-10-11): keep implementation and versioning local on `main`
 until complete gameplay is finished. Do not push, publish or deploy to GitHub.
-The latest owner instruction requires the complete Phase A implementation before
-tests, migration application and containers. Only static inspection and compilation
-are used during Phase A. See [active rewrite status](full-rewrite-status.md).
+The latest owner instruction requires analysis and implementation, with services,
+clients, containers, tests and runtime verification deferred. This increment
+uses static inspection only; it also leaves builds for the next phase.
+See [active rewrite status](full-rewrite-status.md).
 
-Code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
+Latest work based on `75125a2` integrates atomic soulmate SEARCH/REGREADY/REG,
+ready-primary initial level-gap END and verified native guild-level publication/
+loading. Written067/068 are not applied. No build or execution occurred.
+World also uses existing059's complete51-row message publication for relay,
+event operator names and source TMS envelopes; Map chat/TMS/operator consumers
+remain open. Exact maintained sampling is connected at periodic checkpoint,
+logout and transfer, with general expiry producers/save filters still open.
+[Exact source contracts, differences and subsequent verification](evidence/phase-a-source-review-20261013/README.md).
+Continue native guild lifecycle/Map hydration and the remaining World bootstrap;
+complete party reward/combat producers before soulmate XP/emergency HP. Missing
+full private manifests, Patch pre-version SQL and unchanged client assets remain
+specific external inputs, not reasons to drop those functions from scope.
+
+Earlier code `1f1eb59` / `e709281` adds native World ownership and directed friend/group/
 soulmate persistence (written migration066), original Map friend/group relays,
 conditional soulmate FRIENDLIST fields and Map soulmate state/end handling.
 Native social/mail transactions fence the current World; social writes also
@@ -30,7 +44,7 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–066; the next free number is067.
+immutable. Phase A has added unapplied migrations044–068; the next free number is069.
 
 Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,
@@ -55,7 +69,9 @@ Active next source paths after this increment:
 1. `TWorldSvrAsio/db/schema_validator.cpp`, World main and native ownership:
    replace the remaining legacy guild/war/event/rank/item/service bootstrap and
    repositories. Native friend/group/erase and World process ownership are now
-   integrated; complete soulmate Map economy, initial-load level checks and XP.
+   integrated; Map soulmate economy and ready-primary initial-load level checks
+   are now connected, unverified. Complete soulmate party XP/emergency HP,
+   native guild lifecycle/Map hydration and remaining World bootstrap.
 2. Quest DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/REGEN plus non-request
    kill/position/map/monster producers; preserve completed SENDPOST and rewards.
 3. Other admin/event/BR/rank reserved-mail producers; notification retention and
@@ -126,7 +142,7 @@ importer and all new migration/purchase/concurrency acceptance remain Phase B wo
 
 The active continuation is now [full-rewrite-status.md](full-rewrite-status.md):
 remaining premium/PCBang, complete monster EXP benefits, remaining item kinds and
-precise durable effect sampling after entitlement `fa4c282` and resource/item-cooldown
+general maintained-effect simulation/save filters after entitlement `fa4c282` and resource/item-cooldown
 commit `ff50e58` (shared cooldown persistence is now implemented, unverified).
 Code `c4385af` additionally connects Soul Lottery/820, MONEY/AP/special boxes,
 ITEMSELL and DURATIONREP for the documented ordinary-player profile. All remain

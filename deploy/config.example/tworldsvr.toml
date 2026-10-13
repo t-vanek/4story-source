@@ -22,9 +22,11 @@ port = 18087
 [log]
 level = "info"
 
-# Native PG World social/mail paths require migrations001-066 and both
-# deploy/sql/world-{social,mail}-runtime-grants.sql. Other World repositories
-# remain an implementation dependency; this is not a complete PG cluster.
+# Native PG World paths now require written migrations001-068, explicit verified
+# guild-level publication and deploy/sql/world-{social,mail,guild-level}-runtime-grants.sql
+# plus soulmate-runtime-grants.sql in later acceptance.
+# Also requires full059 --server-messages publication and world-message-runtime-grants.sql.
+# Other World repositories remain a dependency; this is not a complete PG cluster.
 [native_world]
 # Empty accepts ASCII only. Set a lossless ANSI profile only from client/data
 # evidence; the backup Latin1 group names alone do not identify a client EXE.

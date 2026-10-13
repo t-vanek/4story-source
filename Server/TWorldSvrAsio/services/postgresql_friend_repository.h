@@ -20,7 +20,10 @@ public:
     bool RegSoulmate(std::uint32_t,std::uint32_t,FriendAuthority = {}) override;
     bool DelSoulmate(std::uint32_t,std::uint32_t,FriendAuthority = {}) override;
     bool EndSoulmate(std::uint32_t,std::uint32_t,FriendAuthority = {}) override;
+    bool EndSoulmateExact(std::uint32_t,std::uint32_t,std::uint32_t,FriendAuthority = {}) override;
 private:
+    friend class PostgreSQLSoulmateOffers;
+    bool AuthorizeSoulmateOffer(soci::session&,std::uint32_t,std::uint32_t,FriendAuthority);
     bool Mutate(const std::string& kind,std::uint32_t character,std::uint32_t target,std::uint8_t group,
                 const std::string& name,std::uint32_t time,FriendAuthority);
     void LockActors(soci::session&,std::uint32_t,std::uint32_t,FriendAuthority,bool mutual);

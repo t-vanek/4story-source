@@ -8,8 +8,11 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED**, **IMPLEMENTED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–066 are **written, not applied**.
-Latest code increment: `1f1eb59` / `e709281` (native World social persistence and original Map relay), based on `374d56a`.
+evidence remain unchanged. New migrations044–068 are **written, not applied**.
+Latest local increment is based on `75125a2`: atomic soulmate economy, native
+guild-level/server-message loading and durable effect sampling, with static source review only. No build,
+test, SQL, server, client, container or runtime verification occurred.
+Previous code increment: `1f1eb59` / `e709281` (native World social persistence and original Map relay), based on `374d56a`.
 Previous code increment: `11e0df1` / `dd07164` (atomic mutual friend adapter repair), based on `5fe42f8`.
 Previous code increments: `e84ece4` / `65be6d1` (quest mail and offline bill returns), based on `c537883`.
 Previous code increment: `45d130d` (World reserved-mail delivery/importer), based on `0f05d33`.
@@ -19,6 +22,41 @@ based on `802a232`. Previous `18ee496` implements item expiration and mail, base
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Soulmate economy, World catalogs and timers — source review, 2026-10-13
+
+- Actual original CS SEARCH/REGREADY/REG dispatch now reaches the existing
+  native Map operation, original MW World selection/preview and native finalizer.
+  Written067 records exact request/reply plus current process/claim identities.
+  World preparation writes no relationship; Map atomically commits purse,
+  optional caller, directed row, social audit and checkpoint before responses.
+- World ready-primary maintenance checks source initial own/incoming level gaps
+  with exact-target END. Cyclic consumed-receipt scanning projects cache only;
+  Map standalone state/END verifies native authority under a projection lease.
+  Deadlines, no write replay and fail-closed uncertain outcomes remain explicit.
+- Written068 and an offline tool publish a verified immutable15-column guild
+  chart; the native typed loader is selected by actual World main and CMake.
+  Source level0 is retained and duplicate cache counting repaired. Existing
+  cache assertions are aligned by static review only, not run.
+- World now loads all51 source server-message byte rows from existing059's
+  full pinned publication. Real relay entries use the original DWORD keys;
+  event operator names and TMS no-receiver envelopes use source text. Map chat/
+  TMS and operator lists/whispers remain required source work.
+- Periodic checkpoint/logout/RELEASEMAIN sample maintained timers at exact
+  milliseconds with eight-field identity/monotonic validation. Transfer expiry
+  emits original SKILLEND after native preparation. Periodic expiry is deferred
+  to existing progression producers; broader general effect simulation and
+  save-only filters remain open beyond the admitted pinned subset.
+- Full guild lifecycle/Map membership hydration and other World bootstrap
+  repositories remain unported; party soulmate XP/emergency HP depend on full
+  reward/combat transactions. The source inventory still contains NOT_ANALYZED
+  responsibilities. These are required OPEN implementation, not completed work.
+- Full private source manifests, missing Patch pre-version SQL and real original
+  client executable/assets remain external blockers. No historical values or
+  substitute success packets were invented. Written067/068/grants/publication
+  await later isolated acceptance; next free migration is069.
+
+[Source mapping, modern differences, blockers and concrete Phase B plan](evidence/phase-a-source-review-20261013/README.md).
 
 ## Native World social persistence and original Map relay — `1f1eb59` / `e709281`
 
@@ -507,9 +545,10 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    Premium item templates7401/7402/7403 use skills900/901/902,7626/7627/7628 use
    914/915/916 in the available catalog; inspect their full data before admission.
    Complete remaining CS_ITEMUSE kinds beyond HP/MP/AP/full-resource/direct-EXP/
-   EXPBONUS/MONEY/SPECIALBOX/pinned probability skills, tournament/deal/store producers and exact effect
-   sampling at save/transfer/logout. Do not confuse packet-time samples with
-   durable sub-tick persistence. Soul Lottery820 is integrated, not verified.
+   EXPBONUS/MONEY/SPECIALBOX/pinned probability skills and tournament/deal/store
+   producers. Exact effect sampling at save/transfer/logout is now connected,
+   unverified; complete general expiry simulation and source save-only filters.
+   Soul Lottery820 is integrated, not verified.
    Ordinary REFINE/WASTEREFINE and received event probabilities are now connected.
    Complete conditional guild/hero NPC bonuses/discounts, BOW-specific branches,
    complete economy integration and general item effects. Ordinary gambling and
@@ -545,6 +584,12 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    and finally Phase C local cluster. **No full PostgreSQL-only runtime claim.**
 
 ## Activities actually performed
+
+Latest local work based on `75125a2`: original/server/client source reads,
+declaration/call/CMake/SQL/packet/diff review, implementation and documentation.
+`git diff --check` passes. No build, test, SQL execution, service/client/container
+startup or runtime acceptance was performed. The following build results belong
+only to their historical revisions.
 
 The changed Map target at `0fe24d2` compiles/links in Debug and Release with
 BUILD_TESTING=OFF and native PostgreSQL enabled. Static syntax/call-path inspection

@@ -5,7 +5,25 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, `1f1eb59` / `e709281`:** written chain001–066, next067;
+**Current Phase A, local work based on `75125a2`:** written chain001–068,
+next069; new044–068 are unapplied.067 adds current-claim exact soulmate offers:
+World prepares a reply without a relationship write, then one native Map
+transaction commits purse/caller/directed link/audit/checkpoint.068 introduces a
+verified archived guild-level release and activation history; native World reads
+the exact15 columns including level0. `activate_world_guild_levels.py` requires
+the full pinned historical manifest, verified checkpoint/value reconciliation
+and offline Map/World barriers. It does not fabricate chart data or modify the
+archive. New soulmate and guild-level grant scripts are written only.
+World server messages reuse059's full pinned `--server-messages` publication:
+the loader requires all51 original byte rows, verified dependency/hash receipts
+and the configured ANSI profile. A new World message grant script is written
+only. Maintained sampling uses existing normalized/graph storage and grants;
+no extra migration is needed for these two additions.
+No SQL, tool, build, test or runtime execution occurred. Full guild/other World
+bootstrap and PG-only operation remain incomplete.
+[Source review and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-source-review-20261013/README.md).
+
+**Previous Phase A, `1f1eb59` / `e709281`:** written chain001–066, next067;
 new044–066 remain unapplied.066 adds native directed social tables and operational
 World owner/audit/import receipts. World social and mail transactions fence that
 owner generation; social writes additionally validate live primary Map claims.

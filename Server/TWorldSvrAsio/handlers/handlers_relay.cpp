@@ -69,7 +69,7 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
 
     co_await senders::SendRwRelaysvrAck(peer, ctx.nation,
         /*operators=*/{},
-        /*svr_msgs=*/{});
+        ctx.server_messages?*ctx.server_messages:ServerMessages{});
 
     // W3a-3: fan-out RELAYCONNECT to every other registered peer
     // so they know a relay is live. Legacy parity (RWHandler.cpp:

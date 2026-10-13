@@ -34,6 +34,7 @@ struct QuestMapFacts {
     std::uint64_t sample_ms{}; // local scheduler observation, never a client field
     std::vector<std::pair<std::uint32_t,std::uint16_t>> monsters;
     std::optional<WorldEventSnapshot> world_events;
+    std::uint8_t soulmate_min_level{200}; // source GetNeighbor result, never a client field
 };
 struct QuestCommit {
     std::shared_ptr<const CharSnapshot> snapshot;

@@ -1,5 +1,6 @@
 #include "main_transfer_runtime.h"
 #include "quest_runtime.h"
+#include "maintained_effects.h"
 #include <algorithm>
 #include <limits>
 #include <set>
@@ -18,9 +19,11 @@ auto SampleSkills(const CharSnapshot& s,const SkillCooldownTracker& timers,std::
 }
 }
 
-CharSnapshot PersistenceSnapshot(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker& timers,std::uint64_t now) {
+CharSnapshot PersistenceSnapshot(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker& timers,std::uint64_t now,bool sample_effects) {
     if(!s.payload)return s;
     auto out=s;auto p=std::make_shared<CharacterPayload>(*s.payload);
+    p->effect_sample.reset();
+    if(sample_effects)SampleMaintainedEffects(*p,now);
     quest_runtime::Sample(*p,now);
     if(p->item_cooldowns)SampleItemCooldowns(*p->item_cooldowns,now);
     if(p->transfer_state) {
@@ -94,9 +97,9 @@ State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker
         out.hotkeys.push_back({h,old==old_hotkeys.end()?std::uint8_t(0):old->save});
     }
     out.skills=SampleSkills(s,timers,now);
-    // Typed extra state stays intact. Runtime integration of effect/quest/recall
-    // timers must update it at their authoritative simulation tick; these fields
-    // are not arbitrarily interpreted as absolute clock values here.
+    // Extra state stays intact. Effect sampling belongs to the explicit durable
+    // projection above; Capture with now=0 hashes its existing literal timers.
+    // Recall/general simulation clocks remain their own integration contract.
     return out;
 }
 }

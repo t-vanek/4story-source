@@ -24,6 +24,7 @@
 // PostgreSQL implementation, including its explicit remaining branch guards.
 
 #include "handlers.h"
+#include "config.h"
 
 #include "domain/character.h"
 #include "domain/quest.h"
@@ -62,6 +63,20 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const auto identity=ctx.session_reg?ctx.session_reg->Identity(client.get()):std::nullopt;
     if(!identity||identity->phase!=SessionPhase::Ready||identity->role!=MapSessionRole::Primary)co_return;
     const auto message=static_cast<tnetlib::protocol::MessageId>(opcode);
+    const bool soulmate=message==tnetlib::protocol::MessageId::CS_SOULMATESEARCH_REQ||
+        message==tnetlib::protocol::MessageId::CS_SOULMATEREG_REQ||message==tnetlib::protocol::MessageId::CS_SOULMATEREGREADY_REQ||
+        message==tnetlib::protocol::MessageId::MW_SOULMATESEARCH_REQ||message==tnetlib::protocol::MessageId::MW_SOULMATEREG_REQ;
+    if(soulmate&&ctx.mode==Mode::Bow)co_return;
+    if(soulmate&&(message==tnetlib::protocol::MessageId::CS_SOULMATESEARCH_REQ||message==tnetlib::protocol::MessageId::CS_SOULMATEREG_REQ||
+        message==tnetlib::protocol::MessageId::CS_SOULMATEREGREADY_REQ)) {
+        const auto state=ctx.char_state?ctx.char_state->Get(identity->char_id):std::nullopt;if(!state||!state->payload)co_return;
+        // REG's source secure prompt precedes ProtectTutorial and decoding.
+        if(message==tnetlib::protocol::MessageId::CS_SOULMATEREG_REQ&&state->payload->security.Blocks()) {
+            const auto prompt=SecureUnlockPrompt(state->payload->security);
+            co_await client->SendPacket(prompt.first,prompt.second);co_return;
+        }
+        if(state->bStartAct==2||(state->bStartAct==1&&state->wMapID==2010))co_return;
+    }
     const bool mail=message==tnetlib::protocol::MessageId::CS_POSTSEND_REQ||message==tnetlib::protocol::MessageId::CS_POSTLIST_REQ||message==tnetlib::protocol::MessageId::CS_POSTVIEW_REQ||
         message==tnetlib::protocol::MessageId::CS_POSTGETITEM_REQ||message==tnetlib::protocol::MessageId::CS_POSTDEL_REQ||
         message==tnetlib::protocol::MessageId::CS_POSTRETURN_REQ;
@@ -120,7 +135,9 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMSELL_REQ)?5U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_NPCTALK_REQ)?2U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_QUESTEXEC_REQ)?9U:4U;
-    if(opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMUSE_REQ)) {
+    if(soulmate) {
+        if(body.size()>65527)throw std::runtime_error("Invalid soulmate request length");
+    }else if(opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMUSE_REQ)) {
         if(body.size()<7||body.size()!=7U+5U*std::to_integer<unsigned>(body[6]))throw std::runtime_error("Invalid ITEMUSE request length");
     }else if(message==tnetlib::protocol::MessageId::CS_REFINE_REQ) {
         if(body.size()<8||body.size()!=8U+2U*std::to_integer<unsigned>(body[3]))throw std::runtime_error("Invalid REFINE request length");
@@ -139,6 +156,20 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         facts.sample_ms=SkillClockMs();
         facts.world_registered=ctx.world_client&&ctx.world_client->IsRegistered();
         if(ctx.world_client)facts.world_events=ctx.world_client->EventSnapshot();
+        if(message==tnetlib::protocol::MessageId::CS_SOULMATESEARCH_REQ) {
+            if(!ctx.presence)throw std::runtime_error("Soulmate search neighbor state unavailable");
+            const auto cell=[](float value)->int {
+                if(!std::isfinite(value)||value<0||value>=65536)throw std::runtime_error("Soulmate search position is outside source range");
+                return static_cast<std::uint16_t>(value)/64;
+            };
+            ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto) {
+                if(entry.map_id!=before.wMapID||std::abs(cell(entry.pos.x)-cell(before.fPosX))>1||
+                   std::abs(cell(entry.pos.z)-cell(before.fPosZ))>1)return;
+                const auto neighbor=ctx.char_state->Get(entry.char_id);
+                if(neighbor&&std::abs(int(before.bLevel)-int(neighbor->bLevel))<3)
+                    facts.soulmate_min_level=std::min(facts.soulmate_min_level,neighbor->bLevel);
+            });
+        }
         for(const auto& mon:ctx.monster_registry->ListInMap(facts.channel,facts.map)) {
             if(!mon.dwInstanceID)throw std::runtime_error("Quest actor snapshot contains reserved target zero");
             facts.monsters.emplace_back(mon.dwInstanceID,mon.wTemplateID);

@@ -20,6 +20,7 @@
 #include "services/ctrl_svr_slot.h"
 #include "services/event_registry.h"
 #include "services/guild_level_cache.h"
+#include "services/server_messages.h"
 #include "services/guild_registry.h"
 #include "services/mapper_profiles.h"
 #include "services/guild_wanted_registry.h"
@@ -31,9 +32,11 @@
 #include "services/guild_tactics_sweep.h"
 #include "services/peer_registry.h"
 #include "services/soci_guild_level_repository.h"
+#include "services/postgresql_guild_level_repository.h"
 #include "services/soci_guild_repository.h"
 #include "services/soci_friend_repository.h"
 #include "services/postgresql_friend_repository.h"
+#include "services/postgresql_soulmate_offers.h"
 #include "services/postgresql_world_owner.h"
 #include "services/postgresql_reserved_mail.h"
 #include "fourstory/db/co_offload.h"
@@ -147,6 +150,8 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::IGuildRepository>     guild_repo;
         std::unique_ptr<tworldsvr::IGuildLevelRepository> guild_level_repo;
         std::unique_ptr<tworldsvr::IFriendRepository>    friend_repo;
+        std::unique_ptr<tworldsvr::PostgreSQLSoulmateOffers> soulmate_offers;
+        tworldsvr::ServerMessages server_messages;
         std::atomic<bool> friend_persistence_failed{false};
         std::unique_ptr<tworldsvr::IItemStateRepository> item_state_repo;
         std::unique_ptr<tworldsvr::ICashSaleRepository>  cash_sale_repo;
@@ -196,6 +201,10 @@ int main(int argc, char** argv)
                         io.stop();
                     });
                 reserved_mail=std::make_unique<tworldsvr::PostgreSQLReservedMail>(*db_pool_owner,cfg.group_id,world_owner->Token());
+                soulmate_offers=std::make_unique<tworldsvr::PostgreSQLSoulmateOffers>(
+                    static_cast<tworldsvr::PostgreSQLFriendRepository&>(*friend_repo));
+                server_messages=tworldsvr::LoadPostgreSQLServerMessages(*db_pool_owner,cfg.group_id,
+                    world_owner->Token(),cfg.native_world_client_text_encoding);
             }
 
             // Fail-fast on missing TGUILD* columns before the
@@ -203,9 +212,9 @@ int main(int argc, char** argv)
             tworldsvr::db::ValidateWorldSchema(*db_pool_owner);
             guild_repo = std::make_unique<tworldsvr::SociGuildRepository>(
                 *db_pool_owner);
-            guild_level_repo =
-                std::make_unique<tworldsvr::SociGuildLevelRepository>(
-                    *db_pool_owner);
+            if(world_owner)guild_level_repo=std::make_unique<tworldsvr::PostgreSQLGuildLevelRepository>(
+                *db_pool_owner,cfg.group_id,world_owner->Token());
+            else guild_level_repo=std::make_unique<tworldsvr::SociGuildLevelRepository>(*db_pool_owner);
             if(!friend_repo)friend_repo = std::make_unique<tworldsvr::SociFriendRepository>(
                 *db_pool_owner,[&io,&friend_persistence_failed] {
                     if(!friend_persistence_failed.exchange(true))
@@ -404,7 +413,9 @@ int main(int argc, char** argv)
         ctx.peers        = &peers;
         ctx.guild_repo   = guild_repo.get();
         ctx.friend_repo  = friend_repo.get();
+        ctx.soulmate_offers = soulmate_offers.get();
         ctx.guild_levels = &guild_levels;
+        ctx.server_messages = &server_messages;
         ctx.guild_wanted = &guild_wanted;
         ctx.guild_tactics_wanted = &guild_tactics_wanted;
         ctx.parties      = &party;
@@ -534,6 +545,22 @@ int main(int argc, char** argv)
                     }
                 });
             world_owner_sweeper->Start();
+        }
+
+        std::int64_t soulmate_cursor=0;
+        std::shared_ptr<fourstory::ops::RegistryRefresher> soulmate_sweeper;
+        if(soulmate_offers) {
+            soulmate_sweeper=fourstory::ops::RegistryRefresher::Make(io,std::chrono::seconds(1));
+            soulmate_sweeper->AddCoroutineHook([ctx,&soulmate_cursor,&io,&friend_persistence_failed]()
+                ->boost::asio::awaitable<void> {
+                try {co_await tworldsvr::handlers::RunSoulmateMaintenance(ctx,soulmate_cursor);}
+                catch(...) {
+                    friend_persistence_failed.store(true);
+                    spdlog::critical("native soulmate reconciliation failed; World stopped without replay");
+                    io.stop();
+                }
+            });
+            soulmate_sweeper->Start();
         }
 
         // W6-43: war-country index - boot load + periodic refresh
@@ -689,6 +716,7 @@ int main(int argc, char** argv)
         if (tactics_sweeper) tactics_sweeper->Stop();
         if (reserved_mail_sweeper) reserved_mail_sweeper->Stop();
         if(world_owner_sweeper)world_owner_sweeper->Stop();
+        if(soulmate_sweeper)soulmate_sweeper->Stop();
 
         // Drain in-flight SOCI work before tearing the pool down so
         // a query doesn't keep a session reference alive past the

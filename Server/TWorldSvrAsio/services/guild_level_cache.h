@@ -12,7 +12,7 @@
 // then read by handlers without locking — the table is immutable
 // at runtime (operators tune it offline + reload via a
 // not-yet-ported admin handler). std::array is sized for one row
-// per legacy MAX_GUILD_LEVEL + a sentinel zero row at index 0,
+// per legacy MAX_GUILD_LEVEL, including the original level-zero row,
 // so `Find(bLevel)` is a direct array index.
 //
 // Legacy parity: maps to TWorldType.h::tagTGUILDLEVEL +
@@ -55,12 +55,12 @@ public:
     GuildLevelCache& operator=(const GuildLevelCache&) = delete;
 
     // Populate from a sequence of rows. Rows whose bLevel is out
-    // of range (1..kMaxGuildLevel) are dropped with a debug log.
+    // of range (0..kMaxGuildLevel) are dropped with a debug log.
     // Calling LoadFrom a second time replaces the existing rows
     // (used by future TGUILDCHART hot-reload).
     void LoadFrom(const std::vector<TGuildLevelRow>& rows);
 
-    // Lookup by level. Returns nullptr for level 0 or any level
+    // Lookup by level. Returns nullptr for any level
     // that wasn't preloaded. Reads are lock-free since LoadFrom
     // is called once at boot before the listener accepts traffic.
     const TGuildLevelRow* Find(std::uint8_t level) const;
@@ -70,8 +70,8 @@ public:
     std::size_t Size() const { return m_count; }
 
 private:
-    // Index 0 reserved for "no guild" (level == 0). Slots 1..N
-    // hold real rows; rows > kMaxGuildLevel are ignored.
+    // Source loads and resolves level0 too; absence of a guild is represented
+    // by the guild identity, not by discarding a chart row.
     std::array<TGuildLevelRow, kMaxGuildLevel + 1> m_rows{};
     std::array<bool, kMaxGuildLevel + 1>           m_present{};
     std::size_t                                    m_count = 0;

@@ -30,6 +30,12 @@ struct MaintainedEffect {
     // representation stores remaining time, never another process's tick.
     std::uint64_t sampled_ms{},charge_ms{};
 };
+// A save/transfer projection proves which process-local timer observations
+// produced its durable remaining times. It is never encoded or persisted.
+struct MaintainedEffectSample {
+    std::vector<MaintainedEffect> before;
+    std::uint64_t at_ms{};
+};
 struct AbilityEffect {int target{},increase{},value{};};
 struct PostureTemplate {
     std::uint16_t skill{};

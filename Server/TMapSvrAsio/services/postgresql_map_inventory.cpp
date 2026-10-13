@@ -3,6 +3,7 @@
 #include "main_transfer_codec.h"
 #include "main_transfer_runtime.h"
 #include "posture_effects.h"
+#include "maintained_effects.h"
 #include <soci/soci.h>
 #include <openssl/sha.h>
 #include <bit>
@@ -26,7 +27,7 @@ std::string PostgreSQLMapService::ValidateInventoryState(soci::session& sql,cons
     CheckCastHead(sql,c,before);
     const bool graph=bool(before.payload->transfer_state);const int world=c.group,character=c.char_id;
     std::string graph_hash;
-    if(!graph&&!MaintainCheckpointMatches(sql,c,before))throw std::runtime_error("Maintained state changed since hydration");
+    if(!graph)CheckMaintainedTimers(sql,c,before);
     if(all_fresh_items&&!graph) {
         // Stats and displacement inspect more than the two requested slots.
         // Fence every fresh item and learned rank, including unchanged equipment.
@@ -70,6 +71,8 @@ std::string PostgreSQLMapService::ValidateInventoryState(soci::session& sql,cons
             stored.skills[i].dwRemainTick=live.skills[i].dwRemainTick;
         }
         quest_runtime::AlignGraphTimers(stored,live);
+        CheckMaintainedProjection(stored.buffs,*before.payload);
+        stored.buffs=live.buffs;
         if(!before.payload->item_cooldowns)throw std::runtime_error("Item cooldowns were not hydrated");
         CheckItemCooldownProjection(stored.item_cooldowns,*before.payload->item_cooldowns);
         stored.item_cooldowns=live.item_cooldowns;

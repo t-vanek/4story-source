@@ -98,11 +98,21 @@ bool PostgreSQLMapOwner::Healthy(){
         "AND owner_token=:t AND backend_pid=pg_backend_pid()",soci::use(m_world,"w"),soci::use(m_server,"s"),soci::use(m_token,"t"),soci::into(found);return found==1;}
     catch(...){return false;}
 }
-std::unique_ptr<soci::transaction> BeginMapTransaction(soci::session& sql,int world,int server,const std::string& token,bool repeatable_read){
+std::unique_ptr<soci::transaction> BeginMapTransaction(soci::session& sql,int world,int server,const std::string& token,bool repeatable_read,bool world_fence){
     if(token.empty())throw std::runtime_error("Native Map write requires process ownership");
     auto tx=std::make_unique<soci::transaction>(sql);
     if(repeatable_read)sql<<"SET TRANSACTION ISOLATION LEVEL REPEATABLE READ";
     sql<<"SET LOCAL statement_timeout='5s'";sql<<"SET LOCAL lock_timeout='3s'";
+    if(world_fence) {
+        // Match World social writers: World process, Map processes, accounts,
+        // then session claims. A takeover cannot pass a soulmate finalizer.
+        int live=0;const int ns=0x34574c44;
+        sql<<"SELECT 1 FROM app_world.world_runtime_owner o WHERE o.world_id=:w "
+             "AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=o.backend_pid AND l.locktype='advisory' "
+             "AND l.classid=CAST(:ns AS oid) AND l.objid=CAST(:w AS oid) AND l.objsubid=2 AND l.granted) FOR SHARE OF o",
+             soci::use(world,"w"),soci::use(ns,"ns"),soci::into(live);
+        if(!sql.got_data()||live!=1)throw std::runtime_error("Native soulmate World ownership lost");
+    }
     int found=0;sql<<"SELECT 1 FROM app_world.map_runtime_owner WHERE world_id=:w AND server_id=:s AND owner_token=:t FOR SHARE",
         soci::use(world,"w"),soci::use(server,"s"),soci::use(token,"t"),soci::into(found);
     if(!sql.got_data()||found!=1)throw std::runtime_error("Native Map ownership lost");

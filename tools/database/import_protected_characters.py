@@ -132,5 +132,10 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
-        print(f'PROTECTED_IMPORT_FAILED: {error}', file=sys.stderr)
+        code = getattr(error, 'sqlstate', None)
+        if not code and isinstance(error, RuntimeError) and str(error).replace('_', '').isalnum():
+            code = str(error)
+        # Keep the mailbox importer's diagnostic policy: do not print raw SQL,
+        # original private names/bytes or connection diagnostics to the console.
+        print(json.dumps({'status': 'failed', 'error': code or 'ERROR_DETAIL_SUPPRESSED'}), file=sys.stderr)
         sys.exit(1)

@@ -35,6 +35,8 @@
 #include "services/soci_guild_level_repository.h"
 #include "services/soci_guild_repository.h"
 #include "services/soci_friend_repository.h"
+#include "services/postgresql_reserved_mail.h"
+#include "fourstory/db/co_offload.h"
 #include "services/soci_item_state_repository.h"
 #include "services/soci_cash_sale_repository.h"
 #include "services/soci_service_ops_repository.h"
@@ -151,6 +153,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::IRpsRepository>       rps_repo;
         std::unique_ptr<tworldsvr::ITournamentRepository> tournament_repo;
         std::unique_ptr<tworldsvr::IBowRepository>       bow_repo;
+        std::unique_ptr<tworldsvr::PostgreSQLReservedMail> reserved_mail;
 
         if (!cfg.database.connection_string.empty())
         {
@@ -177,6 +180,11 @@ int main(int argc, char** argv)
             }
             spdlog::info("db: {} pool_size={} ready",
                 fourstory::db::BackendName(backend), cfg.database.pool_size);
+
+            if(backend==fourstory::db::Backend::PostgreSQL) {
+                if(!worker_pool)throw std::runtime_error("Native World mail requires database.worker_threads>0");
+                reserved_mail=std::make_unique<tworldsvr::PostgreSQLReservedMail>(*db_pool_owner,cfg.group_id);
+            }
 
             // Fail-fast on missing TGUILD* columns before the
             // listener accepts traffic.
@@ -627,10 +635,35 @@ int main(int argc, char** argv)
                 cfg.tactics_sweep_period_sec);
         }
 
+        // Original OnTimer posts RESERVEDPOSTSEND on minute change. The native
+        // durable minute gate and queue status serialize duplicate World ticks;
+        // Map's existing fenced notification poll publishes original POSTRECV.
+        std::shared_ptr<fourstory::ops::RegistryRefresher> reserved_mail_sweeper;
+        bool reserved_mail_failed=false;
+        if(reserved_mail) {
+            reserved_mail_sweeper=fourstory::ops::RegistryRefresher::Make(io,std::chrono::seconds(1));
+            reserved_mail_sweeper->AddCoroutineHook([&io,&reserved_mail_failed,mail=reserved_mail.get(),workers=worker_pool.get()]()
+                ->boost::asio::awaitable<void> {
+                const auto now=static_cast<std::int64_t>(std::time(nullptr));
+                try {
+                    const auto result=co_await fourstory::db::CoOffload(*workers,[mail,now]{return mail->Deliver(now);});
+                    if(result.delivered||result.missing)spdlog::info("reserved mail: delivered={}, missing={}",result.delivered,result.missing);
+                }catch(...) {
+                    // Credential/source-safe failure. No timer replay of a
+                    // write with unknown outcome and no fabricated empty queue.
+                    spdlog::critical("native reserved mail failed; World stopped for reconciliation");
+                    reserved_mail_failed=true;
+                    io.stop();
+                }
+            });
+            reserved_mail_sweeper->Start();
+        }
+
         io.run();
 
         if (wanted_sweeper) wanted_sweeper->Stop();
         if (tactics_sweeper) tactics_sweeper->Stop();
+        if (reserved_mail_sweeper) reserved_mail_sweeper->Stop();
 
         // Drain in-flight SOCI work before tearing the pool down so
         // a query doesn't keep a session reference alive past the
@@ -640,6 +673,7 @@ int main(int argc, char** argv)
             worker_pool->stop();
             worker_pool->join();
         }
+        if(reserved_mail_failed)return 1;
     }
     catch (const std::exception& ex)
     {

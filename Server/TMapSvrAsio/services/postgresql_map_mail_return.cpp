@@ -106,7 +106,9 @@ bool PostgreSQLMapService::PollNativeMail(soci::session& sql,const MapSessionCla
     std::vector<std::uint32_t> expired;
     {soci::rowset<soci::row> rows=(sql.prepare << "SELECT \"dwPostID\" FROM app_world.\"TPOSTTABLE\" "
         "WHERE \"bWorldID\"=:w AND \"dwSendID\"=:c AND \"bRead\"=0 AND \"bType\"=2 "
-        "AND COALESCE(bill_due_at,(\"timeRecv\" AT TIME ZONE 'UTC')+INTERVAL '3 days')<=to_timestamp(:now) "
+        // POST_DURATION is 86400*3 seconds. Calendar '3 days' on timestamptz
+        // would depend on the connection timezone across a DST transition.
+        "AND COALESCE(bill_due_at,(\"timeRecv\" AT TIME ZONE 'UTC')+INTERVAL '259200 seconds')<=to_timestamp(:now) "
         "ORDER BY \"dwPostID\" LIMIT 256 FOR UPDATE",
         soci::use(world,"w"),soci::use(owner,"c"),soci::use(now,"now"));
      for(const auto& row:rows)expired.push_back(static_cast<std::uint32_t>(row.get<int>(0)));}

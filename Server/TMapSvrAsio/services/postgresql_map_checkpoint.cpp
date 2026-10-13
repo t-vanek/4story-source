@@ -497,12 +497,18 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool reclaim_refine=message==MessageId::CS_WASTEREFINE_REQ;
     const bool gamble=message==MessageId::CS_GAMBLECHECK_REQ||message==MessageId::CS_GAMBLEOPEN_REQ;
     const bool upgrade_item=message==MessageId::CS_ITEMUPGRADE_REQ;
+    const bool protected_change=message==MessageId::CS_PROTECTEDADD_REQ||message==MessageId::CS_PROTECTEDERASE_REQ||message==MessageId::CS_PROTECTEDOPTION_REQ;
+    const bool mail_send=message==MessageId::CS_POSTSEND_REQ;
     const bool mail_get=message==MessageId::CS_POSTGETITEM_REQ;
     const bool mail=mail_get||message==MessageId::CS_POSTLIST_REQ||message==MessageId::CS_POSTVIEW_REQ||message==MessageId::CS_POSTDEL_REQ||message==MessageId::CS_POSTRETURN_REQ;
     const bool lottery=message==MessageId::CS_SOULLOTTERY_REQ||message==MessageId::CS_SOULLOTTERY_TRIGGER_REQ;
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry||mail_poll) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(mail_send||protected_change) {
+        if(message==MessageId::CS_PROTECTEDOPTION_REQ) {
+            if(body.size()!=5)throw std::runtime_error("Invalid PROTECTEDOPTION request length");
+        }else if(body.size()<(mail_send?27U:4U)||body.size()>65527)throw std::runtime_error("Invalid variable gameplay request length");
     } else if(mail) {
         if(body.size()!=(message==MessageId::CS_POSTLIST_REQ?2U:message==MessageId::CS_POSTRETURN_REQ?5U:4U))throw std::runtime_error("Invalid native post request length");
     } else if(buy_item) {
@@ -554,6 +560,12 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
     if(mail_poll) {
         other_state_changed=PollNativeMail(sql,c,after,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(protected_change) {
+        other_state_changed=ChangeNativeProtected(sql,c,after,opcode,body,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(mail_send) {
+        other_state_changed=SendNativePost(sql,c,after,body,committed.packets);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
     }else if(message==MessageId::CS_NPCITEMLIST_REQ) {
         ListNativeNpcItems(sql,after,npc,committed.packets);
@@ -610,6 +622,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
         if(!payload->post_counts)throw std::runtime_error("Native entry mailbox counters unavailable");
         std::vector<std::byte> post_info;wire::WritePOD(post_info,payload->post_counts->first);wire::WritePOD(post_info,payload->post_counts->second);
         committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_POSTINFO_ACK),std::move(post_info));
+        ListNativeProtected(*payload,committed.packets);
         EnterDuringItems(sql,c,after,committed.packets);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
         other_state_changed=true;

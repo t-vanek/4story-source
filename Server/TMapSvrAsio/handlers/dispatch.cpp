@@ -91,6 +91,10 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
     case MessageId::CS_GAMBLECHECK_REQ:
     case MessageId::CS_GAMBLEOPEN_REQ:
     case MessageId::CS_ITEMUPGRADE_REQ:
+    case MessageId::CS_POSTSEND_REQ:
+    case MessageId::CS_PROTECTEDADD_REQ:
+    case MessageId::CS_PROTECTEDERASE_REQ:
+    case MessageId::CS_PROTECTEDOPTION_REQ:
     case MessageId::CS_POSTLIST_REQ:
     case MessageId::CS_POSTVIEW_REQ:
     case MessageId::CS_POSTGETITEM_REQ:

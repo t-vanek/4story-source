@@ -114,7 +114,7 @@ OnProtectedCheckAck(std::shared_ptr<PeerSession> peer,
     std::uint8_t  connect = 0;
     std::string   protected_name;
     if (!r.Read(char_id) || !r.Read(key) || !r.Read(connect) ||
-        !r.ReadString(protected_name))
+        !r.ReadString(protected_name)||!r.Eof()||connect>1)
     {
         spdlog::warn("OnProtectedCheckAck[{}]: short body ({} bytes)", ip,
             body.size());
@@ -132,7 +132,11 @@ OnProtectedCheckAck(std::shared_ptr<PeerSession> peer,
     bool          found_friend = false;
     {
         std::lock_guard g(requester->lock);
-        if (requester->key != key) co_return;
+        const auto sid=static_cast<std::uint8_t>(peer->Wid());
+        const auto con=std::find_if(requester->cons.begin(),requester->cons.end(),[sid](const auto& row){return row.server_id==sid;});
+        if(requester->key!=key||requester->closing||requester->logout||requester->main_server_id!=sid||
+           peer->Wid()!=(0x0400U|sid)||ctx.peers->Find(peer->Wid())!=peer||
+           con==requester->cons.end()||!con->valid||!con->ready)co_return;
         req_name   = requester->name;
         req_region = requester->region;
         for (const auto& f : requester->friends)

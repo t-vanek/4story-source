@@ -1,9 +1,11 @@
 #include "postgresql_map_service.h"
 #include "domain/main_transfer.h"
+#include "native_mail_lock.h"
 #include "MessageId.h"
 #include <soci/soci.h>
 #include <algorithm>
 #include <bit>
+#include <tuple>
 
 namespace tmapsvr {
 namespace {
@@ -20,10 +22,16 @@ std::string OriginalTextHex(const soci::row& row,const char* raw,const char* dec
         throw std::runtime_error("Post transfer requires original non-ASCII text bytes");
     return HexBytes(text);
 }
-void QueueNotification(soci::session& sql,int world,int post) {
-    sql << "INSERT INTO app_world.mail_notifications(world_id,char_id,post_id,post_type) "
-        "SELECT \"bWorldID\",\"dwCharID\",\"dwPostID\",\"bType\" FROM app_world.\"TPOSTTABLE\" "
-        "WHERE \"bWorldID\"=:w AND \"dwPostID\"=:id",soci::use(world,"w"),soci::use(post,"id");
+void QueueNotification(soci::session& sql,int world,int post,long long received_at) {
+    sql << "INSERT INTO app_world.mail_notifications(world_id,char_id,post_id,post_type,received_at) "
+        "SELECT \"bWorldID\",\"dwCharID\",\"dwPostID\",\"bType\",:time FROM app_world.\"TPOSTTABLE\" "
+        "WHERE \"bWorldID\"=:w AND \"dwPostID\"=:id",soci::use(received_at,"time"),soci::use(world,"w"),soci::use(post,"id");
+}
+void SupersedeNotifications(soci::session& sql,int world,int post) {
+    sql << "UPDATE app_world.mail_notifications n SET superseded_at=clock_timestamp() WHERE n.world_id=:w AND n.post_id=:id "
+        "AND n.status='pending' AND n.superseded_at IS NULL AND NOT EXISTS(SELECT 1 FROM app_world.\"TPOSTTABLE\" p "
+        "WHERE p.\"bWorldID\"=n.world_id AND p.\"dwPostID\"=n.post_id AND p.\"dwCharID\"=n.char_id AND p.\"bType\"=n.post_type)",
+        soci::use(world,"w"),soci::use(post,"id");
 }
 }
 bool PostgreSQLMapService::ReturnNativePost(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
@@ -50,6 +58,7 @@ bool PostgreSQLMapService::ReturnNativePost(soci::session& sql,const MapSessionC
     // Original TPostBillsUpdate can orphan returned items when the sender has
     // been deleted. Retain the recipient's post instead; never debit or discard.
     if(!sql.got_data()){failure(8);return false;}
+    LockNativeMailbox(sql,c.group,static_cast<std::uint32_t>(sender));
     const auto sender_hex=OriginalTextHex(row,"sh","szSender"),recipient_hex=OriginalTextHex(row,"rh","szRecvName");
     const auto title_hex=OriginalTextHex(row,"th","szTitle"),message_hex=OriginalTextHex(row,"mh","szMessage");
     const auto number=[&](const char* name){return static_cast<std::uint32_t>(row.get<int>(name));};
@@ -87,7 +96,8 @@ bool PostgreSQLMapService::ReturnNativePost(soci::session& sql,const MapSessionC
             soci::use(sender,"sender"),soci::use(world,"w"),soci::use(recipient,"c"),soci::use(post,"id");
         sql << "SET CONSTRAINTS app_world.item_post_recipient IMMEDIATE";
     }
-    QueueNotification(sql,world,delivered);
+    SupersedeNotifications(sql,world,post);
+    QueueNotification(sql,world,delivered,s.payload->event_time);
     auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
     if(!payment&&p->viewed_post==id)p->viewed_post=0;
     // STORAGE_POST is normalized authority, including for graph primaries. A
@@ -114,17 +124,19 @@ bool PostgreSQLMapService::PollNativeMail(soci::session& sql,const MapSessionCla
      for(const auto& row:rows)expired.push_back(static_cast<std::uint32_t>(row.get<int>(0)));}
     bool changed=false;
     for(auto id:expired)changed=ReturnNativePost(sql,c,s,id,false,false,packets)||changed;
-    std::vector<std::pair<long long,std::uint32_t>> pending;
-    {soci::rowset<soci::row> rows=(sql.prepare << "SELECT n.notification_id,n.post_id FROM app_world.mail_notifications n "
+    std::vector<std::tuple<long long,std::uint32_t,long long>> pending;
+    {soci::rowset<soci::row> rows=(sql.prepare << "SELECT n.notification_id,n.post_id,"
+        "COALESCE(n.received_at,floor(extract(epoch FROM p.\"timeRecv\" AT TIME ZONE 'UTC'))::bigint) AS received "
+        "FROM app_world.mail_notifications n "
         "JOIN app_world.\"TPOSTTABLE\" p ON p.\"bWorldID\"=n.world_id AND p.\"dwPostID\"=n.post_id "
         "AND p.\"dwCharID\"=n.char_id AND p.\"bType\"=n.post_type "
-        "WHERE n.world_id=:w AND n.char_id=:c AND n.status='pending' ORDER BY n.notification_id LIMIT 256 FOR UPDATE OF n,p",
+        "WHERE n.world_id=:w AND n.char_id=:c AND n.status='pending' AND n.superseded_at IS NULL ORDER BY n.notification_id LIMIT 256 FOR UPDATE OF n,p",
         soci::use(world,"w"),soci::use(owner,"c"));
-     for(const auto& row:rows)pending.emplace_back(row.get<long long>(0),static_cast<std::uint32_t>(row.get<int>(1)));}
+     for(const auto& row:rows)pending.emplace_back(row.get<long long>(0),static_cast<std::uint32_t>(row.get<int>(1)),row.get<long long>(2));}
     if(pending.empty())return changed;
     auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;HydrateNativePosts(sql,c,*p);
     if(!p->post_counts)throw std::runtime_error("Mail notification counters unavailable");
-    for(const auto& [notification,id]:pending) {
+    for(const auto& [notification,id,received]:pending) {
         const auto post=std::find_if(p->posts.begin(),p->posts.end(),[&](const auto& row){return row.id==id;});
         if(post==p->posts.end())throw std::runtime_error("Pending mail recipient changed");
         const int server=m_config.server;const long long connection=c.connection_id,epoch=c.authority_epoch,key=c.key;
@@ -136,7 +148,7 @@ bool PostgreSQLMapService::PollNativeMail(soci::session& sql,const MapSessionCla
             soci::use(connection,"connection"),soci::use(epoch,"epoch"),soci::use(key,"key"),soci::use(notification,"id"),soci::use(suppressed,"suppressed");
         if(suppressed||static_cast<std::uint64_t>(notification)<=p->mail_notification_baseline)continue;
         std::vector<std::byte> ack;wire::WritePOD(ack,id);wire::WritePOD(ack,std::uint8_t{0});wire::WritePOD(ack,post->type);
-        wire::WriteString(ack,post->sender);wire::WriteString(ack,post->title);wire::WritePOD(ack,now);
+        wire::WriteString(ack,post->sender);wire::WriteString(ack,post->title);wire::WritePOD(ack,received);
         if(ack.size()>65527)throw std::runtime_error("Mail notification exceeds source frame");
         packets.emplace_back(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_POSTRECV_ACK),std::move(ack));
         ++p->post_counts->first;++p->post_counts->second;

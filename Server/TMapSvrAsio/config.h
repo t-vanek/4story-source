@@ -122,6 +122,7 @@ struct AppConfig
     ContentConfig  content;
     // Explicit native releases, separately published from the map charts.
     std::string character_manifest, routing_manifest, actor_manifest;
+    std::string client_text_encoding; // explicit PostgreSQL encoding for non-ASCII ANSI input
     // Original CHAR_SAVE_TICK is thirty minutes; operational deployments may shorten it.
     std::uint32_t checkpoint_interval_ms = 30 * 60 * 1000;
 

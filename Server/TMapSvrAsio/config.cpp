@@ -140,6 +140,7 @@ AppConfig LoadConfig(const std::string& path)
         }
     }
     if(auto native=tbl["native_map"].as_table()) {
+        cfg.client_text_encoding=(*native)["client_text_encoding"].value_or(std::string{});
         cfg.character_manifest=(*native)["character_manifest_sha256"].value_or(std::string{});
         cfg.routing_manifest=(*native)["routing_manifest_sha256"].value_or(std::string{});
         cfg.actor_manifest=(*native)["actor_manifest_sha256"].value_or(std::string{});

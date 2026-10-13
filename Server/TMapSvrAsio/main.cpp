@@ -242,7 +242,7 @@ int main(int argc, char** argv)
                     throw std::runtime_error("Native Map requires normal mode, DB workers and World peer");
                 native_owner=std::make_unique<tmapsvr::PostgreSQLMapOwner>(cfg.database.connection_string,cfg.cluster.group_id,cfg.cluster.server_id);
                 native_map=std::make_unique<tmapsvr::PostgreSQLMapService>(*pool,tmapsvr::PostgreSQLMapConfig{
-                    cfg.cluster.group_id,cfg.cluster.server_id,native_owner->Token(),cfg.character_manifest,cfg.routing_manifest,cfg.actor_manifest});
+                    cfg.cluster.group_id,cfg.cluster.server_id,native_owner->Token(),cfg.character_manifest,cfg.routing_manifest,cfg.actor_manifest,cfg.client_text_encoding});
                 spdlog::info("native PostgreSQL Map ready; recovered checkpoints={}, orphaned prior sessions={}",native_owner->RecoveredSessions(),native_owner->OrphanedSessions());
             } else {
             tmapsvr::db::ValidateUserSchema(*pool);

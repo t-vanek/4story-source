@@ -62,13 +62,14 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const auto identity=ctx.session_reg?ctx.session_reg->Identity(client.get()):std::nullopt;
     if(!identity||identity->phase!=SessionPhase::Ready||identity->role!=MapSessionRole::Primary)co_return;
     const auto message=static_cast<tnetlib::protocol::MessageId>(opcode);
-    const bool mail=message==tnetlib::protocol::MessageId::CS_POSTLIST_REQ||message==tnetlib::protocol::MessageId::CS_POSTVIEW_REQ||
+    const bool mail=message==tnetlib::protocol::MessageId::CS_POSTSEND_REQ||message==tnetlib::protocol::MessageId::CS_POSTLIST_REQ||message==tnetlib::protocol::MessageId::CS_POSTVIEW_REQ||
         message==tnetlib::protocol::MessageId::CS_POSTGETITEM_REQ||message==tnetlib::protocol::MessageId::CS_POSTDEL_REQ||
         message==tnetlib::protocol::MessageId::CS_POSTRETURN_REQ;
     if(message==tnetlib::protocol::MessageId::CS_ITEMUSE_REQ||
        message==tnetlib::protocol::MessageId::CS_ITEMSELL_REQ||
        message==tnetlib::protocol::MessageId::CS_ITEMBUY_REQ||
        message==tnetlib::protocol::MessageId::CS_MAGICITEMBUY_REQ||
+       message==tnetlib::protocol::MessageId::CS_POSTSEND_REQ||
        message==tnetlib::protocol::MessageId::CS_POSTGETITEM_REQ||
        message==tnetlib::protocol::MessageId::CS_POSTDEL_REQ||
        message==tnetlib::protocol::MessageId::CS_POSTRETURN_REQ||
@@ -94,10 +95,20 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         if(state->bStartAct==2||(state->bStartAct==1&&state->wMapID==2010)||
             (message!=tnetlib::protocol::MessageId::CS_POSTLIST_REQ&&state->payload&&state->payload->tournament_player))co_return;
     }
+    if(message==tnetlib::protocol::MessageId::CS_POSTSEND_REQ) {
+        const auto state=ctx.char_state?ctx.char_state->Get(identity->char_id):std::nullopt;
+        if(!state)co_return;
+        if(state->payload&&(state->payload->deal_status||state->payload->personal_store)) {
+            co_await client->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_POSTSEND_ACK),
+                std::vector<std::byte>{std::byte{12}});co_return;
+        }
+    }
+    const bool variable_request=message==tnetlib::protocol::MessageId::CS_POSTSEND_REQ||
+        message==tnetlib::protocol::MessageId::CS_PROTECTEDADD_REQ||message==tnetlib::protocol::MessageId::CS_PROTECTEDERASE_REQ;
     const bool lottery=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_REQ)||
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_TRIGGER_REQ);
     const auto required=opcode<=2||lottery?0U:
-        message==tnetlib::protocol::MessageId::CS_POSTRETURN_REQ?5U:
+        message==tnetlib::protocol::MessageId::CS_POSTRETURN_REQ||message==tnetlib::protocol::MessageId::CS_PROTECTEDOPTION_REQ?5U:
         message==tnetlib::protocol::MessageId::CS_ITEMBUY_REQ?11U:
         message==tnetlib::protocol::MessageId::CS_MAGICITEMBUY_REQ?9U:
         message==tnetlib::protocol::MessageId::CS_NPCITEMLIST_REQ?2U:
@@ -113,6 +124,9 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         if(body.size()<7||body.size()!=7U+5U*std::to_integer<unsigned>(body[6]))throw std::runtime_error("Invalid ITEMUSE request length");
     }else if(message==tnetlib::protocol::MessageId::CS_REFINE_REQ) {
         if(body.size()<8||body.size()!=8U+2U*std::to_integer<unsigned>(body[3]))throw std::runtime_error("Invalid REFINE request length");
+    }else if(variable_request) {
+        // Decode in the locked repository after the source early gates.
+        if(body.size()<4||body.size()>65527)throw std::runtime_error("Invalid variable gameplay request length");
     }else if(body.size()!=required)throw std::runtime_error("Invalid quest request length");
     if(!ctx.char_state||!ctx.player_service||!ctx.quest_chart||!ctx.skill_cooldown||!ctx.monster_registry)
         throw std::runtime_error("Native quest dependencies unavailable");

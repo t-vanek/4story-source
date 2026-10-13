@@ -1,6 +1,7 @@
 #include "postgresql_map_service.h"
 #include "domain/main_transfer.h"
 #include "native_item_row.h"
+#include "native_mail_lock.h"
 #include "domain/quest_def.h"
 #include "MessageId.h"
 #include <soci/soci.h>
@@ -120,6 +121,7 @@ void PostgreSQLMapService::PostExpiredBag(soci::session& sql,const MapSessionCla
     auto contents=bag->items;
     if(contents.size()>255)throw std::runtime_error("Expired bag exceeds source BYTE item count");
     std::sort(contents.begin(),contents.end(),[](const auto& a,const auto& b){return a.bItemID<b.bItemID;});
+    if(!contents.empty())LockNativeMailbox(sql,c.group,c.char_id);
     const auto text=contents.empty()?PostText{}:ExpiredBagText(sql);
     const auto sender_hex=Hex(text.sender_bytes),title_hex=Hex(text.title_bytes),message_hex=Hex(text.message_bytes);
     // Original TSavePost stores SMALLDATETIME while POSTRECV uses the live

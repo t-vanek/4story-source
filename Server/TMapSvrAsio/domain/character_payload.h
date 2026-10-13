@@ -34,6 +34,7 @@ struct CharacterPost {
     std::string recipient,sender,title,message;
     std::uint8_t contains{}; // native derived attachment/funds availability
 };
+struct CharacterProtected { std::uint32_t id{}; std::string name; std::uint8_t option{}; };
 struct CharacterRecall {
     std::uint32_t id{},attribute{},hp{},mp{},time{};
     std::uint16_t monster{},pet{},x{},y{},z{};
@@ -95,6 +96,8 @@ struct CharacterPayload {
     std::vector<CharacterTitle> titles;
     std::vector<CharacterCabinet> cabinets;
     std::vector<CharacterPost> posts;
+    std::vector<CharacterProtected> protected_characters; // normalized SQL authority, including transfer
+
     // Source m_wPostRead counts UNREAD posts (TGetPostInfo bRead=0). Live
     // counters survive primary transfers independently of the mailbox DTO.
     std::optional<std::pair<std::uint16_t,std::uint16_t>> post_counts;

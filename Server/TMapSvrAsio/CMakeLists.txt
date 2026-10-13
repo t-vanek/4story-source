@@ -160,6 +160,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_expiration.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_mail.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_mail_return.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_protected.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_mail_send.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_pvp_balance.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_refine.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_gamble.cpp

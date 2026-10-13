@@ -10,6 +10,7 @@ namespace transfer {struct State;struct Item;}
 struct PostgreSQLMapConfig {
     std::uint8_t world{},server{};
     std::string owner_token,character_manifest,routing_manifest,actor_manifest;
+    std::string client_text_encoding; // explicit ANSI binding profile; empty permits invariant ASCII only
 };
 class PostgreSQLMapService final : public IPlayerService, public IMapSessionValidator, public IServerRouteResolver {
 public:
@@ -78,6 +79,10 @@ private:
     static void PostExpiredBag(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,QuestPackets&,QuestPackets&);
     static void HydrateNativePosts(soci::session&,const MapSessionClaim&,CharacterPayload&);
     static bool NativeMail(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
+    static void HydrateNativeProtected(soci::session&,const MapSessionClaim&,CharacterPayload&);
+    static void ListNativeProtected(const CharacterPayload&,QuestPackets&);
+    bool ChangeNativeProtected(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,std::span<const std::byte>,QuestPackets&) const;
+    bool SendNativePost(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,QuestPackets&) const;
     static bool ReturnNativePost(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,bool,bool,QuestPackets&);
     bool PollNativeMail(soci::session&,const MapSessionClaim&,CharSnapshot&,QuestPackets&) const;
     static std::string InsertNativeItem(soci::session&,const MapSessionClaim&,const transfer::Item&);

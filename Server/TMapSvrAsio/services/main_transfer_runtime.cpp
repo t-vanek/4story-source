@@ -70,6 +70,8 @@ State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker
             out.items.push_back(std::move(raw));
         }
     }
+    out.protected_characters.clear();
+    for(const auto& row:p.protected_characters)out.protected_characters.push_back({row.id,row.name,row.option,0});
     out.cabinets=p.cabinets;out.skills=p.skills;out.titles=p.titles;out.recalls=p.recalls;out.pets=p.pets;
     if(p.quests) {
         out.quests.clear();out.quest_terms.clear();

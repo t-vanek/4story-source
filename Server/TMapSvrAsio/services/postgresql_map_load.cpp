@@ -524,6 +524,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     p.selected_title=LoadedTitle(p.titles);
     for(const auto& r:children("TCABINETTABLE"))p.cabinets.push_back({U8(r,"bCabinetID"),U8(r,"bUse")});
     HydrateNativePosts(sql,claim,p);
+    HydrateNativeProtected(sql,claim,p);
     for(const auto& r:children("TRECALLMONTABLE","dwOwnerID")) {
         p.recalls.push_back({U32(r,"dwID"),U32(r,"dwATTR"),U32(r,"dwHP"),U32(r,"dwMP"),U32(r,"dwTime"),
             U16(r,"wMonID"),U16(r,"wPetID"),U16(r,"wPosX"),U16(r,"wPosY"),U16(r,"wPosZ"),U8(r,"bLevel"),U8(r,"bSkillLevel"),U8(r,"bEffect")});
@@ -573,6 +574,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
     HydrateNativePosts(sql,claim,p);
+    HydrateNativeProtected(sql,claim,p);
     HydrateQuestProgress(sql,claim,p);
     HydrateDuringItems(sql,claim,p);
     HydratePvpBalance(sql,claim,p);

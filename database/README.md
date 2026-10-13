@@ -5,6 +5,15 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
+**Current Phase A code `18ee496`:** the migration chain reaches059 (next060).
+New044–059 migrations and import/publication tools are written only. Migration059
+adds native post attachment ownership, original server-message byte publication
+and post text byte storage, preserving pre-existing carried-item fingerprints.
+The Map runtime supports expired-bag mail and read/view/claim/empty deletion;
+sending/returns/settlement/reserved producers and offline mail import remain open.
+See the [source contract](../_rewrite/docs/modernization/evidence/phase-a-item-mail-20261013/README.md).
+Earlier numbered notes below describe their own historical increments.
+
 | Layer | Authority and allowed changes |
 |---|---|
 | `TGAME_RAGEZONE.bak`, `TGLOBAL_RAGEZONE.bak` | Immutable originals, pinned SHA256 fingerprints. Never overwrite them or replace their contents with assumptions from code or exported SQL. |

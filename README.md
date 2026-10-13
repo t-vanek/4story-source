@@ -26,7 +26,7 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–058** and native code extend quest state/actions, skill audit,
+New migrations **044–059** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -72,11 +72,19 @@ three point fields. Unknown-quest free purchases are explicitly rejected. BOW,
 portal/monster shops, territory rules, expiration and full PvP remain open.
 [Source scope and compile-only evidence](_rewrite/docs/modernization/evidence/phase-a-npc-shops-20261011/README.md).
 
-The changed Map target compiles and links in Debug and Release with tests disabled.
+Code `18ee496` adds carried-item alarms/expiry and expired-bag mail in the existing
+native timer transaction. POSTLIST/POSTVIEW/POSTGETITEM/POSTDEL and entry POSTINFO
+use original packets, durable attachment ownership, atomic item/fund claims and
+GETITEM hooks. Migration059 and `--server-messages` publish exact backup message
+bytes. Expiry, mail counters, empty-post deletion and owning-value repairs are
+**INTEGRATED_UNVERIFIED**. Sending, returns, settlement, reserved/event mail and
+broader gameplay remain unfinished. See the [source scope and acceptance backlog](_rewrite/docs/modernization/evidence/phase-a-item-mail-20261013/README.md).
+
+Compilation results for the changed Map target are recorded with that increment.
 Earlier evidence covers all six modern targets at its stated commits. Historical
-import tools and migrations044–058 are written, not executed. No tests, database
+import tools and migrations044–059 are written, not executed. No tests, database
 migration, server startup or container run belongs to this increment. Previous
-migrations001–057 remain unchanged; the next unused migration number is059.
+migrations001–058 remain unchanged; the next unused migration number is060.
 
 ## Historical verification through `2fa2396`
 

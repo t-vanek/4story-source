@@ -7,6 +7,14 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
+Code `18ee496` additionally requires unapplied059 and refreshed Map role grants
+for post insertion/read/claim/deletion, attachment ownership and expired-bag
+removal. The existing quest publisher adds `--server-messages` while retaining
+all previously published extended profiles. Exact TSVRMSGCHART bytes must come
+from the complete pinned archive. These are later Phase B prerequisites; no
+database command, server startup or container operation was executed here.
+[Source contracts and compile-only results](../_rewrite/docs/modernization/evidence/phase-a-item-mail-20261013/README.md).
+
 Current `0457d3d` / `750c797` needs the additive chain through055 and the updated
 `deploy/sql/map-runtime-grants.sql` when Phase B later opens an isolated database.
 Migration055 preserves old operation receipts as NULL and adds no historic data.

@@ -25,6 +25,13 @@ The [working status](full-rewrite-status.md) records changed production paths as
 unverified and tracks the remaining implementation gate. Historical results below
 belong to their stated revisions and scopes.
 
+Code `18ee496` connects original carried-item expiry/alarm timers, expired-bag
+mail, POSTLIST/POSTVIEW/POSTGETITEM/POSTDEL and entry POSTINFO to the existing
+native ownership/quest/checkpoint transaction. Migration059 extends explicit
+storage2 ownership and complete original server-message publication. Changes are
+**INTEGRATED_UNVERIFIED**. Sending, return/settlement/reserved/event mail and full
+World/gameplay remain open. [Source scope and deferred acceptance](evidence/phase-a-item-mail-20261013/README.md).
+
 Code `3bc3bd1` connects NPC item/trainer lists and ordinary, quest, magic and PvP
 purchases to the native transaction. Migration058 adds fenced PvP balances and
 an explicit offline archival importer; CHARINFO and transfer retain the original

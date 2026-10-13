@@ -13,6 +13,16 @@ prototype; missing action/world integrations still reject rather than issue a
 fabricated success. See [working status](full-rewrite-status.md) for explicit
 changes to tie ordering, randomness, UTC expiration and transaction boundaries.
 
+Code `18ee496` adds **unverified** POSTLIST54A5 (WORD page), POSTVIEW53A6,
+POSTGETITEM53AA and POSTDEL53A8 (DWORD post ID). It preserves source list/view
+layouts, no-slot attachment descriptors, GETITEM result BYTE, DELETE DWORD and
+four-byte POSTINFO54A6. Expiry uses original SYSTEMMSG5451 subtype17 with
+DWORD scheduled seconds and BYTE bag/slot, DELITEM and INVENDEL responses, then
+POSTRECV53A4 notifications. All native ownership changes commit before responses.
+Alarms, mailbox selection and attachment FK metadata add no client fields.
+Source unread counts, unusual pagination, frame bounds, native containment and
+bill/delete safety changes are documented in [the exact contract](evidence/phase-a-item-mail-20261013/README.md).
+
 Code `3bc3bd1` connects **unverified** NPCITEMLIST0x5302 (2 bytes),
 ITEMBUY0x5304 (11 bytes) and MAGICITEMBUY0x54D6 (9 bytes). The buy replies remain
 15/13 bytes; PvP spending emits the original13-byte total/useable/event/month

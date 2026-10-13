@@ -1,0 +1,81 @@
+-- OpenSSL legacy provider: /usr/lib/ossl-modules/legacy.so
+-- Configuring done (0.1s)
+CMake Warning at Server/TLoginSvrAsio/CMakeLists.txt:115 (add_executable):
+  Cannot generate a safe runtime search path for target tloginsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TPatchSvrAsio/CMakeLists.txt:56 (add_executable):
+  Cannot generate a safe runtime search path for target tpatchsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TLogSvrAsio/CMakeLists.txt:52 (add_executable):
+  Cannot generate a safe runtime search path for target tlogsvr_asio because
+  files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TControlSvrAsio/CMakeLists.txt:92 (add_executable):
+  Cannot generate a safe runtime search path for target tcontrolsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TMapSvrAsio/CMakeLists.txt:208 (add_executable):
+  Cannot generate a safe runtime search path for target tmapsvr_asio because
+  files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TWorldSvrAsio/CMakeLists.txt:166 (add_executable):
+  Cannot generate a safe runtime search path for target tworldsvr_asio
+  because files in some directories may conflict with libraries in implicit
+  directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+CMake Warning at Server/TLoginSvrAsio/CMakeLists.txt:122 (add_executable):
+  Cannot generate a safe runtime search path for target
+  tloginsvr_bcrypt_migrate because files in some directories may conflict
+  with libraries in implicit directories:
+
+    runtime library [libfmt.so.11] in /usr/lib64 may be hidden by files in:
+      /tmp/fourstory-phase-a-deps/usr/lib64
+
+  Some of these libraries may not be found correctly.
+
+
+-- Generating done (0.0s)
+-- Build files have been written to: /home/tomasvanek/RiderProjects/4story-source/build/phase-a-compile

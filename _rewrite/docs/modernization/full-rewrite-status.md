@@ -8,10 +8,40 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–058 are **written, not applied**.
-Latest code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
+evidence remain unchanged. New migrations044–059 are **written, not applied**.
+Latest code increment: `18ee496` (native item expiration and mail), based on `abc40d4`.
+Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Carried item expiration and native mail — `18ee496`
+
+- Source strict30/20/10/1-minute alarm boundaries, unsigned bag/slot iteration,
+  whole-instance deletion, equipped-item posture/stat responses and paused
+  personal-store expiration reach the existing native timer transaction. Copy/
+  SetItemAttr rearm alarms; merges/derivation retain them. Probability skills
+  905/911/919/921/922/939 now also activate the regular expiration tick.
+- Expired bags atomically move remaining items into groups of three attachments,
+  allocate posts and remove the bag before INVENDEL/POSTRECV responses. Fresh
+  rows and authoritative graphs retain original identities, raw attributes and
+  current-owner/epoch/operation-head fencing. Unknown commits are not retried.
+- Original POSTLIST/POSTVIEW/POSTGETITEM/POSTDEL requests use the same dispatcher,
+  security/tutorial/tournament gates and transaction. Capacity precedes claim;
+  attachment/fund/quest/title/checkpoint updates commit together. Source unbounded
+  list pagination and unread-counter meaning are retained. POSTINFO is sent at
+  native entry. Wider mail money amounts retain the original 64-bit contract.
+- Migration059, role grants and `--server-messages` are implemented only. Existing
+  item hashes remain stable across the added NULL attachment column. Backup
+  message bytes are published without fabricated operator/title text.
+- Explicit repairs: reject unpaid bill claims; protect all nonempty posts from
+  deletion; derive native containment from actual funds/attachments because the
+  backup's nullable bContain has no default/producer in TSavePost. Bound oversized
+  packets; retain source data. Item mutation inputs now own their old item values.
+- **INTEGRATED_UNVERIFIED**. Sending, returns/bill settlement, reserved/quest/event
+  and offline mail import, full store/deal/tournament/effect producers remain
+  required. No complete Phase A, PostgreSQL-only or executable-compatibility claim.
+
+[Source contracts, exact compile results and Phase B backlog](evidence/phase-a-item-mail-20261013/README.md).
 
 ## NPC purchases and PvP balances — `3bc3bd1`
 
@@ -330,8 +360,10 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    it is not a complete event replay/recovery barrier.
    Continue QT_DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/SENDPOST/REGEN
    and all non-request kill/use-item/position/spawn producers. Quest mail uses
-   TRESERVEDPOST then TGetReservedPost and storage2; carried-only TITEMTABLE cannot
-   receive attachments without an explicit storage/ownership extension.
+   TRESERVEDPOST then TGetReservedPost and storage2. Migration059 now provides
+   native attachment ownership, expired-bag delivery and read/claim/delete paths;
+   add reserved producers, sending, returns/bill settlement and complete offline
+   mail import using that same ownership path. Do not add another mail backend.
 2. Implement source Map switches (QCT20), neutral NPC territory authority and
    conditional guild/hero trainer discounts. No substitute country/switch values.
 3. Finish Control one-shot event delivery/recovery with native World recipients,

@@ -20,10 +20,17 @@ Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
 source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
 tournament producers, conditional NPC discounts and premium branches are still
 missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
-Migrations044–058 and archival/import tools are written, not executed. Debug and
+Migrations044–059 and archival/import tools are written, not executed. Debug and
 Release compilation of all six modern binaries succeeded; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
 [Latest source scope and limitations](evidence/phase-a-refine-events-20261011/README.md).
+
+Code `18ee496` adds **INTEGRATED_UNVERIFIED** carried-item expiry/alarm, atomic
+expired-bag mail, POSTLIST/POSTVIEW/POSTGETITEM/POSTDEL and entry POSTINFO. Native
+storage2 ownership retains raw items across graphs/recovery. Claims include
+capacity, items, funds, quest hooks and checkpoints. Sending, returns/settlement,
+reserved/event producers and offline mail import remain missing; full mail is
+not complete. [Source scope and acceptance](evidence/phase-a-item-mail-20261013/README.md).
 
 Current code `3bc3bd1` adds **INTEGRATED_UNVERIFIED** NPC/PvP paths; Map compiled
 in Debug and Release, with no tests or runtime. See [source scope](evidence/phase-a-npc-shops-20261011/README.md).

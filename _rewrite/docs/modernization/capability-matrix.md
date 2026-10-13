@@ -20,10 +20,17 @@ Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
 source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
 tournament producers, conditional NPC discounts and premium branches are still
 missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
-Migrations044–062 and archival/import tools are written, not executed. Debug and
-Release compilation of all six modern binaries succeeded; tests and runtime
+Migrations044–063 and archival/import tools are written, not executed. Earlier increments compiled all six modern binaries at their recorded revisions.
+The current changed Map/World targets compile in Debug/Release; tests and runtime
 startup are deferred by the Phase A gate. No named client binary is available.
 [Latest source scope and limitations](evidence/phase-a-refine-events-20261011/README.md).
+
+Code `45d130d` integrates the World minute timer and native reserved-mail delivery:
+source batch limit30, new item IDs at delivery, raw attributes, post/status and
+Map notification receipts commit together. Written063, grants and historical
+queue importer are unexecuted. Map/World compile/link in Debug/Release; no tests
+or runtime were run. Quest/admin/event/BR/rank producers and complete native
+World bootstrap remain open. [Scope, source conflict and compilation evidence](evidence/phase-a-reserved-mail-20261013/README.md).
 
 Code `85bf923` / `feea4a1` / `b4ff581` adds **INTEGRATED_UNVERIFIED** native ordinary
 player mail sending, protected-list CRUD/admission/handoff, recipient live notification
@@ -37,6 +44,7 @@ quest/event/admin mail, offline jobs and gameplay remain required.
 |---|---|---|
 | Player mail normal/package/bill | Original53A2 → source recipient/country/block/capacity/funds/raw item gates → fenced PG transaction → ordered53A3 response | Trade reservation producers; native name/collation profile; World/event/offline mail; no Phase B/client acceptance |
 | Protected lists | Original5377/5379/5472 → native remembered bytes/options → admission5376 and original graph transfer | Chat/invite/deal/duel consumers; atomic World friend persistence; no database/import/client acceptance |
+| World reserved delivery | World minute → PG pending queue → atomic post/new raw item/status/receipt → fenced Map53A4 | Quest/admin/event/BR/rank producers; full native World bootstrap; no PG/client acceptance |
 | Queued mail notifications | Enqueue audit retained; original recipient live second; return cancels obsolete receipt; current primary timer delivers53A4 | Failure/recovery/counter tests and receipt retention |
 
 Code `d3904c5` adds **INTEGRATED_UNVERIFIED** POSTRETURN/payment, sender-owned

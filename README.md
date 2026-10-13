@@ -26,6 +26,12 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
+Code `45d130d` integrates PostgreSQL reserved-mail delivery into the existing
+World minute timer and Map notification path. Migration063 and the historical
+queue importer are written, not executed. Quest/event/admin producers and full
+native World startup remain incomplete.
+[Source scope and compilation evidence](_rewrite/docs/modernization/evidence/phase-a-reserved-mail-20261013/README.md).
+
 Code `85bf923` / `feea4a1` / `b4ff581` adds native ordinary player mail sending and
 protected-list persistence through admission and Map transfer. Notification
 receipts retain enqueue audit data and cancel obsolete recipient/type routing.
@@ -35,7 +41,7 @@ in Debug/Release; no new tests, database runs or cluster startup occurred.
 Full World/social/economy/gameplay remains incomplete.
 [Exact source scope and evidence](_rewrite/docs/modernization/evidence/phase-a-mail-send-protected-20261013/README.md).
 
-New migrations **044–062** and native code extend quest state/actions, skill audit,
+New migrations **044–063** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -99,9 +105,9 @@ jobs and World reserved/event/admin producers remain required.
 
 Compilation results for the changed Map target are recorded with that increment.
 Earlier evidence covers all six modern targets at its stated commits. Historical
-import tools and migrations044–062 are written, not executed. No tests, database
+import tools and migrations044–063 are written, not executed. No tests, database
 migration, server startup or container run belongs to this increment. Previous
-migrations001–061 remain unchanged; the next unused migration number is063.
+migrations001–062 remain unchanged; the next unused migration number is064.
 
 ## Historical verification through `2fa2396`
 

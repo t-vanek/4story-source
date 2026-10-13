@@ -1,0 +1,160 @@
+{
+  "recorded_at": "2026-10-13T18:58:55.119563+00:00",
+  "code_commit": "45d130d94a2adbbbb1c2cc33de604b90a0177a14",
+  "base_commit": "0f05d33",
+  "branch": "main",
+  "phase": "A",
+  "phase_a_complete": false,
+  "state": "INTEGRATED_UNVERIFIED",
+  "importer_state": "IMPLEMENTED_UNVERIFIED",
+  "scope": "World reserved-post delivery timer -> native PostgreSQL queue/post/full raw new item/notification -> existing Map poll; not quest/admin/event producers or full native World",
+  "builds": [
+    {
+      "configuration": "Debug",
+      "command": "cmake --build build/phase-a-compile --target tmapsvr_asio tworldsvr_asio -j1",
+      "final_command": "cmake --build build/phase-a-compile --target tworldsvr_asio -j1",
+      "exit_code": 0,
+      "final_exit_code": 0,
+      "incremental": true,
+      "build_testing": false,
+      "executables_run": false,
+      "logs": [
+        "debug-build.log",
+        "debug-final-build.log"
+      ]
+    },
+    {
+      "configuration": "Release",
+      "command": "cmake --build build/phase-a-quest-release --target tmapsvr_asio tworldsvr_asio -j1",
+      "final_command": "cmake --build build/phase-a-quest-release --target tworldsvr_asio -j1",
+      "exit_code": 0,
+      "final_exit_code": 0,
+      "incremental": true,
+      "build_testing": false,
+      "executables_run": false,
+      "logs": [
+        "release-build.log",
+        "release-final-build.log"
+      ]
+    }
+  ],
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "cmake": "cmake version 4.3.0",
+  "cpp_standard": "C++20",
+  "source_references": [
+    "Server/TWorldSvr/TWorldSvr.cpp:3986 OnTimer",
+    "Server/TWorldSvr/SSHandler.cpp:6556 OnDM_RESERVEDPOSTSEND_REQ",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TGetReservedPost.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TSavePost.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TSaveItemDirect.sql",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TGenerateDBItemID.sql",
+    "Server/TMapSvr/SSHandler.cpp:10710 OnMW_POSTRECV_REQ"
+  ],
+  "files": [
+    {
+      "path": "Lib/Own/FourStoryCommon/fourstory/db/native_mail_lock.h",
+      "sha256": "6f55218906541dd1d37d87f1ae4eeb02f6e6e5523d668cbdd9096353a2818dfc"
+    },
+    {
+      "path": "Server/TMapSvrAsio/services/native_mail_lock.h",
+      "sha256": "7ad960dadd0a009848c0892616c594782f255bf79bb2d0bbe3a56e85a47ddfab"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/CMakeLists.txt",
+      "sha256": "004ddce76a0e6264a7ba287652e28a406089352ba6263433c1af0a61e9a95ccb"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/main.cpp",
+      "sha256": "2a63570a81cb1f135ef3f91e84bd7cdf4de8142de1b675b1bafd20492be9535f"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_reserved_mail.cpp",
+      "sha256": "57e183f7b4cbf63c76e0ec5c13a2168e1d2d78e55a028f0e7d703a1c82a313bb"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/postgresql_reserved_mail.h",
+      "sha256": "96faa7cd477f42a67876b4267041b005bd1e11143c4a23777bf612b0cba8a1b5"
+    },
+    {
+      "path": "database/postgresql/063-native-reserved-mail.sql",
+      "sha256": "fd8b1d04c34af662c4460f29b76dd95f8a5d1c109812a6bdc76afca82f9bbeaf"
+    },
+    {
+      "path": "deploy/sql/world-mail-runtime-grants.sql",
+      "sha256": "bbd29fffea685e0991a41db8e16723d7e2fa5fd179e6f40ac786aaac980ddba5"
+    },
+    {
+      "path": "tools/database/import_reserved_mail.py",
+      "sha256": "a2c666dba64ca887951314f7d1d30f61b375a5e2c1a90ad87f539c33aba31662"
+    }
+  ],
+  "migrations_001_062_unchanged": true,
+  "new_migrations": [
+    "063-native-reserved-mail.sql"
+  ],
+  "migrations_applied": 0,
+  "importer_execution_count": 0,
+  "importer_syntax": "AST only; no modules or DB connections executed",
+  "tests_executed": 0,
+  "sanitizer_runs": 0,
+  "server_runs": 0,
+  "client_sessions": 0,
+  "container_builds": 0,
+  "container_starts": 0,
+  "runtime_postgresql_only": false,
+  "supported_client_binary": null,
+  "published": false,
+  "preserved_backups": [
+    {
+      "path": "TGAME_RAGEZONE.bak",
+      "size_bytes": 34009088,
+      "sha256": "2cff1635d523322d3de8ddafaeacc3335581dc338dca901239ac80288f51d259"
+    },
+    {
+      "path": "TGLOBAL_RAGEZONE.bak",
+      "size_bytes": 36560896,
+      "sha256": "fca545bcb90bcc72aa4f3514a6177c2b88d2b0bf71bf847b0128f090a20877fb"
+    }
+  ],
+  "historical_queue_profile": {
+    "source": "_rewrite/docs/database-reconstruction/evidence/data-profiles.json",
+    "TRESERVEDPOST_rows": 0,
+    "not_a_new_database_run": true
+  },
+  "source_conflicts": {
+    "TQuestSendPost": {
+      "procedure": "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TQuestSendPost.sql",
+      "metadata": "_rewrite/docs/database-reconstruction/evidence/backup-schema.json",
+      "omitted_insert_columns": {
+        "bGradeEffect": {
+          "ordinal": 15,
+          "is_nullable": 0,
+          "default_definition": "((0))"
+        },
+        "wMoggItemID": {
+          "ordinal": 35,
+          "is_nullable": 0,
+          "default_definition": null
+        }
+      },
+      "status": "wMoggItemID is omitted, NOT NULL and has no source default. bGradeEffect omission selects the proved default0. Quest producer requires an explicit documented repair; none is invented in this delivery scope."
+    }
+  },
+  "remaining": [
+    "Native World ownership/social/guild/event/operational repositories and startup schema validation",
+    "Quest/admin/event/BR/rank producers and TQTITLE SQL VARCHAR prefix/truncation contract",
+    "Offline bill job reconciliation and receipt retention",
+    "Phase B PG/codec/concurrency/failure/client acceptance",
+    "Whole gameplay and Phase C containers"
+  ],
+  "skipped_verification": [
+    "Unit/integration/regression/TCP/protocol/PG tests",
+    "Migration upgrade and historical queue import",
+    "Concurrent World/Map ownership, mailbox locking, restart, missing recipient and batch quotas",
+    "Unknown COMMIT, DB failure, process death, real-client acceptance",
+    "Sanitizers and local cluster"
+  ],
+  "preserved_unrelated_work": [
+    "_rewrite/docs/audits/"
+  ]
+}

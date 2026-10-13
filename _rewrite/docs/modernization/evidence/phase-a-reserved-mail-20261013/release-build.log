@@ -1,0 +1,15 @@
+[0/1] Re-running CMake...
+-- OpenSSL legacy provider: /usr/lib/ossl-modules/legacy.so
+-- Configuring done (0.1s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/tomasvanek/RiderProjects/4story-source/build/phase-a-quest-release
+[1/11] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_item_mail.cpp.o
+[2/11] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_mail_return.cpp.o
+[3/11] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_protected.cpp.o
+[4/11] Building CXX object Server/TMapSvrAsio/CMakeFiles/tmapsvr_asio_core.dir/services/postgresql_map_mail_send.cpp.o
+[5/11] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/postgresql_reserved_mail.cpp.o
+[6/11] Linking CXX static library lib/libtmapsvr_asio_core.a
+[7/11] Linking CXX static library lib/libtworldsvr_asio_core.a
+[8/11] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio.dir/main.cpp.o
+[9/11] Linking CXX executable bin/tmapsvr_asio
+[10/11] Linking CXX executable bin/tworldsvr_asio

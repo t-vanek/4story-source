@@ -8,13 +8,39 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–062 are **written, not applied**.
-Latest code increments: `85bf923` / `feea4a1` / `b4ff581` (player mail send/protected lists/importer), based on `8cd91ff`.
+evidence remain unchanged. New migrations044–063 are **written, not applied**.
+Latest code increment: `45d130d` (World reserved-mail delivery/importer), based on `0f05d33`.
+Previous code increments: `85bf923` / `feea4a1` / `b4ff581` (player mail send/protected lists/importer), based on `8cd91ff`.
 Previous code increment: `d3904c5` (native mail returns/payment/notifications/importer),
 based on `802a232`. Previous `18ee496` implements item expiration and mail, based on `abc40d4`.
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## World reserved-mail delivery — `45d130d`
+
+- Existing World main selects native PostgreSQL queue delivery on its actual
+  PostgreSQL pool/group and schedules it on the original minute boundary, via
+  existing DB workers. Batch limit30, missing-recipient break and status0/1/2
+  retain source meaning. Full raw fields persist with new item IDs at delivery.
+- Post/item/status/receipt/clock commit together; shared mailbox and allocator
+  locking prevents duplicate concurrent batches. Known busy rollback leaves the
+  minute available. Unknown COMMIT stops World with exit1 and is not replayed.
+  Stable FIFO queue order, whole-batch atomicity, durable minute and UTC are
+  documented modern changes; no new original-client fields are added.
+- Written063/grants and the full pinned historical queue importer are unexecuted.
+  Exact status/text/attribute/clock/identity mappings are required; terminal rows
+  do not invent old delivery IDs. Original sources, backups and001–062 remain
+  unchanged. Map/World Debug/Release compile/link passed; no test, DB or runtime.
+- Remaining producers: quest/admin/event/BR/rank mail and original TQTITLE SQL
+  conversion/prefix/truncation. A proved backup conflict requires explicit repair:
+  TQuestSendPost omits NOT NULL/no-default wMoggItemID; its omitted bGradeEffect
+  instead has the proved default0. Do not infer defaults from modern data.
+- Full World bootstrap still validates legacy schema and constructs other legacy
+  repositories. Delivery integration is INTEGRATED_UNVERIFIED; Phase A and the
+  PostgreSQL-only runtime remain incomplete.
+
+[Exact source scope and deferred acceptance](evidence/phase-a-reserved-mail-20261013/README.md).
 
 ## Player mail sending and native protected lists — `85bf923` / `feea4a1` / `b4ff581`
 

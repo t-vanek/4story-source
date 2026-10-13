@@ -1,3 +1,9 @@
+> Active Phase A: `45d130d` wires native reserved-mail delivery to the real World
+> PostgreSQL pool and minute timer (migration063). No new tests/runtime were run.
+> Other World startup/schema/repository paths remain incomplete; the historical
+> W-series status below is not a full native-runtime claim.
+> [Current contracts and limits](../../_rewrite/docs/modernization/evidence/phase-a-reserved-mail-20261013/README.md).
+
 # TWorldSvrAsio — modernized cluster coordinator
 
 World main handoff now requires an outstanding CHECKMAIN request to an accepted

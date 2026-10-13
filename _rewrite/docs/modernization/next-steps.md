@@ -17,7 +17,14 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–062; the next free number is063.
+immutable. Phase A has added unapplied migrations044–063; the next free number is064.
+
+Code `45d130d` integrates the World minute timer and native reserved-mail delivery:
+source batch limit30, new item IDs at delivery, raw attributes, post/status and
+Map notification receipts commit together. Written063, grants and historical
+queue importer are unexecuted. Map/World compile/link in Debug/Release; no tests
+or runtime were run. Quest/admin/event/BR/rank producers and complete native
+World bootstrap remain open. [Scope, source conflict and compilation evidence](evidence/phase-a-reserved-mail-20261013/README.md).
 
 Code `85bf923` / `feea4a1` / `b4ff581` now integrates ordinary player POSTSEND and native
 protected-list CRUD/load/transfer; enqueue receipts and old-recipient superseding
@@ -27,11 +34,13 @@ and World Debug/Release; no Phase B/C execution. Continue with:
 1. Native World ownership/social repositories, including atomic friend erasure
    behind PROTECTEDCHECK; the existing World path still uses legacy SOCI tables.
    Then connect protected chat/invite/deal/duel consumers and trade reservations.
-2. Reserved/quest/event/admin mail: `QuestSendPost.cpp`, `TQuestSendPost.sql`,
-   `TGetReservedPost.sql`, World `OnDM_RESERVEDPOSTSEND_REQ` and its minute timer.
-   Publish original TQTITLECHART with explicit SQL VARCHAR conversion and source
-   prefix/truncation semantics; queue the actual source reserved item fields.
-   The source World batch is30 rows and allocates a new item ID on delivery.
+2. Reserved delivery is integrated by45d130d; continue its quest/event/admin/BR/
+   rank producers. Follow `QuestSendPost.cpp` and `TQuestSendPost.sql`, publish
+   original TQTITLECHART with source SQL VARCHAR conversion and prefix/truncation.
+   Repair the proved omitted/no-default wMoggItemID contract explicitly; the
+   omitted bGradeEffect selects source default0. Preserve SENDPOST's RANDOM
+   behavior (no accumulated-sum break) and the distinct ephemeral/delivery IDs.
+   Native World startup/schema and all other repositories still need completion.
 3. Offline bill expiry and `TJobsPostReturn` reconciliation; its obsolete
    TPOSTITEMTABLE branch must not overwrite current native STORAGE_POST authority.
    Complete notification retention and failure/concurrency acceptance later.

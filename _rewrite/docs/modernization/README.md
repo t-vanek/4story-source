@@ -25,6 +25,13 @@ The [working status](full-rewrite-status.md) records changed production paths as
 unverified and tracks the remaining implementation gate. Historical results below
 belong to their stated revisions and scopes.
 
+Code `45d130d` integrates the World minute timer and native reserved-mail delivery:
+source batch limit30, new item IDs at delivery, raw attributes, post/status and
+Map notification receipts commit together. Written063, grants and historical
+queue importer are unexecuted. Map/World compile/link in Debug/Release; no tests
+or runtime were run. Quest/admin/event/BR/rank producers and complete native
+World bootstrap remain open. [Scope, source conflict and compilation evidence](evidence/phase-a-reserved-mail-20261013/README.md).
+
 Code `85bf923` / `feea4a1` / `b4ff581` adds **INTEGRATED_UNVERIFIED** native ordinary
 player mail sending, protected-list CRUD/admission/handoff, recipient live notification
 time and superseding. Migrations061–062 and the exact historical protected importer

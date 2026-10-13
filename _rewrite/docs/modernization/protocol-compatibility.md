@@ -13,6 +13,12 @@ prototype; missing action/world integrations still reject rather than issue a
 fabricated success. See [working status](full-rewrite-status.md) for explicit
 changes to tie ordering, randomness, UTC expiration and transaction boundaries.
 
+Code `45d130d` adds the native World reserved-mail queue producer. It uses the
+existing Map POSTRECV53A4 path, with recipient live time and no new protocol
+fields. Database queue IDs, minute gates and delivery lineage are server-only.
+This is INTEGRATED_UNVERIFIED; complete World bootstrap and reserved-mail source
+producers remain unfinished. [Source and acceptance scope](evidence/phase-a-reserved-mail-20261013/README.md).
+
 Code `85bf923` / `feea4a1` / `b4ff581` adds **INTEGRATED_UNVERIFIED** POSTSEND53A2:
 three INT32-length raw strings, BYTE type, three DWORD funds and BYTE bag/slot;
 POSTSEND53A3 returns the original BYTE result. INVEN_NULL is0xFC, while default

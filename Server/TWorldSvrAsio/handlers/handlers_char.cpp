@@ -24,6 +24,41 @@ namespace tworldsvr::handlers {
 
 namespace {
 
+// Source DM_SOULMATELIST_ACK restores presence in both the own directed row
+// and each online incoming owner's row. ADDCHAR hydration precedes identity
+// loading in the modern flow, so publish the actual loaded region here.
+void RefreshSoulmatePresence(const HandlerContext& ctx,const std::shared_ptr<TChar>& self) {
+    if(!ctx.chars)return;
+    std::uint32_t target=0,character=0,region=0;
+    std::vector<std::uint32_t> incoming;
+    {std::lock_guard guard(self->lock);
+     target=self->soulmate.target;character=self->char_id;region=self->region;
+     for(const auto& [owner,mate]:self->inbound_soulmates)incoming.push_back(owner);}
+    if(target) {
+        bool online=false;std::uint32_t target_region=0;
+        if(auto partner=ctx.chars->Find(target)) {
+            std::lock_guard guard(partner->lock);
+            online=!partner->closing&&!partner->logout;target_region=partner->region;
+        }
+        {std::lock_guard guard(self->lock);if(self->soulmate.target==target) {
+            self->soulmate.connected=online;self->soulmate.region=online?target_region:0;
+        }}
+    }
+    for(const auto owner_id:incoming) {
+        bool online=false;std::uint32_t owner_region=0;
+        if(auto owner=ctx.chars->Find(owner_id)) {
+            std::lock_guard guard(owner->lock);online=!owner->closing&&!owner->logout;owner_region=owner->region;
+            if(online&&owner->soulmate.target==character) {
+                owner->soulmate.connected=true;owner->soulmate.region=region;
+            }
+        }
+        std::lock_guard guard(self->lock);auto found=self->inbound_soulmates.find(owner_id);
+        if(found!=self->inbound_soulmates.end()) {
+            found->second.connected=online;found->second.region=online?owner_region:0;
+        }
+    }
+}
+
 // Special map-server ids (NetCode.h): the Bow battleground (30) and
 // Battle Royale (50) instances. A main-session handoff *into* one of
 // these is not the normal map-to-map flow, so W6-16's ENTERSVR_ACK
@@ -262,6 +297,7 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
 
     if(!r.Eof()||logout>1||save>1||!std::isfinite(pos_x)||!std::isfinite(pos_y)||!std::isfinite(pos_z)||
        !ctx.peers||!ctx.peers->IsCurrentMap(peer))co_return;
+    auto operation=co_await ctx.friend_operations->Acquire();
     auto self=ctx.chars->Find(char_id);
     if(!self)co_return;
     {
@@ -344,6 +380,7 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
     // (SSHandler.cpp:1379), minus the RW_CHANGEMAP relay hop and the
     // APEX notify — both deferred follow-ups (relay-server wiring +
     // Taiwan-only feature).
+    RefreshSoulmatePresence(ctx,self);
     senders::CharInfoPayload info{};
     info.title_id   = title_id;
     info.rank_point = rank_point;

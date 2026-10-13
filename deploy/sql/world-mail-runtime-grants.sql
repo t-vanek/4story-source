@@ -13,7 +13,8 @@ GRANT USAGE ON SEQUENCE app_world."TPOSTTABLE_dwPostID_seq",app_world.mail_notif
 -- only its primary-key column; no INSERT/DELETE or archival access is granted.
 GRANT UPDATE("dwCharID") ON app_world."TCHARTABLE" TO :"world_role";
 GRANT SELECT("dwUserID") ON app_global."TACCOUNT_PW" TO :"world_role";
-GRANT UPDATE("dwUserID") ON app_global."TACCOUNT_PW" TO :"world_role";
+-- Row locking needs UPDATE on one column, not permission to replace account IDs.
+GRANT UPDATE("dLastLogin") ON app_global."TACCOUNT_PW" TO :"world_role";
 GRANT SELECT ON app_global."TCURRENTUSER",app_world."TITEMTABLE",
     app_world.offline_bill_clock,app_world.offline_bill_returns TO :"world_role";
 GRANT INSERT,UPDATE ON app_world.offline_bill_clock TO :"world_role";

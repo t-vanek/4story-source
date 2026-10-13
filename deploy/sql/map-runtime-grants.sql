@@ -30,8 +30,13 @@ GRANT EXECUTE ON FUNCTION app_world.item_fingerprint(app_world."TITEMTABLE") TO 
 GRANT UPDATE("bCount"),DELETE ON app_world."TITEMTABLE" TO :"map_role";
 GRANT UPDATE("dwStorageID","bItemID") ON app_world."TITEMTABLE" TO :"map_role";
 GRANT UPDATE("bStorageType",post_id) ON app_world."TITEMTABLE" TO :"map_role";
+GRANT UPDATE("dwOwnerID") ON app_world."TITEMTABLE" TO :"map_role";
 GRANT DELETE ON app_world."TINVENTABLE" TO :"map_role";
 GRANT INSERT,DELETE,UPDATE("bRead","dwGold","dwSilver","dwCooper") ON app_world."TPOSTTABLE" TO :"map_role";
+GRANT UPDATE("dwCharID","dwSendID","szRecvName","szSender","bType","timeRecv",
+    sender_bytes,recipient_bytes,title_bytes,message_bytes,bill_due_at) ON app_world."TPOSTTABLE" TO :"map_role";
+GRANT INSERT,UPDATE ON app_world.mail_notifications TO :"map_role";
+GRANT USAGE ON SEQUENCE app_world.mail_notifications_notification_id_seq TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world."TPOSTTABLE_dwPostID_seq" TO :"map_role";
 GRANT UPDATE("dwTime2","wMoggItemID") ON app_world."TITEMTABLE" TO :"map_role";
 GRANT UPDATE("bLevel","bGem","bGradeEffect","dwTime1","dwTime3") ON app_world."TITEMTABLE" TO :"map_role";

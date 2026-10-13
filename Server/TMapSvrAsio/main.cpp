@@ -518,14 +518,13 @@ int main(int argc, char** argv)
                                 auto p=std::make_shared<tmapsvr::CharacterPayload>(*s.payload);
                                 p->during->entered_at=std::time(nullptr);s.payload=std::move(p);
                             });
-                            continue;
                         }
                         ++background_operations;
                         try {
-                            // Opcode0 is internal only and has no network dispatch
-                            // registration. All changes use the existing quest,
-                            // inventory, ownership and checkpoint transaction.
-                            co_await tmapsvr::OnNativeQuestReq(client,0,{},ctx);
+                            // Opcodes0/2 are internal only. Idle primaries must
+                            // still receive durable mail and expire unpaid bills.
+                            // An empty poll commits no new ledger/checkpoint.
+                            co_await tmapsvr::OnNativeQuestReq(client,inactive?2:0,{},ctx);
                         } catch(const std::exception&) {
                             spdlog::error("native progression timer failed; closing char={}",identity.char_id);
                             client->Close();

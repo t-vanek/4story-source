@@ -95,6 +95,7 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
     case MessageId::CS_POSTVIEW_REQ:
     case MessageId::CS_POSTGETITEM_REQ:
     case MessageId::CS_POSTDEL_REQ:
+    case MessageId::CS_POSTRETURN_REQ:
     case MessageId::CS_SOULLOTTERY_REQ:
     case MessageId::CS_SOULLOTTERY_TRIGGER_REQ:
         co_await OnNativeQuestReq(sess,wId,std::move(body),ctx); break;

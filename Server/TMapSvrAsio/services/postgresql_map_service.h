@@ -78,6 +78,8 @@ private:
     static void PostExpiredBag(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,QuestPackets&,QuestPackets&);
     static void HydrateNativePosts(soci::session&,const MapSessionClaim&,CharacterPayload&);
     static bool NativeMail(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
+    static bool ReturnNativePost(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,bool,bool,QuestPackets&);
+    bool PollNativeMail(soci::session&,const MapSessionClaim&,CharSnapshot&,QuestPackets&) const;
     static std::string InsertNativeItem(soci::session&,const MapSessionClaim&,const transfer::Item&);
     static void HydrateDuringItems(soci::session&,const MapSessionClaim&,CharacterPayload&);
     static void CheckDuringItems(soci::session&,const MapSessionClaim&,const CharSnapshot&);
@@ -89,7 +91,7 @@ private:
     static void EraseProgressEffect(soci::session&,const MapSessionClaim&,CharSnapshot&,std::size_t,QuestPackets&);
     static bool UseNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
     static void EarnNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,QuestPackets&);
-    static bool UseNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,bool,QuestPackets&);
+    static bool UseNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,bool,QuestPackets&);
     static bool ChangeSoulLottery(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,QuestPackets&);
     static void DebitNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,std::uint8_t,std::uint64_t,std::uint8_t,QuestPackets&);
     static PvpBalance ReadPvpBalance(soci::session&,const MapSessionClaim&);

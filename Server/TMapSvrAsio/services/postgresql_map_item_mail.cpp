@@ -57,6 +57,7 @@ PostText ExpiredBagText(soci::session& sql) {
 }
 void PostgreSQLMapService::HydrateNativePosts(soci::session& sql,const MapSessionClaim& c,CharacterPayload& p) {
     const int world=c.group,owner=std::bit_cast<std::int32_t>(c.char_id);
+    p.mail_observed_notification=0;
     p.posts.clear();
     soci::rowset<soci::row> rows=(sql.prepare <<
         "SELECT *,floor(extract(epoch FROM \"timeRecv\" AT TIME ZONE 'UTC'))::bigint AS epoch,"
@@ -64,6 +65,7 @@ void PostgreSQLMapService::HydrateNativePosts(soci::session& sql,const MapSessio
         "CASE WHEN \"dwGold\"<>0 OR \"dwSilver\"<>0 OR \"dwCooper\"<>0 OR EXISTS (SELECT 1 FROM app_world.\"TITEMTABLE\" i "
         "WHERE i.\"bWorldID\"=p.\"bWorldID\" AND i.\"dwOwnerID\"=p.\"dwCharID\" AND i.\"bOwnerType\"=0 AND i.\"bStorageType\"=2 "
         "AND i.\"dwStorageID\"=p.\"dwPostID\") THEN 1 ELSE 0 END AS contains "
+        ",(SELECT COALESCE(max(notification_id),0) FROM app_world.mail_notifications WHERE world_id=:w AND char_id=:c) AS observed "
         "FROM app_world.\"TPOSTTABLE\" p WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c ORDER BY \"dwPostID\" DESC",
         soci::use(world,"w"),soci::use(owner,"c"));
     for(const auto& row:rows) {
@@ -77,12 +79,33 @@ void PostgreSQLMapService::HydrateNativePosts(soci::session& sql,const MapSessio
         post.gold=number("dwGold");post.silver=number("dwSilver");post.cooper=number("dwCooper");
         post.contains=number("contains");
         p.posts.push_back(std::move(post));
+        p.mail_observed_notification=static_cast<std::uint64_t>(row.get<long long>("observed"));
     }
-    if(!p.post_counts&&p.transfer_state)p.post_counts=std::pair{p.transfer_state->post_total,p.transfer_state->post_read};
+    if(p.transfer_state) {
+        // Carried state retains its graph authority. Mail can be returned or
+        // delivered by another primary, so STORAGE_POST is always normalized
+        // authority and the graph holds only a refreshed read projection.
+        auto graph=std::make_shared<transfer::State>(*p.transfer_state);
+        std::erase_if(graph->items,[](const auto& item){return item.storage==2;});
+        soci::rowset<soci::row> items=(sql.prepare << "SELECT i.*,CASE WHEN \"dEndTime\"<TIMESTAMP '2000-01-01' THEN 0 ELSE "
+            "extract(epoch FROM \"dEndTime\" AT TIME ZONE 'UTC')::bigint END AS epoch FROM app_world.\"TITEMTABLE\" i "
+            "WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"bOwnerType\"=0 AND \"bStorageType\"=2 ORDER BY \"dlID\"",
+            soci::use(world,"w"),soci::use(owner,"c"));
+        for(const auto& row:items)graph->items.push_back(native_item_row::Read(row));
+        p.transfer_state=std::move(graph);
+    }
+    if(!p.post_counts&&p.transfer_state) {
+        p.post_counts=std::pair{p.transfer_state->post_total,p.transfer_state->post_read};
+        long long baseline=0;
+        sql << "SELECT mail_notification_baseline FROM app_world.map_checkpoints WHERE world_id=:w AND char_id=:c",
+            soci::use(world,"w"),soci::use(owner,"c"),soci::into(baseline);
+        if(sql.got_data())p.mail_notification_baseline=static_cast<std::uint64_t>(baseline);
+    }
     else if(!p.post_counts) {
         if(p.posts.size()>std::numeric_limits<std::uint16_t>::max())throw std::runtime_error("Source mailbox count overflow");
         p.post_counts=std::pair{static_cast<std::uint16_t>(p.posts.size()),static_cast<std::uint16_t>(
             std::count_if(p.posts.begin(),p.posts.end(),[](const auto& post){return post.read==0;}))};
+        p.mail_notification_baseline=p.mail_observed_notification;
     }
 }
 void PostgreSQLMapService::PostExpiredBag(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
@@ -174,11 +197,18 @@ bool PostgreSQLMapService::NativeMail(soci::session& sql,const MapSessionClaim& 
     using tnetlib::protocol::MessageId;const auto message=static_cast<MessageId>(opcode);
     if(s.bStartAct==2||(s.bStartAct==1&&s.wMapID==2010)||
         (message!=MessageId::CS_POSTLIST_REQ&&s.payload->tournament_player))return false;
-    if((message==MessageId::CS_POSTGETITEM_REQ||message==MessageId::CS_POSTDEL_REQ)&&s.payload->security.Blocks())
+    if((message==MessageId::CS_POSTGETITEM_REQ||message==MessageId::CS_POSTDEL_REQ||message==MessageId::CS_POSTRETURN_REQ)&&s.payload->security.Blocks())
         throw std::runtime_error("Native post ownership change requires secure unlock");
     wire::Reader reader(body.data(),body.size());std::uint32_t id=0;std::uint16_t page=0;
     if(message==MessageId::CS_POSTLIST_REQ) {
         if(!reader.Read(page)||!reader.Eof())throw std::runtime_error("Invalid POSTLIST request");
+    }else if(message==MessageId::CS_POSTRETURN_REQ) {
+        std::uint8_t payment=0;
+        if(!reader.Read(id)||!reader.Read(payment)||!reader.Eof())throw std::runtime_error("Invalid POSTRETURN request");
+        if(s.payload->viewed_post!=id)return false;
+        const auto post=std::find_if(s.payload->posts.begin(),s.payload->posts.end(),[&](const auto& row){return row.id==id;});
+        if(post==s.payload->posts.end()||post->read)return false;
+        return ReturnNativePost(sql,c,s,id,payment!=0,true,packets);
     }else if(!reader.Read(id)||!reader.Eof())throw std::runtime_error("Invalid post request");
     auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
     const int world=c.group,owner=std::bit_cast<std::int32_t>(c.char_id),post_id=std::bit_cast<std::int32_t>(id);
@@ -207,6 +237,7 @@ bool PostgreSQLMapService::NativeMail(soci::session& sql,const MapSessionClaim& 
         if(p->posts.size()>65535)throw std::runtime_error("Post list exceeds source WORD count");
         const auto unread=std::count_if(p->posts.begin(),p->posts.end(),[](const auto& post){return !post.read;});
         p->post_counts=std::pair{static_cast<std::uint16_t>(p->posts.size()),static_cast<std::uint16_t>(unread)};
+        p->mail_notification_baseline=std::max(p->mail_notification_baseline,p->mail_observed_notification);
         const auto start=p->posts.empty()?0U:std::min<std::size_t>(page>1?7U*(page-1U):0U,p->posts.size()-1U);
         std::vector<std::byte> ack;wire::WritePOD(ack,p->post_counts->first);wire::WritePOD(ack,p->post_counts->second);
         wire::WritePOD(ack,page);wire::WritePOD(ack,static_cast<std::uint16_t>(p->posts.size()-start));

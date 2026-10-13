@@ -55,6 +55,9 @@ struct CharacterPayload {
     std::uint64_t last_action_id{}; // action/charge ledger fence, never a wire field
     std::uint64_t last_finish_id{}; // fences stale snapshots after target resolution
     std::uint64_t last_quest_id{}; // durable quest mutation fence, never on wire
+    // Mail already represented in admission/list counters. Persist separately
+    // from the original transfer bytes; a handoff must not count it twice.
+    std::uint64_t mail_notification_baseline{},mail_observed_notification{};
     std::optional<std::vector<QuestProgressRow>> quests;
     std::uint64_t quest_sample_ms{}; // server-only timer observation
     // CTPlayer::m_mapLevelQuest is a live-session cache, rebuilt from loaded

@@ -82,7 +82,7 @@ void PostgreSQLMapService::EarnNativeMoney(soci::session& sql,const MapSessionCl
     SaveRewardTitles(sql,c,*s.payload);
 }
 bool PostgreSQLMapService::UseNativeMoney(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
-    std::uint32_t amount,bool spend,QuestPackets& packets) {
+    std::uint64_t amount,bool spend,QuestPackets& packets) {
     if(!amount)return true;
     const auto total=SourceMoney(s);
     if(total<amount)return false;

@@ -24,6 +24,10 @@ std::string PostgreSQLMapService::TransferFingerprint(const MapSessionClaim& c,c
 }
 void PostgreSQLMapService::StoreTransferCheckpoint(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) const {
     const int world=c.group,character=c.char_id;
+    if(!s.payload)throw std::runtime_error("Checkpoint has no native mail baseline");
+    const long long baseline=s.payload->mail_notification_baseline;
+    sql << "UPDATE app_world.map_checkpoints SET mail_notification_baseline=:baseline WHERE world_id=:w AND char_id=:c",
+        soci::use(baseline,"baseline"),soci::use(world,"w"),soci::use(character,"c");
     if(!s.payload||!s.payload->transfer_state) {
         if(c.authority_epoch)throw std::runtime_error("Transferred primary has no complete graph checkpoint");
         StoreSkillCheckpoint(sql,c,s);return;

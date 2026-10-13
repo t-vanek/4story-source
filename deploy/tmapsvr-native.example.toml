@@ -1,6 +1,6 @@
 # Verified fresh normal-character runtime. Full gameplay, social persistence,
 # advanced effects and active recall admission are still being implemented.
-# Phase A now requires written migrations001–061 and updated Map grants.
+# Phase A now requires written migrations001–062 and updated Map grants.
 # Applying/migrating this scope is deferred until Phase B.
 [server]
 port = 5815

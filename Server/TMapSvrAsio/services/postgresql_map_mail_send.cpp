@@ -139,7 +139,7 @@ bool PostgreSQLMapService::SendNativePost(soci::session& sql,const MapSessionCla
         if(!UseNativeMoney(sql,c,s,price,true,packets))throw std::runtime_error("Post affordability changed within transaction");
         packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_MONEY_ACK),EncodeMoneyAck(s.dwGold,s.dwSilver,s.dwCooper));
     }
-    sql << "INSERT INTO app_world.mail_notifications(world_id,char_id,post_id,post_type,received_at) VALUES(:w,:c,:id,:type,:time)",
+    sql << "INSERT INTO app_world.mail_notifications(world_id,char_id,post_id,post_type,enqueue_second) VALUES(:w,:c,:id,:type,:time)",
         soci::use(world,"w"),soci::use(recipient,"c"),soci::use(post,"id"),soci::use(btype,"type"),soci::use(now,"time");
     reply(0);return true;
 }

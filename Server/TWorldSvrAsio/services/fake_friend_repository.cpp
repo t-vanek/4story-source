@@ -1,4 +1,5 @@
 #include "services/fake_friend_repository.h"
+#include <algorithm>
 
 namespace tworldsvr {
 
@@ -88,6 +89,20 @@ bool FakeFriendRepository::InsertFriend(std::uint32_t char_id,
     return true;
 }
 
+bool FakeFriendRepository::InsertMutualFriends(std::uint32_t char_id,std::uint32_t friend_id)
+{
+    std::lock_guard g(m_mtx);
+    // Preserve the existing test adapter's directed-row shape and idempotence.
+    // Build a copy before publishing either edge (including allocation failure).
+    auto next=m_data;
+    const auto add=[&](std::uint32_t from,std::uint32_t to) {
+        auto& rows=next[from].forward;
+        if(std::none_of(rows.begin(),rows.end(),[to](const auto& f){return f.id==to;}))
+            rows.push_back(FriendRow{to,"",0,0,0});
+    };
+    add(char_id,friend_id);add(friend_id,char_id);m_data.swap(next);
+    return true;
+}
 bool FakeFriendRepository::EraseFriend(std::uint32_t char_id,
                                        std::uint32_t friend_id)
 {

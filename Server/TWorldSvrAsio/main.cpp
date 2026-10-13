@@ -58,6 +58,7 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
+#include <atomic>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/thread_pool.hpp>
 
@@ -143,6 +144,7 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::IGuildRepository>     guild_repo;
         std::unique_ptr<tworldsvr::IGuildLevelRepository> guild_level_repo;
         std::unique_ptr<tworldsvr::IFriendRepository>    friend_repo;
+        std::atomic<bool> friend_persistence_failed{false};
         std::unique_ptr<tworldsvr::IItemStateRepository> item_state_repo;
         std::unique_ptr<tworldsvr::ICashSaleRepository>  cash_sale_repo;
         std::unique_ptr<tworldsvr::IServiceOpsRepository> service_ops_repo;
@@ -195,7 +197,10 @@ int main(int argc, char** argv)
                 std::make_unique<tworldsvr::SociGuildLevelRepository>(
                     *db_pool_owner);
             friend_repo = std::make_unique<tworldsvr::SociFriendRepository>(
-                *db_pool_owner);
+                *db_pool_owner,[&io,&friend_persistence_failed] {
+                    friend_persistence_failed.store(true);
+                    io.stop();
+                });
             item_state_repo =
                 std::make_unique<tworldsvr::SociItemStateRepository>(
                     *db_pool_owner);
@@ -676,7 +681,7 @@ int main(int argc, char** argv)
             worker_pool->stop();
             worker_pool->join();
         }
-        if(reserved_mail_failed)return 1;
+        if(reserved_mail_failed||friend_persistence_failed.load())return 1;
     }
     catch (const std::exception& ex)
     {

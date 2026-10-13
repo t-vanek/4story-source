@@ -97,6 +97,10 @@ public:
     // INSERT a (char_id, friend_id, bGroup=0) row.
     virtual bool InsertFriend(std::uint32_t char_id,
                               std::uint32_t friend_id) = 0;
+    // Both directed edges in one persistence transaction. Existing edges keep
+    // their group, matching TFriendInsert's IF NOT EXISTS. No per-edge fallback.
+    virtual bool InsertMutualFriends(std::uint32_t char_id,
+                                     std::uint32_t friend_id) = 0;
     // DELETE the (char_id, friend_id) row (the char's forward edge).
     virtual bool EraseFriend(std::uint32_t char_id,
                              std::uint32_t friend_id) = 0;

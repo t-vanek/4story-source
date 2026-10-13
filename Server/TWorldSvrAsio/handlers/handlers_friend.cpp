@@ -41,6 +41,16 @@ void UpsertMutual(TChar& c, std::uint32_t id, const std::string& name,
     c.friends.push_back({id, name, frnd::kTypeFriendFriend, true, region, 0});
 }
 
+bool CurrentFriendWriter(const HandlerContext& ctx,const std::shared_ptr<PeerSession>& peer,
+                         const std::shared_ptr<TChar>& character,std::uint32_t key) {
+    if(!ctx.peers||!peer||!character||ctx.peers->Find(peer->Wid())!=peer)return false;
+    std::lock_guard g(character->lock);
+    const auto sid=static_cast<std::uint8_t>(peer->Wid());
+    const auto con=std::find_if(character->cons.begin(),character->cons.end(),[sid](const auto& row){return row.server_id==sid;});
+    return peer->Wid()==(0x0400U|sid)&&character->key==key&&!character->closing&&!character->logout&&
+        character->main_server_id==sid&&con!=character->cons.end()&&con->valid&&con->ready;
+}
+
 } // namespace
 
 boost::asio::awaitable<void>
@@ -342,6 +352,17 @@ OnFriendAskAck(std::shared_ptr<PeerSession> peer,
     // friendship immediately (legacy pTF && pTT branch).
     if (req_has_entry && tgt_has_entry)
     {
+        if(!CurrentFriendWriter(ctx,peer,requester,key))co_return;
+        // Persist before publishing either in-memory side or success reply.
+        if (ctx.friend_repo) {
+            const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                [repo=ctx.friend_repo,char_id,t_id]{return repo->InsertMutualFriends(char_id,t_id);});
+            if(!saved)co_return;
+        }
+        if(ctx.chars->Find(char_id)!=requester||ctx.chars->Find(t_id)!=target)co_return;
+        if(!CurrentFriendWriter(ctx,peer,requester,key))co_return;
+        {std::lock_guard g(requester->lock);if(requester->key!=key||requester->closing||requester->logout)co_return;}
+        {std::lock_guard g(target->lock);if(target->key!=t_key||target->closing||target->logout)co_return;}
         {
             std::lock_guard g(requester->lock);
             for (auto& f : requester->friends)
@@ -363,14 +384,6 @@ OnFriendAskAck(std::shared_ptr<PeerSession> peer,
                     f.region = req_region;
                 }
         }
-        // Persist both directed edges (legacy DM_FRIENDINSERT_REQ ×2).
-        if (ctx.friend_repo)
-            co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-                [repo = ctx.friend_repo, char_id, t_id]
-                {
-                    repo->InsertFriend(t_id, char_id);
-                    repo->InsertFriend(char_id, t_id);
-                });
         co_await reply(frnd::kSuccess, t_id, t_name, t_level, t_class,
             t_region);
         spdlog::info("OnFriendAskAck[{}]: char_id={} + '{}' now mutual "
@@ -479,19 +492,21 @@ OnFriendReplyAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
-    // Accept — both sides become connected mutual friends.
+    // Persist both directed edges before either cache side/success response.
+    if(!CurrentFriendWriter(ctx,peer,answerer,key))co_return;
+    if(ctx.friend_repo) {
+        const auto saved=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo=ctx.friend_repo,p_id,char_id]{return repo->InsertMutualFriends(p_id,char_id);});
+        if(!saved)co_return;
+    }
+    if(ctx.chars->Find(char_id)!=answerer||ctx.chars->Find(p_id)!=inviter)co_return;
+    if(!CurrentFriendWriter(ctx,peer,answerer,key))co_return;
+    {std::lock_guard g(answerer->lock);if(answerer->key!=key||answerer->closing||answerer->logout)co_return;}
+    {std::lock_guard g(inviter->lock);if(inviter->key!=p_key||inviter->closing||inviter->logout)co_return;}
     { std::lock_guard g(inviter->lock);
       UpsertMutual(*inviter, char_id, f_name, f_region); }
     { std::lock_guard g(answerer->lock);
       UpsertMutual(*answerer, p_id, p_name, p_region); }
-    // Persist both directed edges (legacy DM_FRIENDINSERT_REQ ×2).
-    if (ctx.friend_repo)
-        co_await fourstory::db::CoOffloadVoidIf(ctx.db_pool,
-            [repo = ctx.friend_repo, p_id, char_id]
-            {
-                repo->InsertFriend(p_id, char_id);
-                repo->InsertFriend(char_id, p_id);
-            });
 
     if (auto p = FindMapPeer(ctx, p_msi))
         co_await senders::SendMwFriendAddReq(p, p_id, p_key, frnd::kSuccess,

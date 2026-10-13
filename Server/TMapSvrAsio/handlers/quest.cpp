@@ -62,10 +62,14 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const auto identity=ctx.session_reg?ctx.session_reg->Identity(client.get()):std::nullopt;
     if(!identity||identity->phase!=SessionPhase::Ready||identity->role!=MapSessionRole::Primary)co_return;
     const auto message=static_cast<tnetlib::protocol::MessageId>(opcode);
+    const bool mail=message==tnetlib::protocol::MessageId::CS_POSTLIST_REQ||message==tnetlib::protocol::MessageId::CS_POSTVIEW_REQ||
+        message==tnetlib::protocol::MessageId::CS_POSTGETITEM_REQ||message==tnetlib::protocol::MessageId::CS_POSTDEL_REQ;
     if(message==tnetlib::protocol::MessageId::CS_ITEMUSE_REQ||
        message==tnetlib::protocol::MessageId::CS_ITEMSELL_REQ||
        message==tnetlib::protocol::MessageId::CS_ITEMBUY_REQ||
        message==tnetlib::protocol::MessageId::CS_MAGICITEMBUY_REQ||
+       message==tnetlib::protocol::MessageId::CS_POSTGETITEM_REQ||
+       message==tnetlib::protocol::MessageId::CS_POSTDEL_REQ||
        message==tnetlib::protocol::MessageId::CS_DURATIONREP_REQ||
        message==tnetlib::protocol::MessageId::CS_REFINE_REQ||
        message==tnetlib::protocol::MessageId::CS_ITEMUPGRADE_REQ) {
@@ -82,12 +86,19 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         if(message==tnetlib::protocol::MessageId::CS_ITEMUPGRADE_REQ&&state->payload&&
            (state->payload->personal_store||state->payload->deal_status))co_return;
     }
+    if(mail) {
+        const auto state=ctx.char_state?ctx.char_state->Get(identity->char_id):std::nullopt;
+        if(!state)co_return;
+        if(state->bStartAct==2||(state->bStartAct==1&&state->wMapID==2010)||
+            (message!=tnetlib::protocol::MessageId::CS_POSTLIST_REQ&&state->payload&&state->payload->tournament_player))co_return;
+    }
     const bool lottery=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_REQ)||
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_TRIGGER_REQ);
     const auto required=opcode<=1||lottery?0U:
         message==tnetlib::protocol::MessageId::CS_ITEMBUY_REQ?11U:
         message==tnetlib::protocol::MessageId::CS_MAGICITEMBUY_REQ?9U:
         message==tnetlib::protocol::MessageId::CS_NPCITEMLIST_REQ?2U:
+        message==tnetlib::protocol::MessageId::CS_POSTLIST_REQ?2U:
         message==tnetlib::protocol::MessageId::CS_ITEMUPGRADE_REQ?10U:
         message==tnetlib::protocol::MessageId::CS_GAMBLEOPEN_REQ?6U:
         message==tnetlib::protocol::MessageId::CS_WASTEREFINE_REQ?2U:

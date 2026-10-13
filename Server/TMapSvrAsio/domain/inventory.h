@@ -51,6 +51,7 @@ struct ItemInstance
     std::uint8_t   bRefineCur   = 0;
     std::uint8_t   bGLevel      = 0;   // grade level
     std::int64_t   dEndTime     = 0;   // expiry (0 = permanent)
+    std::int64_t   alarm_time   = 0;   // source m_dAlarmTime; owner-local, never serialized
     std::uint8_t   bGradeEffect = 0;
     std::uint8_t   bELD         = 0;   // IEV_ELD
     std::uint8_t   bWrap        = 0;   // IEV_WRAP (gift wrapping)

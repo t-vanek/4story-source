@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace tmapsvr {
 namespace transfer {struct State;}
@@ -31,6 +32,7 @@ struct CharacterPost {
     std::uint8_t type{},read{};
     std::int64_t received_at{};
     std::string recipient,sender,title,message;
+    std::uint8_t contains{}; // native derived attachment/funds availability
 };
 struct CharacterRecall {
     std::uint32_t id{},attribute{},hp{},mp{},time{};
@@ -90,6 +92,10 @@ struct CharacterPayload {
     std::vector<CharacterTitle> titles;
     std::vector<CharacterCabinet> cabinets;
     std::vector<CharacterPost> posts;
+    // Source m_wPostRead counts UNREAD posts (TGetPostInfo bRead=0). Live
+    // counters survive primary transfers independently of the mailbox DTO.
+    std::optional<std::pair<std::uint16_t,std::uint16_t>> post_counts;
+    std::uint32_t viewed_post{}; // CTPlayer::m_pPost selection, process-local
     std::vector<CharacterRecall> recalls;
     std::vector<CharacterPet> pets;
     std::array<std::uint16_t,4> skill_points{};

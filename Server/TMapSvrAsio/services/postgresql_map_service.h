@@ -64,8 +64,8 @@ private:
     static std::uint64_t AllocateNativeItem(soci::session&,const MapSessionClaim&);
     static std::int64_t NativeItemExpiry(soci::session&,std::uint32_t,int,int);
     static bool CanGrantQuestItems(const CharacterPayload&,const std::vector<ItemInstance>&);
-    static void ReplaceNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,const ItemInstance&,const transfer::Item&);
-    static void UpgradeNativeItemAttributes(soci::session&,const MapSessionClaim&,CharSnapshot&,const ItemInstance&,const transfer::Item&);
+    static void ReplaceNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,ItemInstance,const transfer::Item&);
+    static void UpgradeNativeItemAttributes(soci::session&,const MapSessionClaim&,CharSnapshot&,ItemInstance,const transfer::Item&,bool);
     static std::optional<ItemInstance> CreateQuestItem(soci::session&,const MapSessionClaim&,std::uint16_t,std::uint8_t);
     static std::vector<ItemInstance> CreateQuestRewardItems(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestRewardDef&);
     static bool GrantQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const std::vector<ItemInstance>&,QuestPackets&,bool merge_stacks=true);
@@ -74,6 +74,11 @@ private:
     static void ConsumeQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const QuestDef&,QuestPackets&);
     using QuestEvent = std::function<void(std::uint32_t,std::uint8_t,std::uint8_t,int)>;
     static void AdvanceProgressEffects(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,const QuestEvent&,QuestPackets&);
+    static void AdvanceItemExpirations(soci::session&,const MapSessionClaim&,CharSnapshot&,QuestPackets&);
+    static void PostExpiredBag(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,QuestPackets&,QuestPackets&);
+    static void HydrateNativePosts(soci::session&,const MapSessionClaim&,CharacterPayload&);
+    static bool NativeMail(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
+    static std::string InsertNativeItem(soci::session&,const MapSessionClaim&,const transfer::Item&);
     static void HydrateDuringItems(soci::session&,const MapSessionClaim&,CharacterPayload&);
     static void CheckDuringItems(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static void WriteDuringItems(soci::session&,const MapSessionClaim&,CharSnapshot&);
@@ -83,7 +88,7 @@ private:
     static void ForceProgressEffect(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,std::uint32_t,QuestPackets&);
     static void EraseProgressEffect(soci::session&,const MapSessionClaim&,CharSnapshot&,std::size_t,QuestPackets&);
     static bool UseNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
-    static void EarnNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,QuestPackets&);
+    static void EarnNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,QuestPackets&);
     static bool UseNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,bool,QuestPackets&);
     static bool ChangeSoulLottery(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,QuestPackets&);
     static void DebitNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,std::uint8_t,std::uint64_t,std::uint8_t,QuestPackets&);

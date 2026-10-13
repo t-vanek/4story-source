@@ -157,6 +157,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_soul_lottery.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_economy.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_shop.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_expiration.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_mail.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_pvp_balance.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_refine.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_gamble.cpp

@@ -32,7 +32,7 @@ std::string PostgreSQLMapService::ValidateInventoryState(soci::session& sql,cons
         // Fence every fresh item and learned rank, including unchanged equipment.
         std::map<long long,std::string> durable;
         soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"dlID\",app_world.item_fingerprint(i) AS hash FROM app_world.\"TITEMTABLE\" i "
-            "WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c ORDER BY \"dlID\" FOR UPDATE",soci::use(world,"w"),soci::use(character,"c"));
+            "WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"bOwnerType\"=0 AND \"bStorageType\"=0 ORDER BY \"dlID\" FOR UPDATE",soci::use(world,"w"),soci::use(character,"c"));
         for(const auto& row:rows)durable.emplace(row.get<long long>(0),row.get<std::string>(1));
         std::size_t count=0;
         for(const auto& bag:before.payload->bags)for(const auto& item:bag.items) {
@@ -150,7 +150,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
             if(item.dlID>static_cast<std::uint64_t>(std::numeric_limits<long long>::max()))throw std::runtime_error("Unsupported fresh item identity");
             const long long id=item.dlID;const int bag=item.bInvenID,slot=item.bItemID;std::string hash;int count=0,template_id=0;
             sql<<"SELECT app_world.item_fingerprint(i),\"bCount\",\"wItemID\" FROM app_world.\"TITEMTABLE\" i "
-                 "WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"dlID\"=:id AND \"dwStorageID\"=:bag AND \"bItemID\"=:slot FOR UPDATE",
+                 "WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"bOwnerType\"=0 AND \"bStorageType\"=0 AND \"dlID\"=:id AND \"dwStorageID\"=:bag AND \"bItemID\"=:slot FOR UPDATE",
                 soci::use(world,"w"),soci::use(character,"c"),soci::use(id,"id"),soci::use(bag,"bag"),soci::use(slot,"slot"),
                 soci::into(hash),soci::into(count),soci::into(template_id);
             if(!sql.got_data()||hash!=item.durable_hash||count!=item.bCount||static_cast<std::uint16_t>(template_id)!=item.wItemID)
@@ -160,7 +160,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
     if(!graph) {
         if(out.move.kind==InventoryMoveKind::Move||out.move.kind==InventoryMoveKind::Split) {
             const int bag=request.destination_bag,slot=request.destination_slot;int present=0;
-            sql<<"SELECT 1 FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"dwStorageID\"=:b AND \"bItemID\"=:s FOR UPDATE",
+            sql<<"SELECT 1 FROM app_world.\"TITEMTABLE\" WHERE \"bWorldID\"=:w AND \"dwOwnerID\"=:c AND \"bStorageType\"=0 AND \"dwStorageID\"=:b AND \"bItemID\"=:s FOR UPDATE",
                 soci::use(world,"w"),soci::use(character,"c"),soci::use(bag,"b"),soci::use(slot,"s"),soci::into(present);
             if(sql.got_data())throw std::runtime_error("Inventory destination became occupied");
         }

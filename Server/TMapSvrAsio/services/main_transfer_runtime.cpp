@@ -42,10 +42,12 @@ State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker
     out.character=s;out.character.payload.reset();out.key=key;out.db_load=0;out.result=0;out.login=0;
     out.aid_country=p.aid_country;out.lucky=p.lucky_number;out.rank_points=p.rank_point;
     if(p.pvp){out.pvp_total=p.pvp->total;out.pvp_available=p.pvp->available;out.month_points=p.pvp->month;}
-    if(!p.transfer_state) {
+    if(p.post_counts) {
+        out.post_total=p.post_counts->first;out.post_read=p.post_counts->second;
+    }else if(!p.transfer_state) {
         if(p.posts.size()>std::numeric_limits<std::uint16_t>::max())throw std::length_error("Transfer mail count overflow");
         out.post_total=static_cast<std::uint16_t>(p.posts.size());
-        out.post_read=static_cast<std::uint16_t>(std::count_if(p.posts.begin(),p.posts.end(),[](const auto& post){return post.read!=0;}));
+        out.post_read=static_cast<std::uint16_t>(std::count_if(p.posts.begin(),p.posts.end(),[](const auto& post){return post.read==0;}));
     }
     // Extra storage kinds remain in the complete typed graph. Inventory entries
     // come from live payload values, with raw magic/full extensions retained.

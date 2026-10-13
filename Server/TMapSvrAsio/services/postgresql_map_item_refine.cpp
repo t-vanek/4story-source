@@ -233,7 +233,7 @@ bool PostgreSQLMapService::RefineNativeItem(soci::session& sql,const MapSessionC
     }
     raw.magic.clear();for(const auto& [id,value]:magic)raw.magic.push_back({id,value});
     const auto hash=s.payload->transfer_state?GraphItemFingerprint(raw):StoreRefinedItem(sql,c,original,raw);
-    auto replacement=ProjectNativeItem(sql,raw);replacement.durable_hash=hash;
+    auto replacement=ProjectNativeItem(sql,raw);replacement.durable_hash=hash;replacement.alarm_time=original.alarm_time;
     auto payload=std::make_shared<CharacterPayload>(*s.payload);s.payload=payload;
     bool replaced=false;
     for(auto& bag:payload->bags)if(bag.bag.bInvenID==inventory)

@@ -496,10 +496,14 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool reclaim_refine=message==MessageId::CS_WASTEREFINE_REQ;
     const bool gamble=message==MessageId::CS_GAMBLECHECK_REQ||message==MessageId::CS_GAMBLEOPEN_REQ;
     const bool upgrade_item=message==MessageId::CS_ITEMUPGRADE_REQ;
+    const bool mail_get=message==MessageId::CS_POSTGETITEM_REQ;
+    const bool mail=mail_get||message==MessageId::CS_POSTLIST_REQ||message==MessageId::CS_POSTVIEW_REQ||message==MessageId::CS_POSTDEL_REQ;
     const bool lottery=message==MessageId::CS_SOULLOTTERY_REQ||message==MessageId::CS_SOULLOTTERY_TRIGGER_REQ;
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(mail) {
+        if(body.size()!=(message==MessageId::CS_POSTLIST_REQ?2U:4U))throw std::runtime_error("Invalid native post request length");
     } else if(buy_item) {
         if(body.size()!=(message==MessageId::CS_ITEMBUY_REQ?11U:9U))throw std::runtime_error("Invalid NPC purchase request length");
     } else if(upgrade_item) {
@@ -549,6 +553,9 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
     if(message==MessageId::CS_NPCITEMLIST_REQ) {
         ListNativeNpcItems(sql,after,npc,committed.packets);
+    }else if(mail&&!mail_get) {
+        other_state_changed=NativeMail(sql,c,after,opcode,body,{},committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
     }else if(upgrade_item) {
         other_state_changed=UpgradeNativeItem(sql,c,after,body,facts,committed.packets);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
@@ -596,6 +603,9 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     } else if(message==MessageId::CS_QUESTDROP_REQ)quest_runtime::Drop(*payload,chart,quest,committed.packets);
     else if(message==MessageId::CS_QUESTENDTIMER_REQ)quest_runtime::EndTimer(*payload,chart,quest,committed.packets);
     else if(during_entry) {
+        if(!payload->post_counts)throw std::runtime_error("Native entry mailbox counters unavailable");
+        std::vector<std::byte> post_info;wire::WritePOD(post_info,payload->post_counts->first);wire::WritePOD(post_info,payload->post_counts->second);
+        committed.packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_POSTINFO_ACK),std::move(post_info));
         EnterDuringItems(sql,c,after,committed.packets);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
         other_state_changed=true;
@@ -839,7 +849,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                 children(def,depth);return; // CQuest default implementation.
             }
         };
-        if(progress_tick||use_item||gamble||buy_item) {
+        if(progress_tick||use_item||gamble||buy_item||mail_get) {
             const QuestEvent event=[&](std::uint32_t id,std::uint8_t type,std::uint8_t trigger_type,int count) {
                 payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
                 quest_runtime::UpdateWithoutTarget(after,*payload,chart,facts,id,type,count,committed.packets);
@@ -851,9 +861,11 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
             if(buy_item)other_state_changed=BuyNativeItem(sql,c,after,message==MessageId::CS_MAGICITEMBUY_REQ,body,chart,event,committed.packets);
             else if(gamble)other_state_changed=GambleNativeItem(sql,c,after,message==MessageId::CS_GAMBLECHECK_REQ,body,facts,event,committed.packets);
             else if(use_item)other_state_changed=UseNativeItem(sql,c,after,body,event,committed.packets);
+            else if(mail_get)other_state_changed=NativeMail(sql,c,after,opcode,body,event,committed.packets);
             else {
                 AdvanceProgressEffects(sql,c,after,facts.sample_ms,event,committed.packets);
                 AdvanceDuringItems(sql,c,after,committed.packets);
+                AdvanceItemExpirations(sql,c,after,committed.packets);
                 other_state_changed=true;
             }
             payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;

@@ -6,11 +6,14 @@
 #include "services/character_statistics.h"
 #include "services/postgresql_skill_targets.h"
 #include "services/posture_effects.h"
+#include "services/item_expiration.h"
+#include "services/native_item_row.h"
 #include <set>
 #include <soci/soci.h>
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <ctime>
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -355,7 +358,8 @@ ItemInstance ProjectItem(soci::session& sql,const transfer::Item& raw,bool templ
     item.wItemID=raw.item;item.bLevel=raw.level;item.bGem=raw.gem;item.wMoggItemID=raw.appearance;
     item.wCompanion=static_cast<std::uint16_t>(raw.companion);item.bCount=raw.count;item.bGLevel=raw.grade;
     item.dwDuraMax=raw.durability_max;item.dwDuraCur=raw.durability;item.bRefineCur=raw.refine;
-    item.dEndTime=raw.expires;item.bGradeEffect=raw.grade_effect;item.bELD=static_cast<std::uint8_t>(raw.eld);
+    item.dEndTime=raw.expires;item.alarm_time=SourceItemAlarm(raw.expires,std::time(nullptr));
+    item.bGradeEffect=raw.grade_effect;item.bELD=static_cast<std::uint8_t>(raw.eld);
     item.bWrap=static_cast<std::uint8_t>(raw.wrap);item.wColor=static_cast<std::uint16_t>(raw.color);
     item.dwGuildBound=raw.guild;item.wCustomTex=static_cast<std::uint16_t>(raw.texture);
     item.source=std::make_shared<const transfer::Item>(raw);
@@ -398,7 +402,8 @@ void PostgreSQLMapService::RefreshEquipment(soci::session& sql,CharSnapshot& s,b
     // effect. Active companion/recall graphs already lack a supported sheet.
     for(auto& bag:p->bags)for(auto& item:bag.items) {
         if(!item.source)throw std::runtime_error("Equipment item lacks original values");
-        auto projected=ProjectItem(sql,*item.source);projected.durable_hash=item.durable_hash;item=std::move(projected);
+        auto projected=ProjectItem(sql,*item.source);projected.durable_hash=item.durable_hash;
+        projected.alarm_time=item.alarm_time;item=std::move(projected); // deriving stats is not SetItemAttr
     }
     p->equipment_kinds.fill(false);
     for(const auto& skill:p->skills) {
@@ -498,25 +503,11 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     for(const auto& r:children("TINVENTABLE","dwCharID",","+Epoch("dEndTime")," ORDER BY \"bInvenID\"")) {
         p.bags.push_back({{U8(r,"bInvenID"),U16(r,"wItemID"),Number(r,"epoch"),U8(r,"bELD")},{}});
     }
-    for(const auto& r:children("TITEMTABLE","dwOwnerID",","+Epoch("dEndTime")+",app_world.item_fingerprint(\"TITEMTABLE\") AS durable_hash"," ORDER BY \"dwStorageID\",\"bItemID\"")) {
+    for(const auto& r:children("TITEMTABLE","dwOwnerID",","+Epoch("dEndTime")+",app_world.item_fingerprint(\"TITEMTABLE\") AS durable_hash"," AND \"bOwnerType\"=0 AND \"bStorageType\"=0 ORDER BY \"dwStorageID\",\"bItemID\"")) {
         const auto bag_id=Number(r,"dwStorageID");
         auto bag=std::find_if(p.bags.begin(),p.bags.end(),[&](const auto& b){return b.bag.bInvenID==bag_id;});
         if(bag==p.bags.end())throw std::runtime_error("Character item has no inventory bag");
-        transfer::Item raw;
-        raw.storage=U8(r,"bStorageType");raw.storage_id=U32(r,"dwStorageID");
-        raw.owner_type=U8(r,"bOwnerType");raw.owner_id=U32(r,"dwOwnerID");
-        raw.id=Number(r,"dlID");raw.slot=U8(r,"bItemID");raw.item=U16(r,"wItemID");
-        raw.level=U8(r,"bLevel");raw.gem=U8(r,"bGem");raw.appearance=U16(r,"wMoggItemID");
-        raw.companion=U32(r,"dwTime5");raw.count=U8(r,"bCount");raw.grade=U8(r,"bGLevel");
-        raw.durability_max=U32(r,"dwDuraMax");raw.durability=U32(r,"dwDuraCur");
-        raw.refine=U8(r,"bRefineCur");raw.expires=Number(r,"epoch");raw.grade_effect=U8(r,"bGradeEffect");
-        raw.eld=U32(r,"dwTime1");raw.wrap=U32(r,"dwTime2");raw.color=U32(r,"dwTime3");
-        raw.guild=U32(r,"dwTime4");raw.texture=U32(r,"dwTime6");
-        std::map<int,std::uint16_t> magic;
-        for(int i=1;i<=6;++i){const auto suffix=std::to_string(i);const auto id=U8(r,"bMagic"+suffix),value_id=id;
-            const auto value=U16(r,"wValue"+suffix);if(value_id&&value)magic[id]=value;}
-        for(const auto& [id,value]:magic)raw.magic.push_back({static_cast<std::uint8_t>(id),value});
-        bag->items.push_back(ProjectItem(sql,raw));
+        bag->items.push_back(ProjectItem(sql,native_item_row::Read(r)));
         bag->items.back().durable_hash=r.get<std::string>("durable_hash");
     }
     for(const auto& r:children("TSKILLTABLE","dwCharID",""," ORDER BY (\"wSkillID\"::integer & 65535)"))
@@ -532,13 +523,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     }
     p.selected_title=LoadedTitle(p.titles);
     for(const auto& r:children("TCABINETTABLE"))p.cabinets.push_back({U8(r,"bCabinetID"),U8(r,"bUse")});
-    for(const auto& r:children("TPOSTTABLE","dwCharID",","+Epoch("timeRecv"))) {
-        CharacterPost post;post.id=U32(r,"dwPostID");post.sender_id=U32(r,"dwSendID");
-        post.type=U8(r,"bType");post.read=U8(r,"bRead");post.received_at=Number(r,"epoch");
-        post.recipient=r.get<std::string>("szRecvName");post.sender=r.get<std::string>("szSender");
-        post.title=r.get<std::string>("szTitle");post.message=r.get<std::string>("szMessage");
-        post.gold=U32(r,"dwGold");post.silver=U32(r,"dwSilver");post.cooper=U32(r,"dwCooper");p.posts.push_back(std::move(post));
-    }
+    HydrateNativePosts(sql,claim,p);
     for(const auto& r:children("TRECALLMONTABLE","dwOwnerID")) {
         p.recalls.push_back({U32(r,"dwID"),U32(r,"dwATTR"),U32(r,"dwHP"),U32(r,"dwMP"),U32(r,"dwTime"),
             U16(r,"wMonID"),U16(r,"wPetID"),U16(r,"wPosX"),U16(r,"wPosY"),U16(r,"wPosZ"),U8(r,"bLevel"),U8(r,"bSkillLevel"),U8(r,"bEffect")});
@@ -587,6 +572,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     CharSnapshot s=t.character;s.payload.reset();auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
     auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
+    HydrateNativePosts(sql,claim,p);
     HydrateQuestProgress(sql,claim,p);
     HydrateDuringItems(sql,claim,p);
     HydratePvpBalance(sql,claim,p);

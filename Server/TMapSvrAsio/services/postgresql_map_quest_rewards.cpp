@@ -71,7 +71,7 @@ void SetSourceMoney(CharSnapshot& s,std::uint64_t total) {
 }
 }
 void PostgreSQLMapService::EarnNativeMoney(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
-    std::uint32_t amount,QuestPackets& packets) {
+    std::uint64_t amount,QuestPackets& packets) {
     if(!amount)return; // CTPlayer::EarnMoney does not award titles for zero.
     RequireMoneyTitles(sql);
     CheckRewardTitles(sql,c,*s.payload);

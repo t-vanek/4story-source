@@ -285,7 +285,8 @@ bool PostgreSQLMapService::RepairNativeItems(soci::session& sql,const MapSession
             if(!sql.got_data())throw std::runtime_error("Repaired item ownership changed");
         }else hash=GraphItemFingerprint(raw);
         equipment_changed|=target.bInvenID==254&&!target.dwDuraCur;
-        *item=ProjectNativeItem(sql,raw);item->durable_hash=hash;target=*item;
+        const auto alarm=item->alarm_time;
+        *item=ProjectNativeItem(sql,raw);item->durable_hash=hash;item->alarm_time=alarm;target=*item;
     }
     // Source stat getters read IsPower() dynamically. Refresh the native cache
     // after restoring a broken equipped item without inventing extra packets.

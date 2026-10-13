@@ -2,6 +2,8 @@
 #include "domain/character.h"
 #include "domain/main_transfer.h"
 #include "equipment_move.h"
+#include "item_expiration.h"
+#include <ctime>
 #include <algorithm>
 #include <stdexcept>
 
@@ -101,6 +103,11 @@ inline void ApplyInventoryMove(CharSnapshot& s,const InventoryMovePlan& plan,std
         if(bag==p->bags.end()||std::any_of(bag->items.begin(),bag->items.end(),[&](const auto& i){return i.bItemID==move.slot;}))
             throw std::runtime_error("Inventory move destination is occupied");
         auto item=move.before;item.bInvenID=move.bag;item.bItemID=move.slot;item.bCount=move.count;
+        const bool equipment_copy=plan.kind==InventoryMoveKind::Equipment&&std::any_of(plan.wire.begin(),plan.wire.end(),[&](const auto& event){
+            return event.kind==InventoryWireKind::Add&&event.item.dlID==move.before.dlID;
+        });
+        if(plan.kind==InventoryMoveKind::Move||move.created||equipment_copy)
+            item.alarm_time=SourceItemAlarm(item.dEndTime,std::time(nullptr)); // new CTItem::Copy
         if(move.created){item.dlID=created_id;item.durable_hash.clear();}
         auto raw=std::make_shared<transfer::Item>(*item.source);
         raw->storage_id=move.bag;raw->slot=move.slot;raw->id=item.dlID;raw->count=item.bCount;item.source=std::move(raw);

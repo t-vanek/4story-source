@@ -37,7 +37,8 @@ void PostgreSQLMapService::DebitNativeItem(soci::session& sql,const MapSessionCl
     auto destination=std::find_if(p->bags.begin(),p->bags.end(),[&](const auto& b){return b.bag.bInvenID==inventory;});
     auto owned=std::find_if(destination->items.begin(),destination->items.end(),[&](const auto& i){return i.bItemID==slot;});
     if(raw.count) {
-        *owned=ProjectNativeItem(sql,raw);owned->durable_hash=hash;
+        const auto alarm=owned->alarm_time;
+        *owned=ProjectNativeItem(sql,raw);owned->durable_hash=hash;owned->alarm_time=alarm;
         auto ack=EncodeItemDescriptor(*owned,c.char_id,true);ack.insert(ack.begin(),static_cast<std::byte>(inventory));
         packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_UPDATEITEM_ACK),std::move(ack));
     }else {

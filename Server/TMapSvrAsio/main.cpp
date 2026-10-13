@@ -1,4 +1,6 @@
 #include "services/main_transfer_runtime.h"
+#include "services/item_expiration.h"
+#include "services/posture_effects.h"
 #include <algorithm>
 #include <ctime>
 #include <map>
@@ -500,10 +502,11 @@ int main(int argc, char** argv)
                         const auto state=char_state.Get(identity.char_id);
                         if(!state||!state->payload||!state->payload->effects)continue;
                         if(state->payload->during&&state->payload->during->pending_entry)continue;
-                        const bool inactive=(!state->payload->during||state->payload->during->items.empty())&&
+                        const bool inactive=!tmapsvr::ItemExpirationDue(*state->payload,std::time(nullptr))&&
+                           (!state->payload->during||state->payload->during->items.empty())&&
                            std::none_of(state->payload->effects->begin(),state->payload->effects->end(),
                             [](const auto& effect){return effect.skill==820||effect.skill==903||effect.skill==918||effect.skill==923||
-                                ((effect.skill==912||effect.skill==913)&&effect.remaining);});
+                                (tmapsvr::IsNativeItemProbabilitySkill(effect.skill)&&effect.remaining);});
                         if(!session_reg.BeginCheckpoint(client.get()))continue;
                         tmapsvr::SessionOperation operation(session_reg,client.get());
                         if(inactive) {

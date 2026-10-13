@@ -236,7 +236,8 @@ bool PostgreSQLMapService::UpgradeNativeItem(soci::session& sql,const MapSession
     const auto save=[&] {
         const auto* current=Find(s,bag,slot);
         if(!current||current->dlID!=original.dlID)throw std::runtime_error("Upgrade target identity changed");
-        UpgradeNativeItemAttributes(sql,c,s,*current,raw);modified=true;
+        const bool rearm=kind==Upgrade||kind==Downgrade||kind==Gem||kind==Accessory||AppearanceKind(kind);
+        UpgradeNativeItemAttributes(sql,c,s,*current,raw,rearm);modified=true;
     };
     const auto erase=[&] {
         DebitNativeItem(sql,c,s,bag,slot,original.dlID,original.bCount,packets);removed=true;

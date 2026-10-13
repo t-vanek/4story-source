@@ -26,7 +26,7 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-New migrations **044–059** and native code extend quest state/actions, skill audit,
+New migrations **044–060** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -80,11 +80,19 @@ bytes. Expiry, mail counters, empty-post deletion and owning-value repairs are
 **INTEGRATED_UNVERIFIED**. Sending, returns, settlement, reserved/event mail and
 broader gameplay remain unfinished. See the [source scope and acceptance backlog](_rewrite/docs/modernization/evidence/phase-a-item-mail-20261013/README.md).
 
+Code `d3904c5` adds native POSTRETURN/payment, sender-owned online bill deadlines,
+Map notification receipts and an explicit offline historical mailbox importer.
+Migration060 preserves sender/recipient bytes and keeps the notification baseline
+outside protocol fields. These paths are **INTEGRATED_UNVERIFIED**; importer and
+migration are **IMPLEMENTED_UNVERIFIED**, never executed. POSTSEND, offline bill
+jobs and World reserved/event/admin producers remain required.
+[Source contracts, repairs and continuation](_rewrite/docs/modernization/evidence/phase-a-mail-returns-20261013/README.md).
+
 Compilation results for the changed Map target are recorded with that increment.
 Earlier evidence covers all six modern targets at its stated commits. Historical
-import tools and migrations044–059 are written, not executed. No tests, database
+import tools and migrations044–060 are written, not executed. No tests, database
 migration, server startup or container run belongs to this increment. Previous
-migrations001–058 remain unchanged; the next unused migration number is060.
+migrations001–059 remain unchanged; the next unused migration number is061.
 
 ## Historical verification through `2fa2396`
 

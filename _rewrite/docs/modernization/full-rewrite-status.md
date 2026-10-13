@@ -8,11 +8,32 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–059 are **written, not applied**.
-Latest code increment: `18ee496` (native item expiration and mail), based on `abc40d4`.
+evidence remain unchanged. New migrations044–060 are **written, not applied**.
+Latest code increment: `d3904c5` (native mail returns/payment/notifications/importer),
+based on `802a232`. Previous `18ee496` implements item expiration and mail, based on `abc40d4`.
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Mail return/payment and historical importer — `d3904c5`
+
+- Original POSTRETURN53AC DWORD/BYTE reaches native recipient/read/view/security
+  checks and the same owner transaction. Return retains post/item identity,
+  exchanges recipient/sender and emits POSTDEL; payment atomically debits64-bit
+  money, creates type4 payment mail and releases original attachments for claim.
+- Online expiry is keyed by source **dwSendID**, not recipient. Ready primaries
+  process source three-day deadlines and durable POSTRECV routing; inactive
+  primaries use an internal mailbox poll without empty ledger writes. Source
+  Tutorial suppression is retained. Separate checkpoint metadata prevents
+  admission/list notifications from being counted again after handoff.
+- STORAGE_POST is normalized authority; graph mail entries are read projections.
+  The importer checks complete pinned archives, exact mappings/bytes/clock/codec
+  profiles, native ownership and allocation indices; nonempty obsolete
+  TPOSTITEMTABLE is an explicit unresolved contract. No import was executed.
+- Migration060/grants are written only. Full POSTSEND, World reserved/event/admin
+  producers, offline expiry/job reconciliation and notification lifecycle remain.
+  The full runtime is not PG-only. No test/server/container was run.
+  [Exact source scope and compilation evidence](evidence/phase-a-mail-returns-20261013/README.md).
 
 ## Carried item expiration and native mail — `18ee496`
 
@@ -362,8 +383,9 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    and all non-request kill/use-item/position/spawn producers. Quest mail uses
    TRESERVEDPOST then TGetReservedPost and storage2. Migration059 now provides
    native attachment ownership, expired-bag delivery and read/claim/delete paths;
-   add reserved producers, sending, returns/bill settlement and complete offline
-   mail import using that same ownership path. Do not add another mail backend.
+   returns/payment and an offline importer are added byd3904c5. Continue reserved
+   producers, POSTSEND, offline expiry/job reconciliation and exact source import
+   blockers using that same ownership path. Do not add another mail backend.
 2. Implement source Map switches (QCT20), neutral NPC territory authority and
    conditional guild/hero trainer discounts. No substitute country/switch values.
 3. Finish Control one-shot event delivery/recovery with native World recipients,

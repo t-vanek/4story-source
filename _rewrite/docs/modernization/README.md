@@ -25,6 +25,13 @@ The [working status](full-rewrite-status.md) records changed production paths as
 unverified and tracks the remaining implementation gate. Historical results below
 belong to their stated revisions and scopes.
 
+Code `d3904c5` adds **INTEGRATED_UNVERIFIED** POSTRETURN/payment, sender-owned
+online bill expiry and durable current-primary POSTRECV receipts. Server-only
+watermarks prevent admission/list double counting across handoff. The historical
+mailbox importer and migration060 are **IMPLEMENTED_UNVERIFIED**, not executed.
+Full sending, World producers and offline jobs remain required.
+[Exact source contracts and compile-only evidence](evidence/phase-a-mail-returns-20261013/README.md).
+
 Code `18ee496` connects original carried-item expiry/alarm timers, expired-bag
 mail, POSTLIST/POSTVIEW/POSTGETITEM/POSTDEL and entry POSTINFO to the existing
 native ownership/quest/checkpoint transaction. Migration059 extends explicit

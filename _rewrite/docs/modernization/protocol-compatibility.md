@@ -13,6 +13,13 @@ prototype; missing action/world integrations still reject rather than issue a
 fabricated success. See [working status](full-rewrite-status.md) for explicit
 changes to tie ordering, randomness, UTC expiration and transaction boundaries.
 
+Code `d3904c5` adds **unverified** POSTRETURN53AC (DWORD postID/BYTE type).
+Payment retains MONEY then POSTRETURN53AD BYTE0; return retains POSTDEL53A9
+DWORD ID. Cross-Map notifications keep POSTRECV53A4. Receipt/watermark metadata
+is server-only, outside original transfer bytes. Original SQL binding byte
+profiles require explicit import configuration and later original-client proof;
+no executable compatibility claim is made. [Source contracts and explicit repairs](evidence/phase-a-mail-returns-20261013/README.md).
+
 Code `18ee496` adds **unverified** POSTLIST54A5 (WORD page), POSTVIEW53A6,
 POSTGETITEM53AA and POSTDEL53A8 (DWORD post ID). It preserves source list/view
 layouts, no-slot attachment descriptors, GETITEM result BYTE, DELETE DWORD and

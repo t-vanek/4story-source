@@ -17,12 +17,20 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–059; the next free number is060.
+immutable. Phase A has added unapplied migrations044–060; the next free number is061.
+
+Code `d3904c5` now integrates POSTRETURN/payment, sender-owned online bill expiry
+and cross-Map notification receipts. The historical mailbox importer is written,
+not executed; it explicitly blocks nonempty obsolete TPOSTITEMTABLE and requires
+original byte/clock/codec profiles. Continue POSTSEND with native protected-list/
+country/capacity/trade authority, World reserved/quest/event/admin mail and offline
+bill-job reconciliation on this same path. Do not start Phase B until the full
+implementation gate is met. [Contracts and exact acceptance backlog](evidence/phase-a-mail-returns-20261013/README.md).
 
 Code `18ee496` supersedes the carried-item/expired-bag-mail gap below: alarms,
 expiry, native attachment ownership, read/view/claim/empty-delete and entry mail
-counters are integrated, unverified. Continue POSTSEND, POSTRETURN, bill settlement,
-World reserved/quest/event mail and complete offline mail import on this same
+counters are integrated, unverified. The laterd3904c5 adds returns/payment and an import tool. Continue POSTSEND,
+World reserved/quest/event mail and offline expiry/reconciliation on this same
 native path, plus broader World/social persistence and remaining Map systems.
 Preserve source pagination quirks and documented containment/delete/bill repairs.
 [Exact source scope and deferred acceptance](evidence/phase-a-item-mail-20261013/README.md).

@@ -7,6 +7,11 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
+Code `d3904c5` additionally requires unapplied060 and refreshed Map grants for
+returns/payment and the mailbox notification poll. Historical mailbox import
+requires explicit source clock/codec profiles. This is Phase A configuration;
+no migration, server or container run was performed.
+
 Code `18ee496` additionally requires unapplied059 and refreshed Map role grants
 for post insertion/read/claim/deletion, attachment ownership and expired-bag
 removal. The existing quest publisher adds `--server-messages` while retaining

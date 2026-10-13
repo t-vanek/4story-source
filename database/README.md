@@ -5,12 +5,20 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A code `18ee496`:** the migration chain reaches059 (next060).
-New044–059 migrations and import/publication tools are written only. Migration059
+Code `d3904c5` additionally writes060 for native return/payment, normalized mail
+ownership and durable notification receipts. `import_mailboxes.py` requires an
+explicit complete archival manifest, character mapping, source clock and text
+profiles; it refuses unresolved obsolete attachment rows. Both are unexecuted.
+[Source scope and deferred migration acceptance](../_rewrite/docs/modernization/evidence/phase-a-mail-returns-20261013/README.md).
+
+**Current Phase A code `d3904c5`:** the migration chain reaches060 (next061).
+New044–060 migrations and import/publication tools are written only. Migration059
 adds native post attachment ownership, original server-message byte publication
 and post text byte storage, preserving pre-existing carried-item fingerprints.
-The Map runtime supports expired-bag mail and read/view/claim/empty deletion;
-sending/returns/settlement/reserved producers and offline mail import remain open.
+The unverified Map paths now include expired-bag mail, read/view/claim/delete,
+return/payment and sender-owned online expiry. Native sending, World reserved
+producers and offline expiry/job reconciliation remain open; the historical
+mailbox import tool is written but has not been executed.
 See the [source contract](../_rewrite/docs/modernization/evidence/phase-a-item-mail-20261013/README.md).
 Earlier numbered notes below describe their own historical increments.
 

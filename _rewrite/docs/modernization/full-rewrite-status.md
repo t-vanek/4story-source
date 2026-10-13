@@ -9,7 +9,8 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–065 are **written, not applied**.
-Latest code increments: `e84ece4` / `65be6d1` (quest mail and offline bill returns), based on `c537883`.
+Latest code increment: `11e0df1` / `dd07164` (atomic mutual friend acceptance), based on `5fe42f8`.
+Previous code increments: `e84ece4` / `65be6d1` (quest mail and offline bill returns), based on `c537883`.
 Previous code increment: `45d130d` (World reserved-mail delivery/importer), based on `0f05d33`.
 Previous code increments: `85bf923` / `feea4a1` / `b4ff581` (player mail send/protected lists/importer), based on `8cd91ff`.
 Previous code increment: `d3904c5` (native mail returns/payment/notifications/importer),
@@ -17,6 +18,24 @@ based on `802a232`. Previous `18ee496` implements item expiration and mail, base
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Atomic mutual friend acceptance — `11e0df1` / `dd07164`
+
+- The existing pending-both ASK and explicit REPLY acceptance paths now call
+  one IFriendRepository operation; source IF NOT EXISTS/group preservation is
+  retained for both edges in a single transaction before cache mutation/ACK.
+- Current registered ready primary, registry pointer and keys are checked around
+  worker awaits. Failed persistence poisons subsequent repository writes and
+  stops World with exit1/count-free safe diagnostic; unknown COMMIT is not replayed.
+- Existing fake adapter implements the changed API atomically without new test
+  assertions or production fallback. World Debug/Release compiled/linked; tests,
+  DB, runtime and containers did not run. **INTEGRATED_UNVERIFIED**.
+- This is an existing schema-adapter repair. Native friend/group/soulmate schemas,
+  imports, World ownership, cross-process fencing and bootstrap remain required.
+  Other best-effort writes and empty-on-error loading are not native replacements.
+  Next free migration remains066; no migration or historical file changed here.
+
+[Exact scope and deferred acceptance](evidence/phase-a-mutual-friends-20261013/README.md).
 
 ## Quest mail and offline bill returns — `e84ece4` / `65be6d1`
 

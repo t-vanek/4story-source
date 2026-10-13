@@ -19,6 +19,14 @@ modern changes (initialized enabled flag, durable expiry, disabled-state transfe
 strict byte input and commit-before-response). Backups and migrations001–043 are
 immutable. Phase A has added unapplied migrations044–065; the next free number is066.
 
+Code `11e0df1` / `dd07164` additionally repairs both mutual-friend acceptance
+paths: two source directed edges commit together before cache/success responses,
+with registered ready-primary checks before persistence and after await. Any
+mutual persistence failure stops World without a write replay. World compiles
+in Debug/Release; no tests or runtime ran. This preserves the existing schema
+adapter and **does not complete native friend schemas/imports, World ownership
+or the other best-effort social paths**. [Scope and remaining native work](evidence/phase-a-mutual-friends-20261013/README.md).
+
 Code `e84ece4` / `65be6d1` integrates quest SENDPOST and native offline bill
 returns. QUESTEXEC/child hooks select original rewards into the fenced reserved
 queue; World returns due offline bills with authoritative item ownership and

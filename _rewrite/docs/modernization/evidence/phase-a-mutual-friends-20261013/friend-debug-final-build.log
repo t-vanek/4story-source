@@ -1,0 +1,4 @@
+[1/4] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio_core.dir/services/soci_friend_repository.cpp.o
+[2/4] Linking CXX static library lib/libtworldsvr_asio_core.a
+[3/4] Building CXX object Server/TWorldSvrAsio/CMakeFiles/tworldsvr_asio.dir/main.cpp.o
+[4/4] Linking CXX executable bin/tworldsvr_asio

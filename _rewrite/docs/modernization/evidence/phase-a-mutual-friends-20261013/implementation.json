@@ -1,0 +1,109 @@
+{
+  "recorded_at": "2026-10-13T19:43:42.778355+00:00",
+  "base_commit": "5fe42f8",
+  "code_commit": "dd07164f4f65700519405bb4413dc95375dc7ae4",
+  "implementation_commit": "11e0df1",
+  "phase": "A",
+  "phase_a_complete": false,
+  "branch": "main",
+  "state": "INTEGRATED_UNVERIFIED",
+  "scope": "Both existing World mutual-friend acceptance paths commit two directed edges atomically before cache/success; schema adapter still requires native migration and durable World ownership",
+  "source_references": [
+    "Server/TWorldSvr/SSHandler.cpp:5880 OnMW_FRIENDASK_ACK",
+    "Server/TWorldSvr/SSHandler.cpp:6015 OnMW_FRIENDREPLY_ACK",
+    "Server/TWorldSvr/SSHandler.cpp:6176 OnDM_FRIENDINSERT_REQ",
+    "_rewrite/docs/schema/procs/TGAME_RAGEZONE/TFriendInsert.sql"
+  ],
+  "files": [
+    {
+      "path": "Server/TWorldSvrAsio/handlers/handlers_friend.cpp",
+      "sha256": "d8b06c29bfbd0c588057021c32d6fbcf58308081dc440ff4833f0ae610b928ce"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/main.cpp",
+      "sha256": "6be0dea7c708a88a95a2e6e8579540569f010f46336a1a967438f4711aa1b4dc"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/fake_friend_repository.cpp",
+      "sha256": "ff1caf6690f3ef09dcec6224bf49e68cbcd97fe02b3a3cf04c1ef7277b6a6cd9"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/fake_friend_repository.h",
+      "sha256": "a2474b3806506fb76812fd5ebebe538f2cea260bd5e4ceb23c7efb913776407f"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/friend_repository.h",
+      "sha256": "096469a52a2c651d68425e0b2a21b44fcd43a20929dc0851e25bc3b5c48141b2"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/soci_friend_repository.cpp",
+      "sha256": "ea0a6c9f5ef75323607e0a2dc4db1da0a9fca3d8ef997c120c79190d98fe0034"
+    },
+    {
+      "path": "Server/TWorldSvrAsio/services/soci_friend_repository.h",
+      "sha256": "c904c966059d5636de25d2d1a634332ea2318e5c0019a3654043be1cae7fd22b"
+    }
+  ],
+  "builds": [
+    {
+      "configuration": "Debug",
+      "command": "cmake --build build/phase-a-compile --target tworldsvr_asio -j1",
+      "exit_code": 0,
+      "logs": [
+        "friend-debug-build.log",
+        "friend-debug-final-build.log"
+      ]
+    },
+    {
+      "configuration": "Release",
+      "command": "cmake --build build/phase-a-quest-release --target tworldsvr_asio -j1",
+      "exit_code": 0,
+      "logs": [
+        "friend-release-build.log",
+        "friend-release-final-build.log"
+      ]
+    }
+  ],
+  "build_testing": false,
+  "cpp_standard": "C++20",
+  "native_postgresql_build": true,
+  "tests_executed": 0,
+  "server_runs": 0,
+  "client_sessions": 0,
+  "sanitizer_runs": 0,
+  "migrations_applied": 0,
+  "imports_executed": 0,
+  "container_builds": 0,
+  "container_starts": 0,
+  "published": false,
+  "runtime_postgresql_only": false,
+  "native_world_friend_repository_complete": false,
+  "supported_client_binary": null,
+  "schema_migrations_001_065_unchanged": true,
+  "backups_and_original_sources_unchanged": true,
+  "modern_differences": [
+    "One commit replaces two best-effort per-edge inserts",
+    "Preserve existing source groups and create missing edges at0; canonical unsigned pair order; fixed signed32 bit representation",
+    "Cache/success after commit with registered ready primary validation before write and after await",
+    "Any mutual persistence failure poisons repository writes and stops World with exit1; safe critical log; no automatic unknown-COMMIT replay",
+    "Existing fake adapter implements the new atomic API under one mutex/copy/swap; no production selection added and no test assertions changed"
+  ],
+  "remaining": [
+    "Native world/session lifetime ownership and backend schema bootstrap",
+    "Native friend/group/soulmate schemas/imports and complete typed repository/authorization",
+    "Other group/soulmate/erase handlers still use legacy best-effort semantics",
+    "General legacy loader catches and returns empty on errors; must be removed from native implementation",
+    "Cross-process concurrency, offline/transfer recovery and relation operation audit",
+    "Complete gameplay and Phase B/C; original executable/assets absent"
+  ],
+  "deferred_verification": [
+    "Unit/integration/TCP/protocol/PostgreSQL tests",
+    "Injected first/second edge/COMMIT failure and existing-group preservation",
+    "Restart after lost commit response; authorization/handoff during await; no phantom success",
+    "Parallel worlds, native ownership, both directions and other social operations",
+    "Fake test adapter regression fixtures with actual registered ready primary; no assertion weakening"
+  ],
+  "preserved_unrelated_work": [
+    "_rewrite/docs/audits/"
+  ]
+}

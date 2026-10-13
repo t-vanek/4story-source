@@ -648,10 +648,13 @@ int main(int argc, char** argv)
                 try {
                     const auto result=co_await fourstory::db::CoOffload(*workers,[mail,now]{return mail->Deliver(now);});
                     if(result.delivered||result.missing)spdlog::info("reserved mail: delivered={}, missing={}",result.delivered,result.missing);
+                    const auto bills=co_await fourstory::db::CoOffload(*workers,[mail,now]{return mail->ReturnOfflineBills(now);});
+                    if(bills.returned)spdlog::info("offline bills: returned={}",bills.returned);
+                    if(bills.missing_senders)spdlog::warn("offline bills retained for missing senders: {}",bills.missing_senders);
                 }catch(...) {
                     // Credential/source-safe failure. No timer replay of a
                     // write with unknown outcome and no fabricated empty queue.
-                    spdlog::critical("native reserved mail failed; World stopped for reconciliation");
+                    spdlog::critical("native mail worker failed; World stopped for reconciliation");
                     reserved_mail_failed=true;
                     io.stop();
                 }

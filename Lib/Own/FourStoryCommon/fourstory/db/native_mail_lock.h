@@ -10,4 +10,7 @@ inline constexpr std::int64_t NativeMailboxKey(std::uint8_t world,std::uint32_t 
 inline constexpr std::int64_t ReservedMailBatchKey(std::uint8_t world) {
     return 0x52504f0000000000LL|world;
 }
+inline constexpr std::int64_t OfflineBillBatchKey(std::uint8_t world) {
+    return 0x5042490000000000LL|world;
+}
 }

@@ -214,6 +214,12 @@ std::optional<ItemInstance> PostgreSQLMapService::CreateQuestItem(soci::session&
 }
 std::vector<ItemInstance> PostgreSQLMapService::CreateQuestRewardItems(soci::session& sql,const MapSessionClaim& c,
     const CharSnapshot& s,const QuestRewardDef& reward) {
+    std::vector<ItemInstance> items;
+    for(const auto& raw:CreateQuestRewardRawItems(sql,c,s,reward,false))items.push_back(ProjectNativeItem(sql,raw));
+    return items;
+}
+std::vector<transfer::Item> PostgreSQLMapService::CreateQuestRewardRawItems(soci::session& sql,const MapSessionClaim& c,
+    const CharSnapshot& s,const QuestRewardDef& reward,bool mail) {
     transfer::Item raw;std::uint32_t duration=0;
     if(reward.bRewardType==RT_MAGICITEM) {
         const auto magic=ReadQuestMagicItem(sql,reward.dwRewardID);
@@ -229,10 +235,13 @@ std::vector<ItemInstance> PostgreSQLMapService::CreateQuestRewardItems(soci::ses
     if(reward.bCount&&!stack)throw std::runtime_error("Quest reward has zero source stack capacity");
     if(reward.bRewardType!=RT_MAGICITEM)raw.durability=raw.durability_max=static_cast<std::uint32_t>(durability);
     raw.expires=NativeItemExpiry(sql,duration,use_type,use_time);raw.owner_id=c.char_id;
-    std::vector<ItemInstance> items;
+    std::vector<transfer::Item> items;
     for(unsigned remaining=reward.bCount;remaining;) {
         raw.count=static_cast<std::uint8_t>(std::min(remaining,unsigned(stack)));remaining-=raw.count;
-        raw.id=AllocateNativeItem(sql,c);items.push_back(ProjectNativeItem(sql,raw));
+        // SENDPOST's ordinary constructor keeps ID0; magic Copy(TRUE) consumes
+        // a temporary Map ID. Neither is the separately allocated delivery ID.
+        raw.id=(!mail||reward.bRewardType==RT_MAGICITEM)?AllocateNativeItem(sql,c):0;
+        items.push_back(raw);
     }
     return items;
 }

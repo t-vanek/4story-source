@@ -73,6 +73,8 @@ GRANT INSERT ON app_world."TSKILLLOG" TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world."TSKILLLOG_log_id_seq" TO :"map_role";
 GRANT INSERT,UPDATE ON app_world."TQUESTTABLE",app_world."TQUESTTERMTABLE" TO :"map_role";
 GRANT INSERT ON app_world.quest_operations TO :"map_role";
+GRANT INSERT ON app_world."TRESERVEDPOST" TO :"map_role";
+GRANT USAGE ON SEQUENCE app_world."TRESERVEDPOST_queue_id_seq" TO :"map_role";
 GRANT USAGE ON SEQUENCE app_world.quest_operations_operation_id_seq TO :"map_role";
 GRANT EXECUTE ON FUNCTION app_world.map_quest_state(smallint,integer) TO :"map_role";
 GRANT INSERT,DELETE,UPDATE("bSelected") ON app_world."TTITLETABLE" TO :"map_role";

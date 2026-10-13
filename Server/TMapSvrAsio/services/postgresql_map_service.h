@@ -69,6 +69,8 @@ private:
     static void UpgradeNativeItemAttributes(soci::session&,const MapSessionClaim&,CharSnapshot&,ItemInstance,const transfer::Item&,bool);
     static std::optional<ItemInstance> CreateQuestItem(soci::session&,const MapSessionClaim&,std::uint16_t,std::uint8_t);
     static std::vector<ItemInstance> CreateQuestRewardItems(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestRewardDef&);
+    static std::vector<transfer::Item> CreateQuestRewardRawItems(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestRewardDef&,bool mail);
+    static bool QueueQuestPost(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestDef&,std::uint8_t,const std::function<std::uint8_t()>&);
     static bool GrantQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const std::vector<ItemInstance>&,QuestPackets&,bool merge_stacks=true);
     static bool ReclaimNativeRefine(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,QuestPackets&);
     static bool OpenSpecialBox(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,QuestPackets&);

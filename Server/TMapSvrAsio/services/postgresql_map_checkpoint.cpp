@@ -751,6 +751,17 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                 if(completed||granted)children(def,depth);
                 return;
             }
+            case QT_SENDPOST: {
+                // CQuestSendPost draws before its CanRun gate. RANDOM keeps
+                // visiting later rewards; it has no COMPLETE sum-break.
+                const auto roll=inputs.probability();
+                if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
+                if(QueueQuestPost(sql,c,after,def,roll,inputs.probability)) {
+                    other_state_changed=true;
+                    children(def,depth);
+                }
+                return;
+            }
             case QT_COMPLETE:case QT_CRAFT: {
                 if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
                 const bool craft=def.bType==QT_CRAFT;

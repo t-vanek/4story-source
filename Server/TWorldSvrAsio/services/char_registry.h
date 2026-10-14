@@ -17,9 +17,8 @@
 //     `std::mutex m_lock`. Handlers that touch multiple chars must
 //     lock them in monotonically-increasing dwCharID order to avoid
 //     deadlock — see Server/TWorldSvrAsio/README.md §5.
-//   * Active-user tracking (m_mapACTIVEUSER in legacy) is a
-//     separate sharded set so the user→has-any-char-online predicate
-//     doesn't iterate all shards.
+//   * Source active-user tracking is a separate historical set of accounts
+//     admitted since startup/DATACLEAR. Logout keeps the account in this set.
 //
 // TChar field layout matches the subset of `tagTCHARACTER` that
 // W2 handlers touch. Guild/party/corps/BR/BoW back-pointers land
@@ -42,6 +41,23 @@
 #include "main_handoff.h"
 
 namespace tworldsvr {
+
+class PeerSession;
+struct TChar;
+struct PartyIdentity {
+    bool valid=false, native=false;
+    std::string name, map_token;
+    std::int64_t connection_id=0, authority_epoch=0;
+    bool operator==(const PartyIdentity&) const = default;
+};
+struct PartyInvitation {
+    std::weak_ptr<TChar> origin;
+    std::weak_ptr<PeerSession> origin_peer, target_peer;
+    std::uint32_t origin_key=0, target_key=0;
+    std::uint8_t obtain=0;
+    std::string origin_name;
+    PartyIdentity origin_identity, target_identity;
+};
 
 // W4-1 — one entry in a character's friend list (legacy TFRIEND in
 // m_mapTFRIEND, keyed by the friend's char id). Stored in
@@ -200,7 +216,11 @@ struct TChar
     // while an invite dialog is pending on this char's client so a
     // second inviter is rejected with PARTY_WAITERS.
     std::uint16_t party_id     = 0;
+    bool party_refresh_needed = false; // real ready claim must repair handoff projection
     bool          party_waiter = false;
+    // One dialog belongs to both exact live actors, peers and native claim
+    // generations. It is consumed once; names alone never authorize a join.
+    std::shared_ptr<const PartyInvitation> party_invite;
 
     // W3b-1 combat stats. Legacy m_dwMaxHP / m_dwHP / m_dwMaxMP /
     // m_dwMP, refreshed by SetCharStatus on every party-flow packet
@@ -317,9 +337,9 @@ public:
 
     // ---- Active user tracking (legacy m_mapACTIVEUSER) ----
     //
-    // The user index is independent of the char index because the
-    // legacy module asks "is any character of user X online?"
-    // without caring which char. Sharded the same way.
+    // The historical account set is independent of current online characters.
+    // MarkUserInactive remains an explicit adapter/index operation; native
+    // character logout must not call it.
 
     void MarkUserActive(std::uint32_t user_id);
     void MarkUserInactive(std::uint32_t user_id);

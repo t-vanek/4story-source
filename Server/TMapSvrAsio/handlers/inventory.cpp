@@ -4,6 +4,7 @@
 #include "services/client_senders.h"
 #include "services/main_transfer_runtime.h"
 #include "services/player_service.h"
+#include "services/party_runtime.h"
 #include "services/session_registry.h"
 #include "services/channel_presence.h"
 #include "fourstory/db/co_offload.h"
@@ -97,7 +98,9 @@ boost::asio::awaitable<void> OnMoveItemReq(std::shared_ptr<tnetlib::AsioSession>
         const auto& display=*committed.equipment_display;
         if(!display.payload||!display.payload->statistics)throw std::runtime_error("Equipment statistics were not committed");
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(display,*display.payload->statistics));
-        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),EncodeHpMpAck(cid,1,display.dwMaxHP,display.dwHP,display.dwMaxMP,display.dwMP));
+        const auto bars=EncodeHpMpAck(cid,1,display.dwMaxHP,display.dwHP,display.dwMaxMP,display.dwMP);
+        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),bars);
+        co_await PublishPartyVitals(sess,display,bars,ctx);
         co_await send_effects(committed.effects_after);
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK),std::vector<std::byte>{std::byte{0}});
         co_return;

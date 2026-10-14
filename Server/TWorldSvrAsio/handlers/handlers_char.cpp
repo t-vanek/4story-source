@@ -663,7 +663,7 @@ CloseChar(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
 {
     if (!ch || !ctx.chars) co_return;
 
-    std::uint32_t char_id = 0, key = 0, user_id = 0;
+    std::uint32_t char_id = 0, key = 0;
     std::uint8_t  main_id = 0, chg_main_id = 0;
     bool          logout = false, saving = false;
     std::vector<std::uint8_t> cons, dead;
@@ -675,7 +675,7 @@ CloseChar(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
         ch->main_checks.clear();
         if(ch->main_handoff&&ch->main_handoff->deadline)ch->main_handoff->deadline->cancel();
         ch->main_handoff.reset();
-        char_id = ch->char_id; key = ch->key; user_id = ch->user_id;
+        char_id = ch->char_id; key = ch->key;
         main_id = ch->main_server_id; chg_main_id = ch->chg_main_id;
         logout = ch->logout; saving = ch->saving;
         dead = ch->dead_cons;
@@ -685,6 +685,10 @@ CloseChar(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
     const auto map_peer=[&](std::uint8_t sid){
         return sid&&ctx.peers?ctx.peers->Find(static_cast<std::uint16_t>(0x0400U|sid)):nullptr;
     };
+    // Source retires party membership before removing the character. The same
+    // coroutine boundary as invites/joins prevents a stale closing member from
+    // being attached while native save/release and packet writes suspend.
+    co_await RetirePartyForClose(ctx,ch);
     // A main-session handoff was in flight → void the would-be new
     // main's takeover (legacy CloseChar's m_bCHGMainID branch).
     if (chg_main_id != 0)
@@ -727,16 +731,8 @@ CloseChar(std::shared_ptr<TChar> ch, const HandlerContext& ctx)
     co_await NotifySoulmateOnLogout(ctx, ch);
     co_await NotifyTmsOnLogout(ctx, ch);
 
-    // Mark the account inactive if it has no other char online.
-    bool any_other = false;
-    for (auto other_id : ctx.chars->SnapshotIds())
-        if (auto other = ctx.chars->Find(other_id))
-        {
-            std::lock_guard g(other->lock);
-            if (other->user_id == user_id) { any_other = true; break; }
-        }
-    if (!any_other)
-        ctx.chars->MarkUserInactive(user_id);
+    // Source m_mapACTIVEUSER records unique accounts since startup/DATACLEAR;
+    // logout does not remove them. Current character count is a separate field.
 }
 
 boost::asio::awaitable<void>

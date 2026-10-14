@@ -3,6 +3,7 @@
 #include "MessageId.h"
 
 #include <spdlog/spdlog.h>
+#include <string_view>
 
 namespace tworldsvr::handlers {
 
@@ -17,6 +18,19 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     using tnetlib::protocol::NameOf;
 
     const auto id = ToMessageId(wId);
+    const auto name=NameOf(id);
+    // Native parties must not enter unported corps/loot/instance adapters that
+    // mutate the same membership without its current SQL/operation boundary.
+    // Retain those original responsibilities and explicit legacy adapters; an
+    // unsupported native command is a protocol failure, never a success/no-op.
+    if(ctx.chat_repo&&name.starts_with("MW_")&&
+       (name.find("PARTY")!=std::string_view::npos||name.find("CORPS")!=std::string_view::npos||
+        id==MessageId::MW_ENTERSOLOMAP_ACK||id==MessageId::MW_LEAVESOLOMAP_ACK||id==MessageId::MW_ARENAJOIN_ACK)&&
+       id!=MessageId::MW_PARTYADD_ACK&&id!=MessageId::MW_PARTYJOIN_ACK&&
+       id!=MessageId::MW_PARTYDEL_ACK&&id!=MessageId::MW_PARTYMANSTAT_ACK) {
+        spdlog::warn("Native party dependency is not implemented: {}",name);
+        peer->Wire()->Close();co_return;
+    }
     // Original CT frames carry administrative authority. Never let an
     // anonymous socket or a registered Map inject event probabilities, grants
     // or other Control commands by choosing their opcode.

@@ -362,8 +362,23 @@ boost::asio::awaitable<void> OnChatReq(std::shared_ptr<tnetlib::AsioSession> cli
             }
         }
     }
-    if(group==4||group==5||group==6||group==8) {
-        // Party/corps/guild/tactics targets require their native registries.
+    if(group==4) {
+        // BR CHAT_PARTY is a local team-registry fanout, not the normal World
+        // party relay. That independent producer is still unavailable.
+        if(ctx.mode==Mode::Br)co_return;
+        if(!state->cluster.hydrated||!ctx.player_service)co_return;
+        auto* service=ctx.player_service;
+        const auto party_actor=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [service,claim=id->Claim(ctx.expected_group),&state]{return service->AuthorizeParty(claim,*state);});
+        const auto current=ctx.session_reg->Identity(client.get());
+        if(!party_actor||!client->IsOpen()||!current||!Same(*id,*current))co_return;
+        // CSHandler CHAT_PARTY replaces the client-provided target with the
+        // source getter. World independently verifies current registry membership;
+        // verified partyless/SOLO zero remains its ordinary no-recipient request.
+        target=state->cluster.party_type==1?0:state->cluster.party;
+    }
+    if(group==5||group==6||group==8) {
+        // Corps/guild/tactics targets require their native registries.
         // A zero-valued cache is not evidence of source registry membership.
         co_return;
     }

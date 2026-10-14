@@ -1,3 +1,15 @@
+> Current Phase A, based on `2e406dc`: source basic parties, single-use invites,
+> native pairwise actor/owner checks, serialized join/leave/close/chat, primary
+> and ready-replica ATTR, source MANSTAT and post-CONREADY membership repair.
+> Native unported corps/instance/loot mutators are rejected. Source historical
+> account counts now persist through logout. Full Map admission/bootstrap,
+> party rewards/guild/mode/equipment/arena branches remain OPEN.
+> **INTEGRATED_UNVERIFIED**, static review only, no build/test/runtime/SQL.
+> Local commits only; no GitHub push or deployment.
+> [Current scope and deferred acceptance](../../_rewrite/docs/modernization/evidence/phase-a-native-party-20261014/README.md).
+>
+> Earlier evidence below retains its original scope.
+
 > Current Phase A, based on `acbcaaf`: actual World/Map/Control links now use
 > original Plain16 (total16–65534), no crypto/body fold and source receive ignoring
 > metadata. Control inventory World3 is corrected; monitor counts raw listener

@@ -4,6 +4,7 @@
 #include "../wire_codec.h"
 
 #include "MessageId.h"
+#include "fourstory/db/co_offload.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -32,7 +33,7 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
 
     wire::Reader r(body.data(), body.size());
     std::uint16_t wid = 0;
-    if (!r.Read(wid))
+    if (!r.Read(wid)||!r.Eof())
     {
         spdlog::warn("OnRelaysvrReq[{}]: short body ({} bytes) — dropped",
             ip, body.size());
@@ -55,6 +56,17 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
     std::optional<EventRegistry::DeliveryLease> event_delivery;
     if(ctx.events)event_delivery.emplace(co_await ctx.events->AcquireDelivery());
     if(!peer->Wire()->IsOpen())co_return;
+    if(ctx.chat_repo) {
+        if((wid>>8)!=4||static_cast<std::uint8_t>(wid)==0) {
+            spdlog::warn("Native RW Map extension rejected unsupported peer role");
+            peer->Wire()->Close();co_return;
+        }
+        const auto token=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo=ctx.chat_repo,server=static_cast<std::uint8_t>(wid)]{return repo->MapOwner(server);});
+        if(!peer->Wire()->IsOpen())co_return;
+        if(token.empty()) {peer->Wire()->Close();co_return;}
+        peer->SetNativeMapToken(token);
+    }
     peer->SetNation(ctx.nation);
     peer->SetWid(wid);
     if (!ctx.peers->Register(peer))

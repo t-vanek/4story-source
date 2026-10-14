@@ -119,6 +119,9 @@ struct CharacterPayload {
     // CTPlayer live interaction gates. Their shop/trade/tournament producers
     // still need native integration; they start closed/inactive on admission.
     bool personal_store{},tournament_player{};
+    // CTPlayer constructor initializes this to zero. Native arena assignment,
+    // arena queues and ArenaLeave are still independent unported producers.
+    std::uint16_t arena_id{};
     std::uint8_t deal_status{}; // DEAL_READY=0, WAIT=1, START=2
     std::uint8_t lucky_number{},aid_country{3}; // original absent TAIDTABLE -> TCONTRY_N
     std::uint16_t selected_title{};

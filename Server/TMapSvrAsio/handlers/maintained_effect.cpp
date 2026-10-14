@@ -4,6 +4,7 @@
 #include "services/client_senders.h"
 #include "services/main_transfer_runtime.h"
 #include "services/player_service.h"
+#include "services/party_runtime.h"
 #include "services/session_registry.h"
 #include "services/channel_presence.h"
 #include "fourstory/db/co_offload.h"
@@ -117,7 +118,11 @@ boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession>
             throw std::runtime_error("Invalid committed finish audience");
         const auto& clients=audience==FinishAudience::Owner?owner:audience==FinishAudience::Neighbors?neighbors:nearby;
         const auto& [id,packet]=committed.packets[i];
-        for(auto& client:clients)co_await client->SendPacket(id,packet);
+        for(auto& client:clients) {
+            co_await client->SendPacket(id,packet);
+            if(client.get()==sess.get()&&id==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_HPMP_ACK))
+                co_await PublishPartyVitals(sess,after,packet,ctx);
+        }
     }
 }
 boost::asio::awaitable<void> OnSkillEndReq(std::shared_ptr<tnetlib::AsioSession> sess,
@@ -167,9 +172,13 @@ boost::asio::awaitable<void> OnSkillEndReq(std::shared_ptr<tnetlib::AsioSession>
     for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),acknowledgement);
     if(committed.removed) {
         if(!after.payload||!after.payload->statistics)throw std::runtime_error("Effect commit lacks statistics");
-        if(before.dwMaxHP!=after.dwMaxHP||before.dwMaxMP!=after.dwMaxMP)
-            for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
-                EncodeHpMpAck(cid,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP));
+        if(before.dwMaxHP!=after.dwMaxHP||before.dwMaxMP!=after.dwMaxMP) {
+            const auto bars=EncodeHpMpAck(cid,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP);
+            for(auto& client:neighbors) {
+                co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),bars);
+                if(client.get()==sess.get())co_await PublishPartyVitals(sess,after,bars,ctx);
+            }
+        }
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),
             EncodeCharacterStatistics(after,*after.payload->statistics));
     }

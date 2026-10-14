@@ -108,6 +108,7 @@ struct HandlerContext
     const std::vector<std::uint32_t>* operators = nullptr;
     PostgreSQLChatRepository* chat_repo = nullptr;
     std::shared_ptr<SocialOperationGate> communication_operations=std::make_shared<SocialOperationGate>();
+    std::shared_ptr<SocialOperationGate> party_operations=std::make_shared<SocialOperationGate>();
 
     // W3a-11: cluster-wide list of "we are recruiting" postings.
     // One entry per guild, filtered cross-country on read. Owned
@@ -1265,6 +1266,8 @@ boost::asio::awaitable<void> OnPartyDelAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
+void InvalidatePartyInvitations(const HandlerContext&,const std::shared_ptr<TChar>&);
+boost::asio::awaitable<void> RetirePartyForClose(const HandlerContext&,const std::shared_ptr<TChar>&);
 
 // --- W3b-4: party attribute changes (handlers_party.cpp) -----------
 //

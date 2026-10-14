@@ -1,12 +1,11 @@
 # 4Story Emulator Server
 
-**Development policy (owner instruction updated 2026-10-14):** commit changes on
-`main`. The owner now authorizes publishing the complete current pending history
-to GitHub `origin/main`, superseding the earlier push pause for this snapshot.
-The publication commit uses `[skip ci]` to preserve the prohibition on builds,
-tests, services, clients, containers and runtime verification. Private database
-extracts and local audit output stay outside Git. Further implementation remains
-local unless another publication is authorized; deployment remains paused.
+**Development policy (owner instruction updated 2026-10-14):** continue
+implementation and commit on local `main` only. Do not push to GitHub or deploy.
+The preceding one-time publication ended at `2e406dc`; it does not authorize
+publication of subsequent implementation. Builds, tests, SQL execution, services,
+clients, containers and runtime verification remain deferred. Private database
+extracts and pre-existing local audit output stay outside Git.
 
 **Current workflow:** complete implementation (Phase A), then verification and
 migration (Phase B), then local container startup (Phase C). New changes are
@@ -29,7 +28,20 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Latest local Phase A work (2026-10-14), based on `acbcaaf`, ports actual
+Latest local Phase A work (2026-10-14), based on `2e406dc`, connects source
+basic party ADD/JOIN/DEL, succession/dissolution/logout cleanup, primary/replica
+ATTR and native HPMP/level MANSTAT. Normal party chat uses the existing full-text
+pipeline and current World membership. Typed peer ownership, native SQL pair
+proofs, one-use invitations and serialized membership guard suspended operations.
+Post-CONREADY MANSTAT repairs real World ATTR after handoff; source wire fields
+remain unchanged. World logout now retains source historical account counts.
+**INTEGRATED_UNVERIFIED**: static review only, no build/test/SQL/service/client/
+container run and no new migration (next070). Source Map admission/full bootstrap,
+party rewards/equipment/corps/guild/arena/instance/mode branches and complete
+Phase A remain OPEN. Local Git only; no push.
+[Source contracts, differences and deferred acceptance](_rewrite/docs/modernization/evidence/phase-a-native-party-20261014/README.md).
+
+Previous code `80b7698` (2026-10-14), based on `acbcaaf`, ports actual
 Map–World and Control–World links to source Plain16, preserving source receive
 semantics and current-socket/no-replay guards. The modern RW catalog ACK now reads
 DWORD message keys. Control service types follow linked CTProtocol exactly

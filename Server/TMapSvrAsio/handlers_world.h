@@ -96,5 +96,6 @@ boost::asio::awaitable<void> OnMWRouteListReq(
 boost::asio::awaitable<void> OnMWReleaseMainReq(std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnMWTransferEnterReq(std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnWorldCommunication(std::uint16_t,std::vector<std::byte>,const HandlerContext&);
+boost::asio::awaitable<void> OnWorldParty(std::uint16_t,std::vector<std::byte>,const HandlerContext&);
 
 } // namespace tmapsvr

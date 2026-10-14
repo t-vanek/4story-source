@@ -210,7 +210,8 @@ CS_* wire handlers ported           ██░░░░░░░░░░░░�
 | **NPC dialogue / shops / storage** | ❌ | `OnNpcTalkReq` returns trigger 0; no buy/sell/cabinet |
 | **Skill effects** (TSKILLDATA) | 🟡 | **SDT_CURE heal (SCT_HP/MP) works** — `skill_effect.h` ports `GetValue`/`Calculate`/`CalcValue` (all 4 calc modes incl. exponential via `f1stRateX`) + the 0–15 % cure roll, applied in the Defend path on PC targets. DOT/buff/status (SA_DOT/SA_BUFF, SDT_STATUS), mon/recall cures, `CS_DEFEND_ACK` relay pending |
 | Real player AP/WAP/DP from stats + gear | ❌ | combat uses client-sent powers vs monster DP; player defense = 0 placeholder |
-| Chat / party / BR-BoW / operator control | ❌ | `OnChatReq` / `OnParty*` / `OnRegisterBow*` / `OnCt*` decode+log only |
+| Basic native party | 🟡 | Original ADD/JOIN/DEL requests and ADD/JOIN/DEL/ATTR/MANSTAT replies plus party chat wired through World; native primary/replica actor fences and source client bytes. Implemented, unverified; corps/loot/XP/arena/instance/equipment dependencies remain OPEN. See [Map evidence](../../_rewrite/docs/modernization/evidence/phase-a-native-party-20261014/map-party.md). |
+| BR-BoW queue | ❌ | `OnRegisterBow*` remain subsystem stubs. Native chat/TMS and Control have their separately documented scopes. |
 
 ## Wired handlers
 
@@ -237,8 +238,6 @@ Client (`CS_*`) — **wired but stubbed** (decode + log, awaiting their subsyste
 
 ```
 CS_NPCTALK_REQ        npc.cpp       returns quest-trigger 0 (needs NPC dialogue + shop)
-CS_CHAT_REQ           social.cpp    no routing (channel / whisper / world relay)
-CS_PARTYADD/JOIN/DEL  social.cpp    party invite/join/leave — forwarded to World (TODO)
 CS_REGISTERBOW_REQ    bow.cpp       BR/BoW queue — logged only
 CS_CANCELBOWQUEUE_REQ bow.cpp
 CS_CASHBOWRESPAWN_REQ bow.cpp
@@ -389,7 +388,7 @@ Server/TMapSvrAsio/
 │   ├── npc.cpp                     — NPC interaction (stub)
 │   ├── skill.cpp                   — skill cast (gates + reject/success acks)
 │   ├── quest.cpp                   — quest exec / drop (stub)
-│   ├── social.cpp                  — chat / party (stub)
+│   ├── social.cpp                  — native basic party requests/projections
 │   ├── bow.cpp                     — BR / BoW queue (stub)
 │   └── control.cpp                 — CT_* operator handlers (stub)
 ├── handlers_world.{h,cpp}          — inbound DM_/MW_ from World peer

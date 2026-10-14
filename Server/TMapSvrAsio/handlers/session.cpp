@@ -12,6 +12,7 @@
 #include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/player_service.h"
+#include "services/party_runtime.h"
 #include "services/skill_cooldown.h"
 #include "services/main_transfer_runtime.h"
 #include "services/world_client.h"
@@ -219,6 +220,11 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
     if (ctx.presence)
         ctx.presence->UpdatePosition(cid, snap->wMapID,
             Position{ snap->fPosX, snap->fPosY, snap->fPosZ });
+
+    if(identity->role==MapSessionRole::Primary&&snap->payload) {
+        co_await RefreshReadyParty(sess,ctx);
+        if(!sess->IsOpen())co_return;
+    }
 
     spdlog::info("CS_CONREADY_REQ char={} name='{}' map={} — connection ready "
                  "(source CHARINFO already sent on native primary)", cid, snap->szNAME, snap->wMapID);

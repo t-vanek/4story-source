@@ -45,6 +45,7 @@
 #include "services/skill_targets.h"
 #include "services/main_transfer_runtime.h"
 #include "services/player_service.h"
+#include "services/party_runtime.h"
 #include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
 
@@ -323,9 +324,13 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
                std::abs(cell(entry.pos.z)-cell(state.fPosZ))<=1)neighbors.push_back(std::move(client));
         });
         for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),EncodeSkillEnd(cid,event.skill));
-        if(max_hp!=state.dwMaxHP||max_mp!=state.dwMaxMP)
-            for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
-                EncodeHpMpAck(cid,1,state.dwMaxHP,state.dwHP,state.dwMaxMP,state.dwMP));
+        if(max_hp!=state.dwMaxHP||max_mp!=state.dwMaxMP) {
+            const auto bars=EncodeHpMpAck(cid,1,state.dwMaxHP,state.dwHP,state.dwMaxMP,state.dwMP);
+            for(auto& client:neighbors) {
+                co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),bars);
+                if(client.get()==sess.get())co_await PublishPartyVitals(sess,state,bars,ctx);
+            }
+        }
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(state,*state.payload->statistics));
     }
 
@@ -364,9 +369,11 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
     {
         co_await w->SendPacket(
             static_cast<std::uint16_t>(opcode), use_ack);
-        if (charged)
+        if (charged) {
             co_await w->SendPacket(
                 static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK), bars);
+            if(w.get()==sess.get())if(const auto state=ctx.char_state->Get(cid))co_await PublishPartyVitals(sess,*state,bars,ctx);
+        }
     }
 
     spdlog::info("{} char={} skill={} action={} target={} type={} "

@@ -1,6 +1,7 @@
 #include "postgresql_chat_repository.h"
 #include "postgresql_friend_repository.h"
 #include "postgresql_world_owner.h"
+#include "char_registry.h"
 #include <soci/soci.h>
 #include <algorithm>
 #include <bit>
@@ -31,6 +32,26 @@ void RequireOperatorRelease(soci::session& sql,int world) {
         soci::use(world,"w"),soci::into(count);
     if(count!=1)throw std::runtime_error("Complete verified operator projection required");
 }
+PartyIdentity ReadPartyIdentity(soci::session& sql,const std::uint8_t world,
+    const std::string& encoding,std::uint32_t character,FriendAuthority a) {
+    const int id=Signed(character),key=Signed(a.key),server=a.server;
+    int guilds=0;
+    sql<<"SELECT count(*) FROM app_world.guild_membership WHERE world_id=:w AND char_id=:c",
+        soci::use(world,"w"),soci::use(id,"c"),soci::into(guilds);
+    // Native admission excludes unhydrated guilds. An absent cache entry is
+    // never evidence for the source's guildless NAME_NULL.
+    if(guilds!=0)return {};
+    std::string name,token;long long connection=0,epoch=0;
+    sql<<"SELECT c.\"szNAME\",m.owner_token,m.connection_id,m.authority_epoch "
+         "FROM app_world.map_sessions m JOIN app_world.\"TCHARTABLE\" c ON c.\"bWorldID\"=m.world_id "
+         "AND c.\"dwCharID\"=m.char_id JOIN app_global.\"TCURRENTUSER\" u ON u.\"dwKEY\"=m.session_key "
+         "AND u.\"dwUserID\"=m.user_id AND u.\"dwCharID\"=m.char_id WHERE m.world_id=:w AND m.char_id=:c "
+         "AND m.session_key=:k AND m.server_id=:s AND m.phase='ready' AND u.\"bLocked\"=0",
+        soci::use(world,"w"),soci::use(id,"c"),soci::use(key,"k"),soci::use(server,"s"),
+        soci::into(name),soci::into(token),soci::into(connection),soci::into(epoch);
+    if(!sql.got_data()||connection<=0||epoch<0)return {};
+    return {true,true,WireName(sql,name,encoding),token,connection,epoch};
+}
 }
 PostgreSQLChatRepository::PostgreSQLChatRepository(PostgreSQLFriendRepository& authority):m_authority(authority) {
     auto lease=authority.m_pool.Acquire();auto tx=BeginWorldTransaction(*lease,authority.m_world,authority.m_token);int rows=0;
@@ -38,6 +59,8 @@ PostgreSQLChatRepository::PostgreSQLChatRepository(PostgreSQLFriendRepository& a
     *lease<<"SELECT count(*) FROM (SELECT world_id,owner_token,target_id,name_bytes,issuer_id,session_key,source_server,"
         "source_map_token,source_connection_id,source_authority_epoch,minutes,replace_deadline,ends_at "
         "FROM app_world.chat_ban_mutations WHERE false) required",soci::into(rows);
+    *lease<<"SELECT count(*) FROM (SELECT world_id,char_id FROM app_world.guild_membership WHERE false) required",soci::into(rows);
+    *lease<<"SELECT count(*) FROM (SELECT owner_token,connection_id,authority_epoch FROM app_world.map_sessions WHERE false) required",soci::into(rows);
     tx->commit();
 }
 std::vector<std::uint32_t> PostgreSQLChatRepository::LoadOperators() {
@@ -70,6 +93,48 @@ ChatAuthority PostgreSQLChatRepository::Authorize(std::uint32_t character,Friend
             soci::use(repo.m_world,"w"),soci::use(hex,"name"),soci::into(until);
         tx->commit();return {true,op!=0,until};
     } catch(...) {repo.Fail();throw std::runtime_error("Native communication authorization failed; World stopped without replay");}
+}
+std::string PostgreSQLChatRepository::MapOwner(std::uint8_t server) {
+    auto& repo=m_authority;std::lock_guard guard(repo.m_mutex);
+    if(repo.m_failed)throw std::runtime_error("Native peer authority stopped");
+    try {
+        auto lease=repo.m_pool.Acquire();auto& sql=*lease;auto tx=BeginWorldTransaction(sql,repo.m_world,repo.m_token);
+        std::string token;const int sid=server;
+        sql<<"SELECT o.owner_token FROM app_world.map_runtime_owner o WHERE o.world_id=:w AND o.server_id=:s "
+             "AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=o.backend_pid AND l.locktype='advisory' "
+             "AND l.classid=CAST(877478224 AS oid) AND l.objid=CAST((o.world_id::integer<<8)|o.server_id::integer AS oid) "
+             "AND l.objsubid=2 AND l.granted) FOR SHARE OF o",
+            soci::use(repo.m_world,"w"),soci::use(sid,"s"),soci::into(token);
+        if(!sql.got_data())return {};
+        tx->commit();return token;
+    } catch(...) {repo.Fail();throw std::runtime_error("Native peer owner lookup failed; World stopped without replay");}
+}
+PartyIdentity PostgreSQLChatRepository::AuthorizeParty(std::uint32_t character,FriendAuthority a) {
+    auto& repo=m_authority;std::lock_guard guard(repo.m_mutex);
+    if(repo.m_failed)throw std::runtime_error("Native party authority stopped");
+    try {
+        auto lease=repo.m_pool.Acquire();auto& sql=*lease;auto tx=BeginWorldTransaction(sql,repo.m_world,repo.m_token);
+        if(!repo.AuthorizeCommunication(sql,character,a,false))return {};
+        auto out=ReadPartyIdentity(sql,repo.m_world,repo.m_encoding,character,a);
+        if(!out.valid)return {};
+        tx->commit();return out;
+    } catch(...) {repo.Fail();throw std::runtime_error("Native party authorization failed; World stopped without replay");}
+}
+std::array<PartyIdentity,2> PostgreSQLChatRepository::AuthorizePartyPair(
+    std::uint32_t character,std::uint32_t target,FriendAuthority a) {
+    auto& repo=m_authority;std::lock_guard guard(repo.m_mutex);
+    if(repo.m_failed)throw std::runtime_error("Native party authority stopped");
+    try {
+        auto lease=repo.m_pool.Acquire();auto& sql=*lease;auto tx=BeginWorldTransaction(sql,repo.m_world,repo.m_token);
+        // Both Map owners/accounts/claims are locked in the same deterministic
+        // order as existing mutual social operations, until this read commits.
+        if(!target||!repo.AuthorizeSoulmateOffer(sql,character,target,a))return {};
+        std::array<PartyIdentity,2> out{
+            ReadPartyIdentity(sql,repo.m_world,repo.m_encoding,character,a),
+            ReadPartyIdentity(sql,repo.m_world,repo.m_encoding,target,{a.other_key,a.other_server})};
+        if(!out[0].valid||!out[1].valid)return {};
+        tx->commit();return out;
+    } catch(...) {repo.Fail();throw std::runtime_error("Native party pair authorization failed; World stopped without replay");}
 }
 std::optional<std::int64_t> PostgreSQLChatRepository::Ban(std::uint32_t target,const std::string& name,
     FriendAuthority target_a,std::uint16_t minutes,std::uint32_t issuer,FriendAuthority issuer_a,bool replace) {

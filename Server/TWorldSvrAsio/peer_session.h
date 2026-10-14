@@ -27,6 +27,8 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <utility>
 
 namespace tworldsvr {
 
@@ -49,6 +51,10 @@ public:
     // the registry without seeing half-registered peers.
     std::uint16_t Wid() const { return m_wid.load(); }
     void SetWid(std::uint16_t wid) { m_wid.store(wid); }
+    // Native Map owner sampled at this exact socket's registration. A later
+    // process takeover cannot make this old peer authoritative for its claims.
+    std::string NativeMapToken() const {std::lock_guard g(m_mtx);return m_native_map_token;}
+    void SetNativeMapToken(std::string token) {std::lock_guard g(m_mtx);m_native_map_token=std::move(token);}
 
     // Cluster-nation byte (TCONTRY_A / TCONTRY_B / TCONTRY_N) the
     // world server advertises back to peers in RW_RELAYSVR_ACK.
@@ -83,6 +89,7 @@ private:
     std::atomic<bool>             m_cash_sale{false};
     mutable std::mutex            m_mtx;
     std::uint8_t                  m_nation = 0;
+    std::string                   m_native_map_token;
 };
 
 } // namespace tworldsvr

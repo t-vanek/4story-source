@@ -195,12 +195,8 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
         }
         packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
             EncodeHpMpAck(c.char_id,1,s.dwMaxHP,s.dwHP,s.dwMaxMP,s.dwMP),QuestAudience::Neighbors);
-        if(s.cluster.party) {
-            std::vector<std::byte> party;wire::WritePOD(party,s.cluster.party);wire::WritePOD(party,c.char_id);
-            wire::WritePOD(party,std::uint8_t{1});wire::WritePOD(party,s.bLevel);
-            wire::WritePOD(party,s.dwMaxHP);wire::WritePOD(party,s.dwHP);wire::WritePOD(party,s.dwMaxMP);wire::WritePOD(party,s.dwMP);
-            packets.emplace_back(static_cast<std::uint16_t>(MessageId::MW_PARTYMANSTAT_ACK),std::move(party),QuestAudience::World);
-        }
+        // The original own-HPMP sender publishes PARTYMANSTAT after enqueue.
+        // Shared native output handling owns that coupling, avoiding duplicates.
     }
     if(delay) {
         p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;

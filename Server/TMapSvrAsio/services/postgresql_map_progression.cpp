@@ -127,6 +127,14 @@ void PostgreSQLMapService::GainQuestExperience(soci::session& sql,const MapSessi
         RefreshEquipment(sql,s,true);s.dwHP=s.dwMaxHP;s.dwMP=s.dwMaxMP;
         std::vector<std::byte> world;wire::WritePOD(world,c.char_id);wire::WritePOD(world,c.key);wire::WritePOD(world,s.bLevel);
         packets.emplace_back(static_cast<std::uint16_t>(MessageId::MW_LEVELUP_ACK),std::move(world),QuestAudience::World);
+        // TPlayer::GainExp publishes a level status independently of the later
+        // own HPMP sender. Preserve its exact intermediate level and bars.
+        if(s.cluster.party&&s.cluster.party_type!=1) {
+            std::vector<std::byte> party;wire::WritePOD(party,s.cluster.party);wire::WritePOD(party,c.char_id);
+            wire::WritePOD(party,std::uint8_t{1});wire::WritePOD(party,s.bLevel);
+            wire::WritePOD(party,s.dwMaxHP);wire::WritePOD(party,s.dwHP);wire::WritePOD(party,s.dwMaxMP);wire::WritePOD(party,s.dwMP);
+            packets.emplace_back(static_cast<std::uint16_t>(MessageId::MW_PARTYMANSTAT_ACK),std::move(party),QuestAudience::World);
+        }
         if(!s.payload->statistics)throw std::runtime_error("Level progression requires complete source statistics");
         packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(s,*s.payload->statistics));
         std::vector<std::byte> level;wire::WritePOD(level,c.char_id);wire::WritePOD(level,s.bLevel);wire::WritePOD(level,std::uint8_t{1});

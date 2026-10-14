@@ -10,8 +10,8 @@
 //      and a different (ip:port) cannot append an unplanned connection.
 //   3. ADDCHAR_ACK for char_id=42 with a different key → dropped
 //      (W3 will fire MW_INVALIDCHAR_REQ; W2 just logs).
-//   4. CLOSECHAR_ACK for char_id=42 → registry empties, user 100
-//      becomes inactive.
+//   4. CLOSECHAR_ACK for char_id=42 → registry empties; historical
+//      admitted-account membership retains user 100 until DATACLEAR.
 //   5. CLOSECHAR_ACK for an unknown char_id → no crash, no
 //      mutation (stale-close race tolerance).
 //
@@ -188,14 +188,14 @@ int main()
         }
     }
 
-    // --- Scenario 4: CLOSECHAR_ACK removes and deactivates user -----
+    // --- Scenario 4: CLOSECHAR_ACK removes char, retains account history ---
     SendFramed(sock, ToUint16(MessageId::MW_CLOSECHAR_ACK),
         BuildCloseCharBody(42, 0xCAFEBABE));
     std::this_thread::sleep_for(40ms);
     {
         EXPECT(chars.Find(42) == nullptr);
         EXPECT(chars.Size() == 0);
-        EXPECT(!chars.IsUserActive(100));
+        EXPECT(chars.IsUserActive(100));
     }
 
     // --- Scenario 5: CLOSECHAR_ACK for unknown char is benign -------

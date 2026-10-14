@@ -523,6 +523,7 @@ OnCheckMainAck(std::shared_ptr<PeerSession> peer, std::vector<std::byte> body,
             for(const auto& c:ch->cons)if(c.valid)live.push_back(c.server_id);
             if(ch->main_handoff&&ch->main_handoff->deadline)ch->main_handoff->deadline->cancel();
             ch->main_handoff.reset();
+            ch->party_refresh_needed=true;
         } else {
             handoff=std::make_shared<MainHandoff>();
             handoff->source_id=old;handoff->target_id=sid;handoff->source=main;handoff->target=peer;
@@ -533,6 +534,7 @@ OnCheckMainAck(std::shared_ptr<PeerSession> peer, std::vector<std::byte> body,
         }
     }
     if(handoff) {
+        InvalidatePartyInvitations(ctx,ch);
         // Publish the expected source/target before suspending to send. An ACK
         // may already arrive while the composed write is completing.
         StartHandoffDeadline(ctx,ch,handoff);
@@ -1148,7 +1150,9 @@ OnTeleportAck(std::shared_ptr<PeerSession> peer,
     {
         std::lock_guard g(ch->lock);
         ch->party_waiter = false;
+        ch->party_invite.reset();
     }
+    InvalidatePartyInvitations(ctx,ch);
     spdlog::info("OnTeleportAck[{}]: char_id={} teleport SUCCESS dest_server={}",
         ip, char_id, dest_id);
     co_await senders::SendMwTeleportReq(peer, char_id, key,

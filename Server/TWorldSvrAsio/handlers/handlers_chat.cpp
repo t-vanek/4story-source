@@ -4,6 +4,7 @@
 #include "../services/party_constants.h"
 #include "../wire_codec.h"
 #include "communication_authority.h"
+#include "party_authority.h"
 #include "MessageId.h"
 
 #include <spdlog/spdlog.h>
@@ -81,6 +82,8 @@ OnChatAck(std::shared_ptr<PeerSession> peer,
         co_return;
     }
 
+    std::unique_ptr<SocialOperationGate::Lease> party_operation;
+    if(group==chat::kParty)party_operation=co_await ctx.party_operations->Acquire();
     auto sender = ctx.chars->Find(sender_id);
     if (!sender) co_return;
     const auto authorized=co_await communication::Authorize(ctx,peer,sender,sender_key);
@@ -96,7 +99,6 @@ OnChatAck(std::shared_ptr<PeerSession> peer,
             type!=(authorized.is_operator?chat::kOperator:group)))co_return;
         if(group==chat::kGuild&&target!=sender->guild_id)co_return;
         if(group==chat::kTactics&&target!=sender->guild_id&&target!=sender->tactics_guild_id)co_return;
-        if(group==chat::kParty&&target!=sender->party_id)co_return;
     }
     // Ban/spam timing is decided by the original Map CS request. World does
     // not add another ban drop: CheckChat's async BAN can commit before this
@@ -124,10 +126,27 @@ OnChatAck(std::shared_ptr<PeerSession> peer,
     {
         if (!ctx.parties) co_return;
         auto party = ctx.parties->Find(static_cast<std::uint16_t>(target));
-        if (!party) co_return;
+        if (!party||target>65535) co_return;
         std::vector<std::uint32_t> ids;
-        { std::lock_guard g(party->lock); ids = party->members; }
-        for (auto id : ids) co_await RelayToChar(ctx, id, m);
+        {std::lock_guard g(party->lock);
+         if(!party->IsMember(sender_id)||party->obtain_type==party::kObtainSolo||
+            (ctx.chat_repo&&party->corps_id!=0))co_return;
+         ids=party->members;}
+        {std::lock_guard g(sender->lock);
+         if(sender->party_id!=target||sender->main_server_id==50)co_return;}
+        // Source BR party chat is its local team route, which remains OPEN.
+        // The ordinary party audience cannot change while this gate is held.
+        for(const auto id:ids) {
+            auto recipient=ctx.chars->Find(id);if(!recipient)continue;
+            std::uint32_t key=0;std::uint8_t server=0;
+            {std::lock_guard g(recipient->lock);key=recipient->key;server=recipient->main_server_id;
+             if(recipient->party_id!=target)continue;}
+            auto map=FindMapPeer(ctx,server);
+            const auto identities=co_await party_authority::AuthorizePair(ctx,peer,sender,map,recipient);
+            if(!identities[0].valid||!party_authority::Current(ctx,map,recipient,key))continue;
+            co_await senders::SendMwChatReq(map,id,key,m.channel,m.sender_id,m.sender_name,
+                m.country,m.aid,m.type,m.group,m.target,m.talk);
+        }
         break;
     }
     case chat::kForce:

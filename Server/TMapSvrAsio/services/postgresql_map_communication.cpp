@@ -87,6 +87,57 @@ std::optional<CommunicationAuthority> PostgreSQLMapService::AuthorizeCommunicati
     }
     tx->commit();return out;
 }
+std::optional<PartyAuthority> PostgreSQLMapService::AuthorizeParty(const MapSessionClaim& c,const CharSnapshot& s,
+    std::uint32_t inviter,bool invitation) {
+    if(c.char_id!=s.dwCharID||s.persistence_uncertain||!s.cluster.hydrated||
+       (invitation&&c.role!=MapSessionRole::Primary))return {};
+    auto lease=m_pool.Acquire();auto& sql=*lease;
+    auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token,false,true);
+    ControlOwner(sql,m_config);
+    CheckCatalogs(sql);
+    std::string phase;
+    if(!LockAccount(sql,c))return {};
+    if(c.role==MapSessionRole::Primary) {
+        if(!LockClaim(sql,c,phase)||(phase!="ready"&&(invitation||phase!="loaded")))return {};
+    }else if(!LockReplica(sql,c,phase)||phase!="ready")return {};
+    const int world=c.group,character=std::bit_cast<std::int32_t>(c.char_id),
+        user=std::bit_cast<std::int32_t>(c.user_id),key=std::bit_cast<std::int32_t>(c.key);
+    std::string name;
+    sql<<"SELECT c.\"szNAME\" FROM app_world.\"TCHARTABLE\" c JOIN app_global.\"TCURRENTUSER\" u "
+         "ON u.\"dwCharID\"=c.\"dwCharID\" AND u.\"dwUserID\"=c.\"dwUserID\" AND u.\"bGroupID\"=c.\"bWorldID\" "
+         "WHERE c.\"bWorldID\"=:w AND c.\"dwCharID\"=:c AND c.\"dwUserID\"=:u AND c.\"bDelete\"=0 "
+         "AND u.\"dwKEY\"=:k AND u.\"bLocked\"=0 "
+         "AND EXISTS(SELECT 1 FROM app_world.map_sessions m JOIN app_world.map_runtime_owner p "
+         "ON p.world_id=m.world_id AND p.server_id=m.server_id AND p.owner_token=m.owner_token "
+         "WHERE m.world_id=:w AND m.char_id=:c AND m.session_key=:k AND m.phase IN ('loaded','ready') "
+         "AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=p.backend_pid AND l.locktype='advisory' "
+         "AND l.classid=CAST(877478224 AS oid) AND l.objid=CAST((m.world_id::integer<<8)|m.server_id::integer AS oid) "
+         "AND l.objsubid=2 AND l.granted)) FOR SHARE OF c",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(user,"u"),soci::use(key,"k"),soci::into(name);
+    if(!sql.got_data())return {};
+    PartyAuthority out;out.name=native_wire_text::Encode(sql,name,m_config.client_text_encoding);
+    if(out.name!=s.szNAME)return {};
+    if(invitation) {
+        if(!s.payload||!s.payload->effects)throw std::runtime_error("Party invitation requires hydrated maintained effects");
+        out.action_blocked=s.bDead!=0;
+        // CTObjBase::IsActionBlock examines every maintained skill's template,
+        // including entries awaiting the normal simulation expiry producer.
+        for(const auto& effect:*s.payload->effects) {
+            const int skill=std::bit_cast<std::int16_t>(effect.skill);int exists=0,blocked=0;
+            sql<<"SELECT count(*) FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(skill),soci::into(exists);
+            if(exists!=1)throw std::runtime_error("Party invitation effect has no original skill template");
+            sql<<"SELECT count(*) FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id "
+                 "AND (\"bType\"=3 OR (\"bType\"=6 AND \"bExec\" IN (3,8)))",soci::use(skill),soci::into(blocked);
+            out.action_blocked=out.action_blocked||blocked!=0;
+        }
+        const int source=std::bit_cast<std::int32_t>(inviter);int blocked=0;
+        sql<<"SELECT count(*) FROM app_world.\"TPROTECTEDTABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c "
+             "AND \"dwProtected\"=:source AND (\"bOption\"::integer & 2)<>0",
+            soci::use(world,"w"),soci::use(character,"c"),soci::use(source,"source"),soci::into(blocked);
+        out.protected_inviter=blocked!=0;
+    }
+    tx->commit();return out;
+}
 bool PostgreSQLMapService::ConfirmChatBan(const MapSessionClaim& c,const std::string& name,std::int64_t end,bool issuer) {
     if(c.role!=MapSessionRole::Primary||end<0)return false;
     auto lease=m_pool.Acquire();auto& sql=*lease;

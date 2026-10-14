@@ -58,6 +58,7 @@ public:
     // Read-only native World projections may arrive before client CONREADY.
     // They serialize with admission, gameplay and final disconnect persistence.
     virtual bool BeginProjection(const tnetlib::AsioSession* session) {return BeginCheckpoint(session);}
+    virtual bool BeginPartyProjection(const tnetlib::AsioSession* session) {return BeginProjection(session);}
     // Atomic with BeginTransfer: teardown cannot race a new ownership operation.
     virtual std::optional<SessionIdentity> BeginClose(const tnetlib::AsioSession*) = 0;
     virtual bool Transition(std::uint32_t char_id, std::uint32_t key,
@@ -202,6 +203,17 @@ public:
         for(auto& [cid,row]:m_rows)if(auto current=row.session.lock();current&&current.get()==session) {
             if(row.id.role!=MapSessionRole::Primary||row.operations||
                (row.id.phase!=SessionPhase::Loaded&&row.id.phase!=SessionPhase::Admitted&&row.id.phase!=SessionPhase::Ready))return false;
+            row.checkpoint=true;++row.operations;return true;
+        }
+        return false;
+    }
+    bool BeginPartyProjection(const tnetlib::AsioSession* session) override {
+        std::lock_guard lock(m_mtx);
+        for(auto& [cid,row]:m_rows)if(auto current=row.session.lock();current&&current.get()==session) {
+            const bool phase=row.id.phase==SessionPhase::Ready||
+                (row.id.role==MapSessionRole::Primary&&
+                 (row.id.phase==SessionPhase::Loaded||row.id.phase==SessionPhase::Admitted));
+            if(!phase||row.operations)return false;
             row.checkpoint=true;++row.operations;return true;
         }
         return false;

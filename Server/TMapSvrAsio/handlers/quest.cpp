@@ -31,6 +31,7 @@
 #include "domain/quest_def.h"
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
+#include "services/party_runtime.h"
 #include "services/money.h"
 #include "services/quest_chart.h"
 #include "services/quest_engine.h"
@@ -192,7 +193,13 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         if(entry.map_id==after.wMapID&&std::abs(cell(entry.pos.x)-cell(after.fPosX))<=1&&
            std::abs(cell(entry.pos.z)-cell(after.fPosZ))<=1)neighbors.push_back(std::move(session));
     });
+    auto party_display=after;
     for(const auto& packet:committed.packets) {
+        if(packet.opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_LEVEL_ACK)) {
+            wire::Reader level(packet.body);std::uint32_t who=0;std::uint8_t value=0,show=0;
+            if(!level.Read(who)||!level.Read(value)||!level.Read(show)||!level.Eof())throw std::runtime_error("Invalid committed level display");
+            if(who==cid)party_display.bLevel=value;
+        }
         if(packet.audience==QuestAudience::World) {
             if(!ctx.world_client||!ctx.world_client->IsRegistered()||
                !(co_await ctx.world_client->SendPacket(packet.opcode,packet.body))) {
@@ -201,8 +208,16 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
                 client->Close();co_return;
             }
         } else if(packet.audience==QuestAudience::Neighbors) {
-            for(auto& session:neighbors)co_await session->SendPacket(packet.opcode,packet.body);
-        } else co_await client->SendPacket(packet.opcode,packet.body);
+            for(auto& session:neighbors) {
+                co_await session->SendPacket(packet.opcode,packet.body);
+                if(session.get()==client.get()&&packet.opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_HPMP_ACK))
+                    co_await PublishPartyVitals(client,party_display,packet.body,ctx);
+            }
+        } else {
+            co_await client->SendPacket(packet.opcode,packet.body);
+            if(packet.opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_HPMP_ACK))
+                co_await PublishPartyVitals(client,party_display,packet.body,ctx);
+        }
     }
 }
 

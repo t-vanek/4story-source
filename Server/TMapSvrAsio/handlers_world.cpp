@@ -816,6 +816,12 @@ DispatchWorld(std::uint16_t          wId,
     const auto id = ToMessageId(wId);
     switch (id)
     {
+    case MessageId::MW_PARTYADD_REQ:
+    case MessageId::MW_PARTYJOIN_REQ:
+    case MessageId::MW_PARTYDEL_REQ:
+    case MessageId::MW_PARTYATTR_REQ:
+    case MessageId::MW_PARTYMANSTAT_REQ:
+        co_await OnWorldParty(wId,std::move(body),ctx);break;
     case MessageId::MW_TMSRECV_REQ:
     case MessageId::MW_TMSINVITEASK_REQ:
     case MessageId::MW_TMSINVITE_REQ:

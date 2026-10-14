@@ -6,12 +6,17 @@ the IMPLEMENTATION_COMPLETE_UNVERIFIED gate has not been reached.**
 
 Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED**, **IMPLEMENTED_UNVERIFIED** or **IMPLEMENTING** as scoped below.
-The owner authorized publishing the complete pending `main` history on2026-10-14;
-the publication commit skips CI and does not change the incomplete Phase A gate.
+The preceding one-time GitHub publication ended at `2e406dc`. The owner has now
+explicitly renewed local Git only: no push or deployment. The incomplete Phase A
+gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–069 are **written, not applied**.
-Latest local increment is based on `acbcaaf`: source Plain16 Map–World and
+Latest local increment is based on `2e406dc`: basic native party requests,
+source membership/client projections, party chat and post-ready handoff ATTR
+repair under SQL/current-peer guards. Historical account counts survive logout.
+No execution or new migration; full party dependencies and Phase A remain OPEN.
+Previous code `80b7698`, based on `acbcaaf`: source Plain16 Map–World and
 Control–World transport, DWORD catalog keys, exact Control inventory types and
 raw World session monitoring. Original Map MW_CONNECT_ACK/full bootstrap remains
 OPEN; modern RW admission is not its source replacement. Static source review
@@ -31,6 +36,21 @@ based on `802a232`. Previous `18ee496` implements item expiration and mail, base
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Basic native parties — source review, 2026-10-14
+
+Latest local Phase A work (2026-10-14), based on `2e406dc`, connects source
+basic party ADD/JOIN/DEL, succession/dissolution/logout cleanup, primary/replica
+ATTR and native HPMP/level MANSTAT. Normal party chat uses the existing full-text
+pipeline and current World membership. Typed peer ownership, native SQL pair
+proofs, one-use invitations and serialized membership guard suspended operations.
+Post-CONREADY MANSTAT repairs real World ATTR after handoff; source wire fields
+remain unchanged. World logout now retains source historical account counts.
+**INTEGRATED_UNVERIFIED**: static review only, no build/test/SQL/service/client/
+container run and no new migration (next070). Source Map admission/full bootstrap,
+party rewards/equipment/corps/guild/arena/instance/mode branches and complete
+Phase A remain OPEN. Local Git only; no push.
+[Source contracts, differences and deferred acceptance](evidence/phase-a-native-party-20261014/README.md).
 
 ## World framing and Control types — source review, 2026-10-14
 
@@ -663,7 +683,9 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    need per-responsibility review; native DB paths alone do not complete Control.
 4. Native friend/group ownership, soulmate initial-load checks and Map atomic
    SEARCH/REGREADY/REG are now integrated, unverified. Complete party XP/emergency
-   HP and native guild/party/corps/tactics Map topology; port guild/war/event/rank/
+   HP and full native guild/party/corps/tactics Map topology. Basic parties and
+   normal party chat are now integrated but unverified; equipment/loot/XP/arena/
+   instance/mode and roster recovery remain open. Port guild/war/event/rank/
    item/service repositories and actual schema validator/bootstrap. Chat/TMS and
    admin/event text now have bounded native Map/World paths; complete connected
    Relay/RW bans, group producers, BR team and BOW peace authority, mutable
@@ -681,7 +703,7 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `0b97c18`: original/server/client source reads,
+Latest local work based on `2e406dc`: original/server/client source reads,
 declaration/call/CMake/SQL/packet/diff review, implementation and documentation.
 `git diff --check` passes. No build, test, SQL execution, service/client/container
 startup or runtime acceptance was performed. The following build results belong

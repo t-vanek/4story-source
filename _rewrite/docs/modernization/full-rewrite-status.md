@@ -9,9 +9,11 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–069 are **written, not applied**.
-Latest local increment is based on `0b97c18`: direct source Plain16 Control–Map
-transport, five bounded admin operations and corrected monitor producer/consumer,
-with static source review only. No build,
+Latest local increment is based on `acbcaaf`: source Plain16 Map–World and
+Control–World transport, DWORD catalog keys, exact Control inventory types and
+raw World session monitoring. Original Map MW_CONNECT_ACK/full bootstrap remains
+OPEN; modern RW admission is not its source replacement. Static source review
+only. No build,
 test, SQL, server, client, container or runtime verification occurred.
 Previous code increment: `0b97c18` (native chat/TMS/bans/admin-event text), based on
 `c389976`.
@@ -27,6 +29,24 @@ based on `802a232`. Previous `18ee496` implements item expiration and mail, base
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## World framing and Control types — source review, 2026-10-14
+
+Actual Map/World links use source Plain16, total16–65534, fresh zero metadata and
+source receive ignoring sequence/checksum, including cloned client numbers.
+Current-socket writes, no replay and disconnect drain remain; invalid World output
+closes its writer. Modern RW ACK parsing now agrees with the source DWORD keys.
+Control selects Plain16 for Map4/World3, refuses unavailable TLS and routes with
+direct CTProtocol inventory IDs instead of guessed installer values. World raw
+session monitor/current-Control/exact-body reset is connected to the listener.
+
+Original Map MW_CONNECT_ACK and its full native bootstrap are **OPEN**. The source
+has no registration ACK and ambiguous channel count/key casts; the retained modern
+RW-as-Map gate is explicitly an extension. Other service/operator framing, party/
+guild/mode producers and complete native World/gameplay remain incomplete. Existing
+fixtures were statically aligned only, never run; 001–069 are unchanged/unexecuted.
+
+[Source mapping and deferred acceptance](evidence/phase-a-world-framing-20261014/README.md).
 
 ## Direct Control–Map transport and operations — source review, 2026-10-14
 
@@ -50,7 +70,8 @@ historical evidence retain their original scope.
   monitor sweeps retain source >5s/>10s stages. Busy Control announcements skip a
   recipient instead of closing it. Original full strings and frame caps remain.
 - Other modern8 server/operator profiles are **not original framing evidence**;
-  their source16 port remains required, including native Map–World transport.
+  their source16 port remains required. Native Map–World framing is now integrated;
+  original Map admission/full bootstrap remains OPEN.
   Direct Map event/cash replay has a proved original producer/consumer conflict;
   Control refuses active unresolved replay before connection publication. No
   unsupported opcode becomes a successful no-op. TLS, remaining Map Control

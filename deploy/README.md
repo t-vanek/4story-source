@@ -1,3 +1,9 @@
+> Current implementation, based on `acbcaaf`: Map–World and Control–World use
+> source Plain16; Control inventory IDs are the original CTProtocol IDs. Original
+> Map admission/full bootstrap and remaining peer profiles remain OPEN. No build,
+> migration, import, service, container or test was run for this source-only slice.
+> [Exact contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-world-framing-20261014/README.md).
+
 # Linux containers
 
 ## Active Phase A: compile only

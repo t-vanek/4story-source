@@ -25,6 +25,7 @@ WorldServer::WorldServer(boost::asio::io_context& io, WorldServerConfig cfg)
     m_acceptor.bind(ep);
     m_acceptor.listen();
     m_port = m_acceptor.local_endpoint().port();
+    m_cfg.ctx.raw_session_count = [this] { return LiveConnections(); };
 }
 
 boost::asio::awaitable<void>

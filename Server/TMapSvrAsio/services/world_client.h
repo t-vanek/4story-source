@@ -2,13 +2,13 @@
 
 // AsioWorldClient — persistent outbound TCP link to TWorldSvr.
 //
-// The legacy CTMapSvrModule held a single `CSession m_world` that was
+// The legacy CTMapSvrModule held a single `CTMapSession m_world : CSession` that was
 // connected once at boot and reused for every map↔world packet (mostly
 // MW_/DM_/SS_ family). This is the modern equivalent: a coroutine that
 // connects, reads inbound packets, and on disconnect schedules a
-// reconnect with exponential backoff (1s → 30s). The mode is
-// server-to-server so the wire codec runs plain (no RC4 layer; just
-// the XOR header + body codec that AsioSession applies by default).
+// reconnect with exponential backoff (1s → 30s). Original SESSION_SERVER
+// frames have a plain sixteen-byte header and unmodified body: no RC4/XOR,
+// sequence or checksum validation. The game-client codec is independent.
 //
 // Lifecycle and callbacks run on the Map runtime's single io_context thread.
 // A write permit covers the entire composed write, including suspension. Each
@@ -32,6 +32,8 @@
 #include "world_event_state.h"
 
 namespace tmapsvr {
+inline constexpr std::size_t kWorldPlainHeaderSize=16;
+inline constexpr std::size_t kWorldPlainMaxPacketSize=0xFFFF;
 
 class IWorldClient
 {
@@ -39,7 +41,7 @@ public:
     virtual ~IWorldClient() = default;
 
     // Await the complete frame write, without waiting for an application ACK.
-    // False means disconnected/write failure; writes are never replayed across
+    // False means invalid size, disconnected or failed write; writes are never replayed across
     // connections because their commit/processing outcome can be unknown.
     virtual boost::asio::awaitable<bool>
         SendPacket(std::uint16_t wId, std::vector<std::byte> body) = 0;
@@ -88,11 +90,12 @@ public:
         return IsRegistered()?std::optional{m_events}:std::nullopt;
     }
 
-    // Map-server identity advertised to TWorld. When non-zero, the
-    // client sends RW_RELAYSVR_REQ(wid) immediately on every (re)connect
+    // Current modern extension: Map identity advertised through the Relay
+    // registration exchange. This is NOT original Map MW_CONNECT_ACK/full
+    // World bootstrap; that independently ported admission contract is open.
+    // When non-zero, the client sends RW_RELAYSVR_REQ(wid) on every (re)connect
     // so TWorld registers this map in its PeerRegistry and can route MW
-    // traffic back (legacy parity: the map-server registration that
-    // TWorld's OnRW_RELAYSVR_REQ keys m_pRelay / m_wID on). Convention:
+    // traffic back. Convention in this extension:
     // LOBYTE(wid) = server_id, HIBYTE(wid) = server type (Map=4). Must be set
     // before Run() for the link to be routable; a zero wid leaves the
     // link anonymous (transport only).
@@ -101,10 +104,9 @@ public:
 private:
     // One connect attempt. Returns a connected socket on success,
     // nullptr on failure. The map↔world link is server-to-server, so
-    // it speaks the cluster's 8-byte plain SS frame (WORD wSize | WORD
-    // wID | DWORD XOR-fold-checksum) — the same shape TWorld's
-    // WorldSession and TControlSvr's ControlSession use — NOT the
-    // 16-byte sequenced client codec in tnetlib::AsioSession.
+    // it speaks original Plain16: WORD size/id, DWORD number and INT64
+    // checksum. Receive ignores the two metadata fields as source does;
+    // fresh sends leave them zero. No game-client sequence/XOR codec.
     boost::asio::awaitable<std::shared_ptr<boost::asio::ip::tcp::socket>>
         DialOnce();
 

@@ -4,7 +4,18 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Latest local increment based on `0b97c18` repairs direct Control–Map framing:
+Latest local Phase A work (2026-10-14), based on `acbcaaf`, ports actual
+Map–World and Control–World links to source Plain16, preserving source receive
+semantics and current-socket/no-replay guards. The modern RW catalog ACK now reads
+DWORD message keys. Control service types follow linked CTProtocol exactly
+(World3/Patch5/Log7/Relay8), and World monitoring counts actual raw sessions.
+**INTEGRATED_UNVERIFIED**, static review only; no build/test/SQL/service/client/
+container run or new migration (next070). Original Map MW_CONNECT_ACK admission
+and full bootstrap remain OPEN: the current RW-as-Map path is a modern extension.
+Party/group producers, other service/operator framing, TLS and complete gameplay
+remain required. [Source contracts, differences and deferred acceptance](evidence/phase-a-world-framing-20261014/README.md).
+
+Previous code `acbcaaf`, based on `0b97c18` repairs direct Control–Map framing:
 original linked CPacket header is16 bytes, metadata zero and no crypt for
 SESSION_SERVER. Control selects SourcePlain16 for Map; the Map listener separates
 that configured/current network role from game-client RC4/admission. Announcements
@@ -12,7 +23,7 @@ retain group3/sender0/source059 caption6/full NetString/protected1; kick is sile
 and uses existing native save/release, with requested-intent audit. Monitor is
 periodic DWORD tick followed by four DWORDs; no second echo or fabricated ACK.
 DATACLEAR resets historical account membership, not gameplay caches/live users.
-Other retained modern8 service/operator/Map–World profiles have not been proved
+Other retained modern8 service/operator profiles have not been proved
 original framing; earlier source8 wording is superseded by this direct linked-
 library audit. Their16-byte port, TLS, direct Map event conflict and full kick/
 combat/transfer dependencies remain OPEN. No client/source library changed, and
@@ -214,7 +225,7 @@ Code `0457d3d` / `750c797` adds these **INTEGRATED_UNVERIFIED** source paths:
 | WASTEREFINE0x5479 | BYTE bag/slot; debit → ADDITEM →0x547A BYTE result | Requires a blank before debit; constructor values and no merge; no invented secure/dead/use-item hooks |
 | ITEMUSE912/913 | Source self-Defend host/self IDs and attack level; zero-MP END/stat first, then DEFEND/stat, common debit/result/quest hooks | Only the pinned pure statuses; general effects/combat remain incomplete |
 | EVENTINFO | Full original fixed-width body/opaque text bytes; World overrides inner value, live uses outer event ID and replay inner ID in unsigned index order | No client metadata;055 stores server-only admission context; original ACK precedes replay with no end marker |
-| Control transport | Original8-byte framing/checksum; role frame then complete running-event replay; ordered whole plain/TLS writes | New256-frame/4MiB limit, exact-connection cleanup and authorization repairs require Phase B acceptance |
+| Control transport | Source Plain16 for Map4/World3; other modern8 profiles remain OPEN; source role frame; ordered whole writes | New256-frame/4MiB limit, exact-connection cleanup and authorization repairs require Phase B acceptance |
 
 World requires an explicit Control IPv4/CIDR allowlist and refuses role
 reassignment. Direct Control event/cash pushes now require GMLevel3 or All.
@@ -674,7 +685,7 @@ need a heartbeat/timeout contract; the five-second deadline applies to registrat
 ## World writer and expected secondary connections (2026-10-09)
 
 `WorldSession::SendPacket` now owns its frame and serializes complete writes.
-The 8-byte SS header, checksum and opcode/body bytes stay unchanged. A stalled
+Historical modern8 framing below is superseded for native Map/World and Control–World by the source Plain16 increment. A stalled
 peer exceeding 256 outstanding frames or 4 MiB (headers included) is disconnected;
 queued writes are not replayed. Read EOF, malformed frames and write failure close
 that writer and wake waiting senders. This is a modern resource/lifetime policy.

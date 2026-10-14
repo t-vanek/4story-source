@@ -9,12 +9,12 @@
 //      keep the connection open.
 //   2. Send a second frame with an UNKNOWN wID (0xFFFF, body=0).
 //      Expect the same — dispatch logs the unknown ID, keeps going.
-//   3. Send a frame with a CORRUPT checksum. Expect the server to
+//   3. Send a frame with an INVALID total size. Expect the server to
 //      close the connection (framing violation).
 //
 // All three scenarios share one socket — proving the framing loop
-// survives both legitimate and unknown packets but terminates on a
-// corrupt one. No DB, no fakes, no FourStoryCommon dependencies
+// survives both legitimate and unknown packets but terminates on an
+// invalid one. No DB, no fakes, no FourStoryCommon dependencies
 // beyond what links transitively through tworldsvr_asio_core.
 
 #include "../config.h"
@@ -50,7 +50,7 @@ int g_fails = 0;
     } \
 } while (0)
 
-// Frame a packet with a correct checksum and write it onto the
+// Frame a packet with a source Plain16 header and write it onto the
 // loopback socket. Mirrors WorldSession::SendPacket on the client
 // side so the test does not depend on the server's send path.
 void SendFramed(boost::asio::ip::tcp::socket& sock,
@@ -61,9 +61,9 @@ void SendFramed(boost::asio::ip::tcp::socket& sock,
     hdr.wSize    = static_cast<std::uint16_t>(
         tworldsvr::kPacketHeaderSize + body.size());
     hdr.wID      = wId;
-    hdr.dwChkSum = tworldsvr::ComputeChecksum(body.data(), body.size());
+    // Fresh source Plain16 metadata is zero (value-initialized header).
 
-    std::vector<std::byte> buf(hdr.wSize);
+    std::vector<std::byte> buf(sizeof(hdr) + body.size());
     std::memcpy(buf.data(), &hdr, sizeof(hdr));
     if (!body.empty())
         std::memcpy(buf.data() + sizeof(hdr), body.data(), body.size());
@@ -71,9 +71,9 @@ void SendFramed(boost::asio::ip::tcp::socket& sock,
     boost::asio::write(sock, boost::asio::buffer(buf.data(), buf.size()));
 }
 
-// Same as SendFramed but writes a deliberately wrong checksum so
+// Same as SendFramed but writes a deliberately invalid total size so
 // the server's framer rejects the frame and closes the socket.
-void SendFramedBadChecksum(boost::asio::ip::tcp::socket& sock,
+void SendFramedBadSize(boost::asio::ip::tcp::socket& sock,
                             std::uint16_t wId,
                             const std::vector<std::byte>& body)
 {
@@ -81,9 +81,9 @@ void SendFramedBadChecksum(boost::asio::ip::tcp::socket& sock,
     hdr.wSize    = static_cast<std::uint16_t>(
         tworldsvr::kPacketHeaderSize + body.size());
     hdr.wID      = wId;
-    hdr.dwChkSum = 0xDEADBEEFu;   // intentionally wrong
+    hdr.wSize = 0xFFFF;   // source receiver requires total < 0xFFFF
 
-    std::vector<std::byte> buf(hdr.wSize);
+    std::vector<std::byte> buf(sizeof(hdr) + body.size());
     std::memcpy(buf.data(), &hdr, sizeof(hdr));
     if (!body.empty())
         std::memcpy(buf.data() + sizeof(hdr), body.data(), body.size());
@@ -149,7 +149,7 @@ int main()
     std::this_thread::sleep_for(50ms);
     EXPECT(server.LiveConnections() == 0);
 
-    // --- Scenario 3: bad checksum closes the connection -----------
+    // --- Scenario 3: invalid size closes the connection -----------
     {
         boost::asio::io_context client_io;
         tcp::socket sock(client_io);
@@ -159,9 +159,9 @@ int main()
         std::this_thread::sleep_for(20ms);
         EXPECT(server.LiveConnections() == 1);
 
-        SendFramedBadChecksum(sock, 0x1234u, {std::byte{0x11}, std::byte{0x22}});
+        SendFramedBadSize(sock, 0x1234u, {std::byte{0x11}, std::byte{0x22}});
 
-        // The framer logs the checksum mismatch and closes. Our
+        // The framer logs the invalid size and closes. Our
         // read of the next byte should observe EOF.
         std::this_thread::sleep_for(50ms);
         EXPECT(server.LiveConnections() == 0);

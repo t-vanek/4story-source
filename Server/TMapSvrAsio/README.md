@@ -4,6 +4,13 @@ C++20 + Boost.Asio modernization of `Server/TMapSvr/`. The overall server is
 unfinished. Current verified scope and evidence are maintained in
 [`modernization/README.md`](../../_rewrite/docs/modernization/README.md).
 
+The 2026-10-14 Map↔World transport correction uses original Plain16 framing
+without client crypto or checksum/sequence validation. This change is
+**IMPLEMENTED / INTEGRATED_UNVERIFIED**. The existing RW-based Map registration
+is a modern extension; original MW_CONNECT_ACK, its exact source channel bytes
+and full World bootstrap remain **OPEN**. See the
+[framing contract](../../_rewrite/docs/modernization/evidence/phase-a-world-framing-20261014/map-framing.md).
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

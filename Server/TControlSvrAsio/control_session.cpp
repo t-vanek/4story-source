@@ -210,9 +210,8 @@ ControlSession::Run(PacketHandler on_packet)
         std::uint16_t size=0,id=0;std::uint32_t checksum=0;
         if(m_profile==WireProfile::SourcePlain16) {
             SourcePacketHeader source{};std::memcpy(&source,header.data(),sizeof(source));
-            // Source Clear() zeros these fields and !UseCrypt preserves them.
-            // Reject malformed metadata instead of interpreting client crypto.
-            if(source.number||source.checksum)break;
+            // Source SESSION_SERVER ignores both fields. Copy() can retain a
+            // client sequence, so these bytes cannot be validated as crypto.
             size=source.wSize;id=source.wID;
         } else {
             PacketHeader modern{};std::memcpy(&modern,header.data(),sizeof(modern));
@@ -230,7 +229,8 @@ ControlSession::Run(PacketHandler on_packet)
         {
             if (!co_await read_into(body.data(), body_size, ec)) break;
         }
-        const std::uint32_t expected = ComputeChecksum(body.data(), body_size);
+        const std::uint32_t expected = m_profile==WireProfile::ModernSs8
+            ?ComputeChecksum(body.data(), body_size):0;
         if (m_profile==WireProfile::ModernSs8&&expected != checksum)
         {
             spdlog::warn("control_session[{}]: checksum mismatch wID=0x{:04X} "

@@ -63,12 +63,16 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <functional>
 #include <vector>
 
 namespace tworldsvr {
 
 struct HandlerContext
 {
+    // Bound by the real World listener. Counts all accepted sessions, including
+    // anonymous sockets, as source m_mapSESSION does; not just registered roles.
+    std::function<std::uint32_t()> raw_session_count;
     boost::asio::io_context*  io         = nullptr;
     // Bound a live but stalled main-release/enter/confirm exchange.
     std::uint32_t main_handoff_timeout_ms = 5000;

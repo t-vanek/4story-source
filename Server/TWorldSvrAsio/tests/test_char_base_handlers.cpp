@@ -82,7 +82,7 @@ void SendFramed(boost::asio::ip::tcp::socket& sock,
     hdr.wSize    = static_cast<std::uint16_t>(
         tworldsvr::kPacketHeaderSize + body.size());
     hdr.wID      = wId;
-    hdr.dwChkSum = tworldsvr::ComputeChecksum(body.data(), body.size());
+    // Fresh source Plain16 metadata is zero (value-initialized header).
     std::vector<std::byte> buf(hdr.wSize);
     std::memcpy(buf.data(), &hdr, sizeof(hdr));
     if (!body.empty())
@@ -103,7 +103,7 @@ std::pair<std::uint16_t,std::vector<std::byte>> ReadTitleFrame(boost::asio::ip::
     tworldsvr::PacketHeader h{};read(&h,sizeof(h));
     if(h.wSize<sizeof(h))throw std::runtime_error("bad title relay frame");
     std::vector<std::byte> b(h.wSize-sizeof(h));read(b.data(),b.size());
-    EXPECT(h.dwChkSum==tworldsvr::ComputeChecksum(b.data(),b.size()));return {h.wID,b};
+    EXPECT(h.dwNumber==0 && h.llChecksum==0);return {h.wID,b};
 }
 
 } // namespace

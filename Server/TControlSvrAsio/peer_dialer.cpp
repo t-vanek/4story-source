@@ -36,11 +36,12 @@ PeerDialer::Dial(const ServiceInstance& requested,bool publish)
     const auto svc=requested;
     const auto snapshot=m_inventory.Snapshot();
     PeerDialResult res{};
-    const auto profile=svc.type_id==svr_type::kMapSvr?WireProfile::SourcePlain16:WireProfile::ModernSs8;
+    const auto profile=(svc.type_id==svr_type::kMapSvr||svc.type_id==svr_type::kWorldSvr)
+        ?WireProfile::SourcePlain16:WireProfile::ModernSs8;
     if(profile==WireProfile::SourcePlain16&&m_ssl_ctx) {
-        // The source Map endpoint is plaintext with configured network trust.
-        // Its TLS adapter is unimplemented; never downgrade requested TLS.
-        res.failure_reason="Source Map Control TLS transport is not implemented";
+        // These source endpoints are plaintext with configured network trust.
+        // Their TLS adapters are unimplemented; never downgrade requested TLS.
+        res.failure_reason="Source Map/World Control TLS transport is not implemented";
         co_return res;
     }
     const Machine* m = FindMachine(snapshot, svc.machine_id);

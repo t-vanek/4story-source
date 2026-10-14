@@ -16,6 +16,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstring>
+#include <bit>
 #include <span>
 #include <utility>
 #include <limits>
@@ -25,38 +26,20 @@ namespace tmapsvr {
 
 namespace {
 
-// 8-byte plain server-to-server frame, identical to TWorldSvr's
-// WorldSession and TControlSvr's ControlSession: WORD wSize | WORD wID |
-// DWORD dwChkSum, where wSize counts the header, dwChkSum is a 32-bit
-// XOR-fold over the (plaintext) body. No sequence number, no header
-// obfuscation, no RC4 — the cluster's SS convention.
+// Original Packet.h / SESSION_SERVER with !m_bUseCrypt: raw sixteen-byte
+// header and body. Source receive ignores number/checksum; Copy can preserve
+// a client number, while newly constructed output leaves both fields zero.
 #pragma pack(push, 1)
 struct SsHeader
 {
     std::uint16_t wSize;
     std::uint16_t wID;
-    std::uint32_t dwChkSum;
+    std::uint32_t dwNumber;
+    std::int64_t llChecksum;
 };
 #pragma pack(pop)
-static_assert(sizeof(SsHeader) == 8, "SsHeader must be 8 bytes");
-
-constexpr std::uint16_t kSsHeaderSize = 8;
-constexpr std::uint16_t kSsMaxPacket  = 0xFFFF;
-
-std::uint32_t FoldChecksum(const std::byte* p, std::size_t n)
-{
-    std::uint32_t acc = 0;
-    std::size_t i = 0;
-    for (; i + 4 <= n; i += 4)
-    {
-        std::uint32_t w = 0;
-        std::memcpy(&w, p + i, 4);
-        acc ^= w;
-    }
-    for (; i < n; ++i)
-        acc ^= static_cast<std::uint32_t>(p[i]);
-    return acc;
-}
+static_assert(sizeof(SsHeader) == kWorldPlainHeaderSize, "World frame must be source Plain16");
+static_assert(std::endian::native==std::endian::little,"Source World frame requires little-endian fields");
 
 } // namespace
 
@@ -178,23 +161,23 @@ AsioWorldClient::ReadConnection(std::shared_ptr<boost::asio::ip::tcp::socket> so
     // Always cancel even if an inbound handler throws.
     struct Cancel { std::shared_ptr<boost::asio::steady_timer> timer; ~Cancel() { timer->cancel(); } } cancel{deadline};
     co_await SendRegister();
-    // Inbound read loop — 8-byte header + body, verify checksum,
-    // hand the decoded (wId, body) to the installed handler.
+    // Inbound read loop: exact Plain16 header/body. Metadata is intentionally
+    // unused, matching CSession::CheckMessage's SESSION_SERVER branch.
     boost::system::error_code ec;
-    while (sock->is_open())
+    while (sock==m_session&&sock->is_open())
     {
         SsHeader hdr{};
         co_await boost::asio::async_read(*sock,
             buffer(&hdr, sizeof(hdr)),
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-        if (ec) break;
-        if (hdr.wSize < kSsHeaderSize || hdr.wSize > kSsMaxPacket)
+        if (ec||sock!=m_session||!sock->is_open()) break;
+        if (hdr.wSize < kWorldPlainHeaderSize || hdr.wSize >= kWorldPlainMaxPacketSize)
         {
             spdlog::warn("world_client: framing error wSize={} — closing",
                 hdr.wSize);
             break;
         }
-        const std::size_t body_size = hdr.wSize - kSsHeaderSize;
+        const std::size_t body_size = hdr.wSize - kWorldPlainHeaderSize;
         std::vector<std::byte> body(body_size);
         if (body_size > 0)
         {
@@ -202,29 +185,21 @@ AsioWorldClient::ReadConnection(std::shared_ptr<boost::asio::ip::tcp::socket> so
                 buffer(body.data(), body_size),
                 boost::asio::redirect_error(
                     boost::asio::use_awaitable, ec));
-            if (ec) break;
-        }
-        const std::uint32_t expected =
-            FoldChecksum(body.data(), body_size);
-        if (expected != hdr.dwChkSum)
-        {
-            spdlog::warn("world_client: checksum mismatch wID=0x{:04X} "
-                         "got=0x{:08X} expected=0x{:08X} — closing",
-                hdr.wID, hdr.dwChkSum, expected);
-            break;
+            if (ec||sock!=m_session||!sock->is_open()) break;
         }
         if (m_relay_wid != 0 && !m_registered) {
             wire::Reader reader(body.data(), body.size());
             std::uint8_t nation{};
             std::uint16_t count{};
             bool valid = hdr.wID == static_cast<std::uint16_t>(
-                tnetlib::protocol::MessageId::RW_RELAYSVR_ACK) && reader.Read(nation) && reader.Read(count);
+                tnetlib::protocol::MessageId::RW_RELAYSVR_ACK) && reader.Read(nation) && reader.Read(count)&&
+                reader.Remaining()>=sizeof(std::uint16_t)&&count<=(reader.Remaining()-sizeof(std::uint16_t))/sizeof(std::uint32_t);
             for (std::uint32_t i=0; valid && i<count; ++i) {
                 std::uint32_t user{}; valid=reader.Read(user);
             }
-            valid = valid && reader.Read(count);
+            valid = valid && reader.Read(count)&&count<=reader.Remaining()/(sizeof(std::uint32_t)+sizeof(std::int32_t));
             for (std::uint32_t i=0; valid && i<count; ++i) {
-                std::string key, value; valid=reader.ReadString(key) && reader.ReadString(value);
+                std::uint32_t key=0;std::string value;valid=reader.Read(key)&&reader.ReadString(value);
             }
             if (!valid || !reader.Eof()) {
                 spdlog::warn("world_client: invalid registration acknowledgment; closing");
@@ -297,6 +272,9 @@ AsioWorldClient::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
 {
     auto sock = m_session;
     if (!sock || !sock->is_open()) co_return false;
+    if(body.size()>=kWorldPlainMaxPacketSize-kWorldPlainHeaderSize) {
+        spdlog::error("world_client: outbound body exceeds source Plain16 cap ({})",body.size());co_return false;
+    }
     // A strand alone does not serialize composed async_write operations across
     // suspension. Hold this permit until the whole frame is written.
     co_await m_write_permit->async_receive(boost::asio::use_awaitable);
@@ -305,18 +283,13 @@ AsioWorldClient::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
         ~Release() { permit->try_send(boost::system::error_code{}, 0); }
     } release{m_write_permit};
     if (sock != m_session || !sock->is_open()) co_return false;
-    const std::size_t total = kSsHeaderSize + body.size();
-    if (total > kSsMaxPacket)
-    {
-        spdlog::error("world_client: outbound packet too big ({})", total);
-        co_return false;
-    }
+    const std::size_t total = kWorldPlainHeaderSize + body.size();
 
     std::vector<std::byte> frame(total);
     SsHeader hdr{};
     hdr.wSize    = static_cast<std::uint16_t>(total);
     hdr.wID      = wId;
-    hdr.dwChkSum = FoldChecksum(body.data(), body.size());
+    // Fresh CPacket::Clear metadata, no checksum/cipher/sequence transform.
     std::memcpy(frame.data(), &hdr, sizeof(hdr));
     if (!body.empty())
         std::memcpy(frame.data() + sizeof(hdr), body.data(), body.size());

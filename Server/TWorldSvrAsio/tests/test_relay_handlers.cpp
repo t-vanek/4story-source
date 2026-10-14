@@ -52,7 +52,7 @@ void SendFramed(boost::asio::ip::tcp::socket& sock,
     hdr.wSize    = static_cast<std::uint16_t>(
         tworldsvr::kPacketHeaderSize + body.size());
     hdr.wID      = wId;
-    hdr.dwChkSum = tworldsvr::ComputeChecksum(body.data(), body.size());
+    // Fresh source Plain16 metadata is zero (value-initialized header).
 
     std::vector<std::byte> buf(hdr.wSize);
     std::memcpy(buf.data(), &hdr, sizeof(hdr));
@@ -62,7 +62,7 @@ void SendFramed(boost::asio::ip::tcp::socket& sock,
 }
 
 // Read one framed packet off the socket. Returns (wId, body) or
-// throws on framing/checksum violation. Used to assert the
+// throws on framing violation. Used to assert the
 // RW_RELAYSVR_ACK reply landed correctly.
 std::pair<std::uint16_t, std::vector<std::byte>>
 ReadFramed(boost::asio::ip::tcp::socket& sock)

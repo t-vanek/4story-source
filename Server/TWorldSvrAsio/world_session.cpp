@@ -14,31 +14,6 @@
 
 namespace tworldsvr {
 
-namespace {
-// 32-bit XOR fold over the body. Identical to the FoldChecksum used
-// by TPatchSvrAsio / TControlSvrAsio so the byte-on-the-wire shape
-// matches legacy peers exactly.
-std::uint32_t FoldChecksum(const std::byte* p, std::size_t n)
-{
-    std::uint32_t acc = 0;
-    std::size_t i = 0;
-    for (; i + 4 <= n; i += 4)
-    {
-        std::uint32_t w = 0;
-        std::memcpy(&w, p + i, 4);
-        acc ^= w;
-    }
-    for (; i < n; ++i)
-        acc ^= static_cast<std::uint32_t>(p[i]);
-    return acc;
-}
-} // namespace
-
-std::uint32_t ComputeChecksum(const std::byte* body, std::size_t len)
-{
-    return FoldChecksum(body, len);
-}
-
 struct WorldSession::SendState {
     using Permit = boost::asio::experimental::channel<void(boost::system::error_code, int)>;
     explicit SendState(boost::asio::any_io_executor executor) : permit(executor, 1) {
@@ -99,14 +74,8 @@ WorldSession::Run(PacketHandler on_packet)
                 redirect_error(use_awaitable, ec));
             if (ec) break;
         }
-        const std::uint32_t expected = ComputeChecksum(body.data(), body_size);
-        if (expected != hdr.dwChkSum)
-        {
-            spdlog::warn("world_session[{}]: checksum mismatch wID=0x{:04X} "
-                         "got=0x{:08X} expected=0x{:08X} — closing",
-                m_remote_ipv4, hdr.wID, hdr.dwChkSum, expected);
-            break;
-        }
+        // Source SESSION_SERVER does not decrypt or validate metadata. Copy()
+        // may preserve a client sequence; authorization remains in dispatch.
         TouchRecv();
         DecodedPacket pkt{hdr.wID, std::move(body)};
         co_await on_packet(shared_from_this(), std::move(pkt));
@@ -119,7 +88,8 @@ WorldSession::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
     const auto self = shared_from_this();
     if (!IsOpen()) co_return;
     if (body.size() > kMaxPacketSize - kPacketHeaderSize) {
-        spdlog::error("world_session[{}]: outbound body too big ({})", m_remote_ipv4, body.size());
+        spdlog::error("world_session[{}]: outbound body too big ({}); closing", m_remote_ipv4, body.size());
+        Close();
         co_return;
     }
     const std::size_t total = kPacketHeaderSize + body.size();
@@ -147,7 +117,6 @@ WorldSession::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
     PacketHeader hdr{};
     hdr.wSize    = static_cast<std::uint16_t>(total);
     hdr.wID      = wId;
-    hdr.dwChkSum = ComputeChecksum(body.data(), body.size());
     std::memcpy(frame.data(), &hdr, sizeof(hdr));
     if (!body.empty())
         std::memcpy(frame.data() + sizeof(hdr),

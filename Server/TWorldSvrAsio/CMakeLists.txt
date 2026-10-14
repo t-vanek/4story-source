@@ -178,7 +178,7 @@ target_link_libraries(tworldsvr_asio PRIVATE tworldsvr_asio_core)
 # W1 wire test: stands the WorldServer up on an ephemeral port,
 # opens a loopback socket, frames a packet with a known + an unknown
 # wID, and verifies (a) both are dispatched without closing the
-# connection, (b) a checksum-mismatch frame DOES close the connection.
+# connection, (b) an invalid-size frame DOES close the connection.
 if(NOT BUILD_TESTING)
     return()
 endif()

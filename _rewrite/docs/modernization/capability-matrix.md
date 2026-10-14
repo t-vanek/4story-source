@@ -2,7 +2,18 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Latest local Phase A work (2026-10-14), based on `0b97c18`, connects direct
+Latest local Phase A work (2026-10-14), based on `acbcaaf`, ports actual
+Map–World and Control–World links to source Plain16, preserving source receive
+semantics and current-socket/no-replay guards. The modern RW catalog ACK now reads
+DWORD message keys. Control service types follow linked CTProtocol exactly
+(World3/Patch5/Log7/Relay8), and World monitoring counts actual raw sessions.
+**INTEGRATED_UNVERIFIED**, static review only; no build/test/SQL/service/client/
+container run or new migration (next070). Original Map MW_CONNECT_ACK admission
+and full bootstrap remain OPEN: the current RW-as-Map path is a modern extension.
+Party/group producers, other service/operator framing, TLS and complete gameplay
+remain required. [Source contracts, differences and deferred acceptance](evidence/phase-a-world-framing-20261014/README.md).
+
+Previous code `acbcaaf`, based on `0b97c18`, connects direct
 Control–Map administration through the original unencrypted16-byte CPacket.
 Configured/current Control transport reaches announcements, ready primary/replica
 character kicks, real four-DWORD service monitoring and historical active-user

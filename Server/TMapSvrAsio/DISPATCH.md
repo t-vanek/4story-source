@@ -87,8 +87,9 @@ orthogonal to dispatch anyway:
   front of `CS_*` client traffic — the client wouldn't parse it.
 * **Server↔server could, but shouldn't here.** `MW_/DM_/SS_` traffic is
   between our own daemons, so it *could* use protobuf — but the cluster
-  already speaks the legacy 8-byte SS frame, it works, and introducing a
-  second codec fragments the wire layer for no functional gain on a
+  Map↔World now uses the original plaintext16-byte CPacket frame. The
+  historical modern SS8 profile was a rewrite mismatch, not source evidence.
+  Introducing a new serialization format fragments the wire layer for no functional gain on a
   preservation server. Defer until there's a concrete need (e.g. a gRPC
   migration), tracked separately in `PEER_PROTOCOL_PLAN.md`.
 * **It's a serialization decision, not a dispatch one.** Changing the

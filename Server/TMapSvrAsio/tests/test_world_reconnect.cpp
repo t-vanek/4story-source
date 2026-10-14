@@ -35,7 +35,7 @@ static Bytes Ack() {
     tworldsvr::wire::WritePOD<std::uint16_t>(b, 1);
     tworldsvr::wire::WritePOD<std::uint32_t>(b, 45);
     tworldsvr::wire::WritePOD<std::uint16_t>(b, 1);
-    tworldsvr::wire::WriteString(b, "notice");
+    tworldsvr::wire::WritePOD<std::uint32_t>(b, 6); // source NAME_OPERATOR message key
     tworldsvr::wire::WriteString(b, "synthetic");
     return b;
 }

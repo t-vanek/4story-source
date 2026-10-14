@@ -3,8 +3,8 @@
 // ControlSession — TCP framing primitive shared by OperatorSession
 // (inbound from GM operators / TController.exe) and PeerSession
 // (outbound to peer services). Existing modern endpoints use the eight-byte
-// SS profile. The original unencrypted CPacket is sixteen bytes, with zero
-// sequence/checksum fields; Map peers select that source profile explicitly.
+// SS profile. The original unencrypted CPacket is sixteen bytes; Map and World
+// peers select it explicitly. Fresh sends zero metadata; receive ignores it.
 // Neither profile adds client RC4. Other source peer/operator framing ports
 // remain separate implementation work.
 //
@@ -18,6 +18,7 @@
 #include <boost/asio/ssl/stream.hpp>
 
 #include <atomic>
+#include <bit>
 #include <chrono>
 #include <cstdint>
 #include <functional>
@@ -50,6 +51,8 @@ struct SourcePacketHeader {
 };
 #pragma pack(pop)
 static_assert(sizeof(SourcePacketHeader)==16);
+static_assert(std::endian::native==std::endian::little,
+              "Original CPacket header requires little-endian serialization");
 
 // Retained modern SS8 body checksum, identical to TPatchSvrAsio's XOR fold.
 // Original !UseCrypt packets keep checksum zero and do not use this function.

@@ -1,3 +1,12 @@
+> Current Phase A, based on `acbcaaf`: actual World/Map/Control links now use
+> original Plain16 (total16–65534), no crypto/body fold and source receive ignoring
+> metadata. Control inventory World3 is corrected; monitor counts raw listener
+> sessions. Original Map MW_CONNECT_ACK/full bootstrap remains OPEN; modern RW
+> admission is an extension. Static review only, no build/test/runtime/SQL ran.
+> [Current contracts and acceptance](../../_rewrite/docs/modernization/evidence/phase-a-world-framing-20261014/README.md).
+>
+> Historical results below do not apply to this changed transport.
+
 > Current Phase A: `1f1eb59` / `e709281` adds native World social ownership,
 > directed friend/group/soulmate persistence066 and original Map relay/state/end.
 > Production World requires an explicit database/workers; no fake boot fallback.
@@ -45,7 +54,7 @@ transfers and complete native social persistence remain unfinished;
 the historical feature entries below must not be read as native/full-client parity.
 
 
-Wire-compatible replacement for `Server/TWorldSvr/` (38 851 LOC,
+Modernization targeting the original protocol of `Server/TWorldSvr/` (38 851 LOC,
 30 files) running on the `FourStoryCommon` infrastructure (SOCI
 pool, spdlog audit, health endpoint) and the `boost::asio` reactor
 that the four shipped Asio daemons already use.

@@ -1,4 +1,4 @@
-// Actual WorldSession, independent 8-byte SS decoder, deliberately stalled TCP
+// Actual WorldSession, independent 16-byte source plaintext decoder, deliberately stalled TCP
 // receiver. Exercises composed writes and teardown without database/test doubles.
 #include "../world_session.h"
 #include <boost/asio/co_spawn.hpp>
@@ -33,20 +33,18 @@ static std::uint32_t LE(const std::byte* b,unsigned n) {
     std::uint32_t v=0;for(unsigned i=0;i<n;++i)v|=std::to_integer<std::uint32_t>(b[i])<<(8*i);return v;
 }
 static asio::awaitable<std::pair<std::uint16_t,Bytes>> Read(tcp::socket& s) {
-    std::array<std::byte,8> header;
+    std::array<std::byte,16> header;
     co_await asio::async_read(s,asio::buffer(header),asio::use_awaitable);
     const auto size=LE(header.data(),2);
-    Check(size>=8,"frame length is valid");
-    Bytes body(size-8);
+    Check(size>=16 && size<65535,"frame length is valid");
+    Bytes body(size-16);
     co_await asio::async_read(s,asio::buffer(body),asio::use_awaitable);
-    std::uint32_t checksum=0;std::size_t at=0;
-    for(;at+4<=body.size();at+=4)checksum^=LE(body.data()+at,4);
-    for(;at<body.size();++at)checksum^=std::to_integer<std::uint8_t>(body[at]);
-    Check(checksum==LE(header.data()+4,4),"independent checksum matches complete body");
+    Check(LE(header.data()+4,4)==0 && LE(header.data()+8,4)==0 &&
+          LE(header.data()+12,4)==0,"fresh source sequence/checksum metadata is zero");
     co_return std::pair{static_cast<std::uint16_t>(LE(header.data()+2,2)),std::move(body)};
 }
 static Bytes Body(unsigned n) {
-    const std::size_t sizes[]={65527,0,1,317,60000,8193};
+    const std::size_t sizes[]={65518,0,1,317,60000,8193};
     Bytes b(sizes[n%6]);
     for(std::size_t i=0;i<b.size();++i)b[i]=std::byte((i*17+n*31)&255);
     return b;
@@ -76,13 +74,13 @@ static void Run(int scenario) {
                 Check(body==Body(id-100),"per-frame payload remains unchanged across suspension");
             }
             co_await Until([&]{return completed==32;});
-            co_await session->SendPacket(200,Bytes(65528,std::byte{1})); // oversize: no frame
+            co_await session->SendPacket(200,Bytes(65519,std::byte{1})); // oversize: no frame
+            Check(!session->IsOpen(),"invalid output retires the current writer");
             co_await session->SendPacket(201,{});
-            auto [id,body]=co_await Read(client);
-            Check(id==201 && body.empty() && session->IsOpen(),"oversize rejection preserves the following empty frame");
+            Check(!session->IsOpen(),"late output cannot reopen the retired writer");
         } else if(scenario==1 || scenario==2) {
             for(unsigned n=0;n<24;++n) asio::co_spawn(io,[&,n]() -> asio::awaitable<void> {
-                co_await session->SendPacket(static_cast<std::uint16_t>(100+n),Bytes(65527,std::byte(n)));++completed;
+                co_await session->SendPacket(static_cast<std::uint16_t>(100+n),Bytes(65518,std::byte(n)));++completed;
             },report);
             co_await Pause(60ms);Check(completed<24,"teardown test has unfinished writes");
             if(scenario==1)session->Close();
@@ -94,7 +92,7 @@ static void Run(int scenario) {
         } else if(scenario==3 || scenario==4) {
             const int count=scenario==3?300:80;
             for(int n=0;n<count;++n) asio::co_spawn(io,[&,n]() -> asio::awaitable<void> {
-                co_await session->SendPacket(100,Bytes(scenario==3?0:65527,std::byte(n)));++completed;
+                co_await session->SendPacket(100,Bytes(scenario==3?0:65518,std::byte(n)));++completed;
             },report);
             co_await Until([&]{return completed==count;});
             Check(!session->IsOpen(),"stalled peer exceeding message or byte budget is closed");

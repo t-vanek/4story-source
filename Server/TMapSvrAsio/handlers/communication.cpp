@@ -71,10 +71,9 @@ boost::asio::awaitable<bool> Projection(const std::shared_ptr<tnetlib::AsioSessi
 boost::asio::awaitable<void> Relay(std::shared_ptr<tnetlib::AsioSession> client,MessageId op,
     std::vector<std::byte> body,const HandlerContext& ctx) {
     if(!client->IsOpen())co_return;
-    // The current native WorldClient uses an eight-byte SS header and permits a total
-    // of 65535 bytes. A larger relay envelope is a known codec rejection, not
+    // Source Plain16 requires total <65535. A larger relay envelope is a known codec rejection, not
     // a transport failure or permission to replay the request.
-    if(body.size()>0xFFFFU-8U) {
+    if(body.size()>=kWorldPlainMaxPacketSize-kWorldPlainHeaderSize) {
         spdlog::warn("communication not relayed: original SS frame exceeds packet cap opcode={} body={}",
             static_cast<std::uint16_t>(op),body.size());
         co_return;

@@ -214,8 +214,8 @@ struct Harness
         inv.AddType({svr_type::kWorldSvr, 0, "WorldSvr"});
         inv.AddType({svr_type::kRlySvr,   0, "RlySvr"});
         inv.AddService({0x010401, 1, svr_type::kMapSvr,   1, 1, 0, "Map1",  "", ""});
-        inv.AddService({0x010501, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1",  "", ""});
-        inv.AddService({0x010701, 1, svr_type::kRlySvr,   1, 1, 0, "Rly1",  "", ""});
+        inv.AddService({0x010301, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1",  "", ""});
+        inv.AddService({0x010801, 1, svr_type::kRlySvr,   1, 1, 0, "Rly1",  "", ""});
         peers.Rebind(inv);
 
         dialer = std::make_unique<PeerDialer>(io, peers, inv);
@@ -323,7 +323,7 @@ void TestChatBanAggregation()
 {
     Harness h;
     auto staged_world = StagePeer(h.io, h.client_io, h.peers, h.PeerCtx(),
-        {0x010501, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1", "", ""});
+        {0x010301, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1", "", ""});
     auto& world_peer = staged_world.client;
 
     auto op = LoginOperator(h.client_io, h.server->Port(),"gm3", "pw");

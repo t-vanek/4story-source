@@ -33,30 +33,25 @@ OnCtServiceMonitorAck(std::shared_ptr<PeerSession> peer,
 {
     const std::string& ip = peer->Wire()->RemoteIPv4();
 
+    if(!ctx.ctrl_svr || ctx.ctrl_svr->Get()!=peer || !peer->Wire()->IsOpen())co_return;
     wire::Reader r(body.data(), body.size());
     std::uint32_t tick = 0;
-    if (!r.Read(tick))
+    if (!r.Read(tick) || r.Remaining()!=0)
     {
-        spdlog::warn("OnCtServiceMonitorAck[{}]: short body ({} bytes)",
+        spdlog::warn("OnCtServiceMonitorAck[{}]: malformed body ({} bytes)",
             ip, body.size());
         co_return;
     }
 
-    // Legacy replies (tick, m_mapSESSION.size(), m_mapTCHAR.size(),
-    // m_mapACTIVEUSER.size()). Our session universe differs slightly:
-    // registered map peers + the ctrl-svr slot stand in for the raw
-    // socket map (un-handshaked sockets aren't counted — divergence
-    // noted in the README).
-    std::uint32_t sessions = 0;
-    if (ctx.peers)
-        sessions = static_cast<std::uint32_t>(ctx.peers->Size());
-    if (ctx.ctrl_svr && ctx.ctrl_svr->Get())
-        ++sessions;
-    const std::uint32_t chars =
-        ctx.chars ? static_cast<std::uint32_t>(ctx.chars->Size()) : 0;
-    const std::uint32_t users =
-        ctx.chars ? static_cast<std::uint32_t>(ctx.chars->ActiveUserCount())
-                  : 0;
+    // Source returns raw sessions, current characters, and historical unique
+    // accounts. A missing listener count must not fabricate registered-only CCU.
+    if(!ctx.raw_session_count || !ctx.chars) {
+        spdlog::warn("OnCtServiceMonitorAck[{}]: authoritative session/character counts not wired",ip);
+        co_return;
+    }
+    const std::uint32_t sessions = ctx.raw_session_count();
+    const std::uint32_t chars = static_cast<std::uint32_t>(ctx.chars->Size());
+    const std::uint32_t users = static_cast<std::uint32_t>(ctx.chars->ActiveUserCount());
 
     co_await senders::SendCtServiceMonitorReq(peer, tick, sessions,
         chars, users);
@@ -69,14 +64,16 @@ OnCtServiceDataClearAck(std::shared_ptr<PeerSession> peer,
                         const HandlerContext&        ctx)
 {
     const std::string& ip = peer->Wire()->RemoteIPv4();
+    if(!ctx.ctrl_svr || ctx.ctrl_svr->Get()!=peer || !peer->Wire()->IsOpen())co_return;
     if (!ctx.chars)
     {
         spdlog::warn("OnCtServiceDataClearAck[{}]: chars not wired", ip);
         co_return;
     }
-    if (!body.empty())
-        spdlog::debug("OnCtServiceDataClearAck[{}]: ignored unexpected "
-                      "body ({} bytes)", ip, body.size());
+    if (!body.empty()) {
+        spdlog::warn("OnCtServiceDataClearAck[{}]: unexpected body ({} bytes)",ip,body.size());
+        co_return;
+    }
 
     ctx.chars->RebuildActiveUsers();
     spdlog::info("OnCtServiceDataClearAck[{}]: active-user set rebuilt "

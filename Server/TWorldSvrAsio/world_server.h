@@ -1,11 +1,10 @@
 #pragma once
 
-// WorldServer — accept loop + per-session coroutine wiring. W1
-// shipped the accept gate; W2 added the HandlerContext for the
-// char registry; **W3a-2** rewraps each accepted WorldSession in a
-// PeerSession so handlers can see map-server identity (wID +
-// nation) once RW_RELAYSVR_REQ has run, and so PeerRegistry can
-// drop the entry cleanly on disconnect.
+// WorldServer — real Plain16 accept loop and per-session coroutine wiring.
+// PeerSession exposes the existing modern RW-as-Map registration identity;
+// original MW_CONNECT_ACK admission and full bootstrap remain separate work.
+// Raw session count includes anonymous sockets; exact peer cleanup drains
+// before a replacement can acquire its registry ID.
 
 #include "handlers/handlers.h"
 #include "peer_session.h"

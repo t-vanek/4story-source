@@ -16,6 +16,9 @@
 
 namespace tworldsvr::handlers {
 
+// Retained modern RW-as-Map admission extension. Original Map uses
+// MW_CONNECT_ACK and has no registration ACK; original RW_RELAYSVR_REQ claims
+// a separate Relay slot. The full source Map bootstrap is still required.
 boost::asio::awaitable<void>
 OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
               std::vector<std::byte>        body,

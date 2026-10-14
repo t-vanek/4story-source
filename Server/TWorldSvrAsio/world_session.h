@@ -1,24 +1,17 @@
 #pragma once
 
-// WorldSession — TCP framing primitive for the inbound SS link from
-// TMap / TLogin peers. Legacy wire format is the same 8-byte CPacket
-// header as Patch/Control (WORD wSize | WORD wID | DWORD dwChkSum),
-// no RC4 — the SS link is on the operator LAN, not the public net.
-// (Confirmed against Server/TControlSvrAsio/control_session.h.)
-//
-// The session is intentionally protocol-only: handlers are wired by
-// the caller through Run()'s callback. Per-peer state (svr_id, role,
-// channels, subscribed maps) lives on a wrapper added in W2 once the
-// W↔M wire contract is settled (see PATCH_README §6 gating clause).
-//
-// This is parallel to TControlSvrAsio's ControlSession but kept
-// separate because (a) the namespaces differ and (b) the W3+ peer
-// wrappers will diverge from the operator/peer split TControl uses.
+// Original server CPacket transport: WORD size, WORD opcode, DWORD number,
+// INT64 checksum (Packet.h:36–43). SESSION_SERVER / !UseCrypt transmits plain
+// bytes and ignores number/checksum on receive (Session.cpp:454–474).
+// Fresh output zeros both fields. Copied client packets can retain a number;
+// these unused fields are neither actor authority nor a replay fence.
+// Peer roles/admission and body authorization belong to the existing handlers.
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
 #include <atomic>
+#include <bit>
 #include <chrono>
 #include <cstdint>
 #include <functional>
@@ -28,24 +21,22 @@
 
 namespace tworldsvr {
 
-constexpr std::uint16_t kPacketHeaderSize = 8;   // WORD+WORD+DWORD
-constexpr std::uint16_t kMaxPacketSize    = 0xFFFF;
+constexpr std::uint16_t kPacketHeaderSize = 16;
+constexpr std::uint16_t kMaxPacketSize    = 0xFFFE; // source total < 0xFFFF
 
 #pragma pack(push, 1)
 struct PacketHeader
 {
     std::uint16_t wSize;
     std::uint16_t wID;
-    std::uint32_t dwChkSum;
+    std::uint32_t dwNumber;
+    std::int64_t llChecksum;
 };
 #pragma pack(pop)
 static_assert(sizeof(PacketHeader) == kPacketHeaderSize,
-              "PacketHeader must be 8 bytes");
-
-// Body checksum: running 32-bit XOR fold, same primitive as the four
-// shipped Asio daemons. Mirrors the legacy CPacket::Encrypt branch
-// with crypto disabled (Lib/Own/TNetLib/TNetLib/Packet.cpp).
-std::uint32_t ComputeChecksum(const std::byte* body, std::size_t len);
+              "Original CPacket header must be 16 bytes");
+static_assert(std::endian::native == std::endian::little,
+              "Original CPacket layout requires little-endian serialization");
 
 struct DecodedPacket
 {
@@ -63,10 +54,11 @@ public:
     explicit WorldSession(Socket sock);
 
     // Read loop. Returns when the peer closes the socket or framing
-    // breaks (wSize out of range, checksum mismatch, short read).
+    // breaks (wSize out of range or short read). Source plaintext receive
+    // ignores the number/checksum metadata; client crypto is never applied.
     boost::asio::awaitable<void> Run(PacketHandler on_packet);
 
-    // Build + send one frame. Header (size + checksum) is computed
+    // Build + send one frame. Size/opcode and zero metadata are written
     // here so callers only ship body bytes. One complete write at a time, with
     // per-peer backpressure: at most 256 outstanding frames and 4 MiB including
     // headers. Overflow/write failure closes the peer; no write replay.

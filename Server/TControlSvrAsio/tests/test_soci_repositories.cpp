@@ -186,7 +186,7 @@ void RunTests(fourstory::db::Backend backend, const std::string& conn)
         ev.kind        = tcontrolsvr::event_kind::kExpRate;
         ev.title       = "soci_test_event";
         ev.group_id    = 0;
-        ev.server_type = 5;   // SVRGRP_WORLDSVR
+        ev.server_type = 3;   // source CTProtocol.h SVRGRP_WORLDSVR
         ev.server_id   = 0;
         ev.start_unix  = std::time(nullptr) + 3600;
         ev.end_unix    = ev.start_unix + 3600;

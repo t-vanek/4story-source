@@ -197,7 +197,7 @@ struct Harness
         inv.AddType({svr_type::kMapSvr,   0, "MapSvr"});
         inv.AddType({svr_type::kWorldSvr, 0, "WorldSvr"});
         inv.AddService({0x010401, 1, svr_type::kMapSvr,   1, 1, 0, "Map1", "", ""});
-        inv.AddService({0x010501, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1", "", ""});
+        inv.AddService({0x010301, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1", "", ""});
         peers.Rebind(inv);
 
         dialer = std::make_unique<PeerDialer>(io, peers, inv);
@@ -361,7 +361,7 @@ void TestItemFindReqForwarder()
 {
     Harness h;
     auto staged = StagePeer(h.io, h.client_io, h.peers, h.PeerCtx(),
-        {0x010501, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1", "", ""});
+        {0x010301, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1", "", ""});
 
     auto op = h.Login("all", "pw");
     std::vector<std::byte> body;
@@ -452,7 +452,7 @@ void TestEventUpdateReqAppendsEventInfo()
     h.events.Upsert(ev);
 
     auto staged = StagePeer(h.io, h.client_io, h.peers, h.PeerCtx(),
-        {0x010501, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1", "", ""});
+        {0x010301, 1, svr_type::kWorldSvr, 1, 1, 0, "Wor1", "", ""});
 
     auto op = h.Login("all", "pw");
     std::vector<std::byte> body;

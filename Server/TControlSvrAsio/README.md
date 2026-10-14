@@ -16,7 +16,18 @@ This README only covers what F1 ships and how to bring it up.
 
 ## Current Phase A — native PostgreSQL, unverified
 
-Latest local continuation based on `0b97c18` implements the original Plain16
+Latest local Phase A work (2026-10-14), based on `acbcaaf`, ports actual
+Map–World and Control–World links to source Plain16, preserving source receive
+semantics and current-socket/no-replay guards. The modern RW catalog ACK now reads
+DWORD message keys. Control service types follow linked CTProtocol exactly
+(World3/Patch5/Log7/Relay8), and World monitoring counts actual raw sessions.
+**INTEGRATED_UNVERIFIED**, static review only; no build/test/SQL/service/client/
+container run or new migration (next070). Original Map MW_CONNECT_ACK admission
+and full bootstrap remain OPEN: the current RW-as-Map path is a modern extension.
+Party/group producers, other service/operator framing, TLS and complete gameplay
+remain required. [Source contracts, differences and deferred acceptance](../../_rewrite/docs/modernization/evidence/phase-a-world-framing-20261014/README.md).
+
+Previous code `acbcaaf`, based on `0b97c18` implements the original Plain16
 Control–Map transport and five bounded Map operations: announcement, ready-player
 kick, monitor reply, active-user reset and empty handshake. Control now sends
 periodic monitor probes without a reply echo loop, checks exact current service
@@ -288,7 +299,7 @@ The 6-phase plan estimates 23 working days end-to-end.
 
 ### Wire compatibility
 
-The session framing matches the legacy `CPacket` layout — 8-byte
+The historical modern8 session framing below does not match original `CPacket`; Map/World use source Plain16. Other endpoints retain the8-byte
 header `WORD wSize | WORD wID | DWORD dwChkSum` followed by body
 bytes, no RC4. The legacy GUI client `TController.exe` connects
 without any protocol changes.

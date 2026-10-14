@@ -216,7 +216,6 @@ struct TChar
     // while an invite dialog is pending on this char's client so a
     // second inviter is rejected with PARTY_WAITERS.
     std::uint16_t party_id     = 0;
-    bool party_refresh_needed = false; // real ready claim must repair handoff projection
     bool          party_waiter = false;
     // One dialog belongs to both exact live actors, peers and native claim
     // generations. It is consumed once; names alone never authorize a join.

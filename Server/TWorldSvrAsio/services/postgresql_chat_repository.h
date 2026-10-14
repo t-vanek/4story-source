@@ -17,6 +17,7 @@ public:
     PartyIdentity AuthorizeParty(std::uint32_t character,FriendAuthority);
     std::array<PartyIdentity,2> AuthorizePartyPair(std::uint32_t character,
         std::uint32_t target,FriendAuthority);
+    std::array<PartyIdentity,2> AuthorizePartyReplica(std::uint32_t character,FriendAuthority);
     std::string MapOwner(std::uint8_t server);
     // Target must be a current online primary. Map automatic bans use issuer0;
     // Control uses replace_deadline and is authorized by its registered peer.

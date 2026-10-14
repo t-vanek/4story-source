@@ -174,6 +174,9 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnTmsReq(sess,wId,std::move(body),ctx);break;
     case MessageId::CS_PARTYADD_REQ:
         co_await OnPartyAddReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_CHGPARTYCHIEF_REQ:
+    case MessageId::CS_CHGPARTYTYPE_REQ:
+        co_await OnPartyChangeReq(sess,wId,std::move(body),ctx);break;
     case MessageId::CS_PARTYJOIN_REQ:
         co_await OnPartyJoinReq(sess, std::move(body), ctx); break;
     case MessageId::CS_PARTYDEL_REQ:

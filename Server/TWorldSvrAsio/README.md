@@ -1,3 +1,14 @@
+> Current Phase A, based on `622fb2e`: manual native chief/type commands,
+> exact source results/order, all-member authority preflight, post-ready primary
+> and replica ATTR through the existing entered identity, and serialized handoff
+> start. No unknown replica vitals are imported or connection verdicts replayed.
+> **INTEGRATED_UNVERIFIED**, source/diff review only; local Git only, no push.
+> Full client roster recovery, source admission/bootstrap and party gameplay
+> dependencies remain OPEN. No build/test/runtime/SQL or new migration.
+> [Current contracts and deferred acceptance](../../_rewrite/docs/modernization/evidence/phase-a-party-recovery-20261014/README.md).
+>
+> Earlier evidence below retains its original scope.
+
 > Current Phase A, based on `2e406dc`: source basic parties, single-use invites,
 > native pairwise actor/owner checks, serialized join/leave/close/chat, primary
 > and ready-replica ATTR, source MANSTAT and post-CONREADY membership repair.

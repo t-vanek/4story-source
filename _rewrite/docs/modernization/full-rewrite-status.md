@@ -12,7 +12,12 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–069 are **written, not applied**.
-Latest local increment is based on `2e406dc`: basic native party requests,
+Latest local increment is based on `622fb2e`: manual party chief/type paths,
+post-ready primary/replica attribute recovery through the existing entered ACK,
+sorted native replica authority and handoff-start serialization. Source wire
+fields remain unchanged; no unknown replica bars enter MANSTAT. No execution or
+new migration; full roster/bootstrap/gameplay remain OPEN.
+Previous code `622fb2e`, based on `2e406dc`: basic native party requests,
 source membership/client projections, party chat and post-ready handoff ATTR
 repair under SQL/current-peer guards. Historical account counts survive logout.
 No execution or new migration; full party dependencies and Phase A remain OPEN.
@@ -36,6 +41,21 @@ based on `802a232`. Previous `18ee496` implements item expiration and mail, base
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Party attributes and manual changes — source review, 2026-10-14
+
+Latest local Phase A work (2026-10-14), based on `622fb2e`, connects manual
+party chief/type changes and repairs post-ready attributes for both primary and
+replica. The existing ENTERCHAR identity is repeated only after SQL/local Ready;
+World verifies native primary/replica ownership and republishes actual ATTR,
+without importing unknown replica vitals or repeating connection verdicts.
+Handoff start waits for party decisions/fan-out; Map admission releases its lease
+at Ready before the independent recovery/AOI path. Source chief result10 and
+TYPE main-only result0/no-ATTR ordering are preserved. **INTEGRATED_UNVERIFIED**:
+static review only, no build/test/SQL/service/client/container run or new migration
+(next070). Full roster reconciliation, source admission/bootstrap and full
+party/gameplay dependencies remain OPEN. Local Git only; no push.
+[Source contracts, differences and deferred acceptance](evidence/phase-a-party-recovery-20261014/README.md).
 
 ## Basic native parties — source review, 2026-10-14
 
@@ -703,7 +723,7 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `2e406dc`: original/server/client source reads,
+Latest local work based on `622fb2e`: original/server/client source reads,
 declaration/call/CMake/SQL/packet/diff review, implementation and documentation.
 `git diff --check` passes. No build, test, SQL execution, service/client/container
 startup or runtime acceptance was performed. The following build results belong

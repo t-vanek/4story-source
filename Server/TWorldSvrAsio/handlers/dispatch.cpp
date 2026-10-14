@@ -27,7 +27,8 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
        (name.find("PARTY")!=std::string_view::npos||name.find("CORPS")!=std::string_view::npos||
         id==MessageId::MW_ENTERSOLOMAP_ACK||id==MessageId::MW_LEAVESOLOMAP_ACK||id==MessageId::MW_ARENAJOIN_ACK)&&
        id!=MessageId::MW_PARTYADD_ACK&&id!=MessageId::MW_PARTYJOIN_ACK&&
-       id!=MessageId::MW_PARTYDEL_ACK&&id!=MessageId::MW_PARTYMANSTAT_ACK) {
+       id!=MessageId::MW_PARTYDEL_ACK&&id!=MessageId::MW_PARTYMANSTAT_ACK&&
+       id!=MessageId::MW_CHGPARTYCHIEF_ACK&&id!=MessageId::MW_CHGPARTYTYPE_ACK) {
         spdlog::warn("Native party dependency is not implemented: {}",name);
         peer->Wire()->Close();co_return;
     }

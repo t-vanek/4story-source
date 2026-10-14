@@ -70,6 +70,37 @@ bool SnapshotMember(const HandlerContext& ctx, std::uint32_t char_id,
 boost::asio::awaitable<bool> SendAttr(const HandlerContext&,std::uint32_t,
     std::uint16_t,std::uint8_t,std::uint32_t);
 
+boost::asio::awaitable<bool> AuthorizePartyRoster(const HandlerContext& ctx,
+    const std::shared_ptr<TParty>& party,const std::shared_ptr<PeerSession>& peer,
+    const std::shared_ptr<TChar>& actor) {
+    if(!party||!actor)co_return false;
+    const auto identity=co_await party_authority::Authorize(ctx,peer,actor);
+    if(!identity.valid)co_return false;
+    if(!ctx.chat_repo)co_return true; // explicit source cache adapter
+    std::uint16_t id=0;std::uint32_t chief=0;std::uint8_t type=0;
+    std::vector<std::uint32_t> members;
+    {std::lock_guard pg(party->lock);
+     if(party->corps_id||party->arena||!party->IsMember(actor->char_id))co_return false;
+     id=party->id;chief=party->chief_char_id;type=party->obtain_type;members=party->members;}
+    struct Route {std::shared_ptr<TChar> actor;std::shared_ptr<PeerSession> peer;std::uint32_t key;};
+    std::vector<Route> routes;
+    for(const auto mid:members) {
+        auto member=ctx.chars->Find(mid);if(!member)co_return false;
+        std::uint8_t server=0;std::uint32_t key=0;
+        {std::lock_guard g(member->lock);server=member->main_server_id;key=member->key;
+         if(member->party_id!=id)co_return false;}
+        auto map=FindMapPeer(ctx,server);
+        const auto pair=co_await party_authority::AuthorizePair(ctx,peer,actor,map,member);
+        if(pair[0]!=identity)co_return false;
+        routes.push_back({member,map,key});
+    }
+    for(const auto& route:routes)if(!party_authority::Current(ctx,route.peer,route.actor,route.key))co_return false;
+    if(ctx.parties->Find(id)!=party)co_return false;
+    {std::lock_guard pg(party->lock);
+     if(party->corps_id||party->arena||party->members!=members||party->chief_char_id!=chief||party->obtain_type!=type)co_return false;}
+    co_return true;
+}
+
 // Add a char to an existing party and run the legacy JoinParty
 // fan-out: announce each current member to the joiner and the
 // joiner to each member (pairwise MW_PARTYJOIN_REQ), followed by
@@ -719,6 +750,33 @@ LeaveParty(const HandlerContext& ctx, std::shared_ptr<TParty> party,
 
 } // namespace
 
+boost::asio::awaitable<void> RefreshReadyParty(const HandlerContext& ctx,
+    const std::shared_ptr<PeerSession>& peer,const std::shared_ptr<TChar>& character,std::uint32_t key) {
+    auto operation=co_await ctx.party_operations->Acquire();
+    if(!ctx.chat_repo||!ctx.chars||!ctx.parties||!character)co_return;
+    std::uint8_t server=0;
+    {std::lock_guard g(character->lock);server=character->main_server_id;}
+    auto main=FindMapPeer(ctx,server);const bool primary=peer==main;
+    if(primary) {
+        if(!(co_await party_authority::Authorize(ctx,peer,character)).valid)co_return;
+    } else if(!(co_await party_authority::AuthorizeReplica(ctx,peer,main,character,key))[0].valid)co_return;
+    if(!party_authority::Current(ctx,main,character,key))co_return;
+    std::uint16_t id=0;std::uint8_t obtain=0;std::uint32_t chief=0;
+    {std::lock_guard g(character->lock);id=character->party_id;}
+    if(id) {
+        auto party=ctx.parties->Find(id);if(!party)co_return;
+        std::lock_guard pg(party->lock);
+        if(!party->IsMember(character->char_id)||party->corps_id!=0)co_return;
+        obtain=party->obtain_type;chief=party->chief_char_id;
+    }
+    if(primary) {
+        // A primary ready proof repairs every already-ready route. A replica
+        // which becomes ready later sends its own entered-status probe.
+        if(!co_await SendAttr(ctx,character->char_id,id,obtain,chief))co_return;
+    } else if(party_authority::CurrentReplica(ctx,peer,main,character,key))
+        co_await senders::SendMwPartyAttrReq(peer,character->char_id,key,id,obtain,chief,0);
+}
+
 void InvalidatePartyInvitations(const HandlerContext& ctx,const std::shared_ptr<TChar>& character) {
     if(!ctx.chars||!character)return;
     for(const auto id:ctx.chars->SnapshotIds())if(auto target=ctx.chars->Find(id)) {
@@ -831,8 +889,8 @@ OnPartyManstatAck(std::shared_ptr<PeerSession> peer,
 
     auto subject=ctx.chars->Find(member_id);
     if(!(co_await party_authority::Authorize(ctx,peer,subject)).valid)co_return;
-    std::uint16_t actual_id=0;bool refresh=false;
-    {std::lock_guard g(subject->lock);actual_id=subject->party_id;refresh=subject->party_refresh_needed;}
+    std::uint16_t actual_id=0;
+    {std::lock_guard g(subject->lock);actual_id=subject->party_id;}
     auto party=ctx.parties->Find(actual_id);
     std::uint8_t obtain=0;std::uint32_t chief=0;
     if(actual_id) {
@@ -841,14 +899,9 @@ OnPartyManstatAck(std::shared_ptr<PeerSession> peer,
         if(!party->IsMember(member_id)||(ctx.chat_repo&&party->corps_id!=0))co_return;
         obtain=party->obtain_type;chief=party->chief_char_id;
     }
-    // CS_CONREADY has no World ACK in the original protocol. Map's first
-    // post-ready MANSTAT uses actual bars, including a possibly stale/zero
-    // cached party id. Repair from the World registry only after SQL ready;
-    // no extra wire fields, invented membership or admission success.
     const auto effective_id=obtain==party::kObtainSolo?0:actual_id;
-    if(refresh||party_id!=effective_id) {
+    if(party_id!=effective_id) {
         if(!co_await SendAttr(ctx,member_id,actual_id,obtain,chief))co_return;
-        {std::lock_guard g(subject->lock);subject->party_refresh_needed=false;}
     }
     if(!party||party_id!=effective_id||!party_id)co_return;
     if(ctx.parties->Find(party_id)!=party)co_return;
@@ -898,6 +951,7 @@ OnChgPartyChiefAck(std::shared_ptr<PeerSession> peer,
                    const HandlerContext&        ctx)
 {
     const std::string& ip = peer->Wire()->RemoteIPv4();
+    auto operation=co_await ctx.party_operations->Acquire();
     if (!ctx.chars || !ctx.peers || !ctx.parties)
     {
         spdlog::warn("OnChgPartyChiefAck[{}]: registries not wired", ip);
@@ -906,7 +960,7 @@ OnChgPartyChiefAck(std::shared_ptr<PeerSession> peer,
 
     wire::Reader r(body.data(), body.size());
     std::uint32_t chief_id = 0, key = 0, target_id = 0;
-    if (!r.Read(chief_id) || !r.Read(key) || !r.Read(target_id))
+    if (!r.Read(chief_id) || !r.Read(key) || !r.Read(target_id)||!r.Eof())
     {
         spdlog::warn("OnChgPartyChiefAck[{}]: short body ({} bytes)", ip,
             body.size());
@@ -915,6 +969,8 @@ OnChgPartyChiefAck(std::shared_ptr<PeerSession> peer,
 
     auto chief = ctx.chars->Find(chief_id);
     if (!chief) co_return;
+    const auto identity=co_await party_authority::Authorize(ctx,peer,chief);
+    if(!identity.valid)co_return;
     std::uint32_t actual_key = 0, chief_party = 0;
     {
         std::lock_guard g(chief->lock);
@@ -924,6 +980,7 @@ OnChgPartyChiefAck(std::shared_ptr<PeerSession> peer,
     if (actual_key != key) co_return;
 
     auto reply = [&](std::uint8_t result) -> boost::asio::awaitable<void> {
+        if(!party_authority::Current(ctx,peer,chief,key))co_return;
         co_await senders::SendMwChgPartyChiefReq(peer, chief_id, key, result);
     };
 
@@ -944,17 +1001,6 @@ OnChgPartyChiefAck(std::shared_ptr<PeerSession> peer,
         co_await reply(party::kNoParty);
         co_return;
     }
-    if (chief_party != target_party)
-    {
-        co_await reply(party::kNoUser);
-        co_return;
-    }
-    if (chief_id == target_id)
-    {
-        co_await reply(party::kAlready);
-        co_return;
-    }
-
     auto party = ctx.parties->Find(static_cast<std::uint16_t>(chief_party));
     if (!party)
     {
@@ -972,12 +1018,17 @@ OnChgPartyChiefAck(std::shared_ptr<PeerSession> peer,
         co_await reply(party::kNotChief);
         co_return;
     }
+    // Source checks chief authority before different-party/self failures.
+    if(chief_party!=target_party){co_await reply(party::kNoUser);co_return;}
+    if(chief_id==target_id){co_await reply(party::kAlready);co_return;}
+    if(!co_await AuthorizePartyRoster(ctx,party,peer,chief))co_return;
 
     // Promote the target + snapshot the roster for the refresh.
     std::vector<std::uint32_t> members;
     std::uint8_t obtain = 0;
     {
         std::lock_guard pg(party->lock);
+        if(!party->IsChief(chief_id)||!party->IsMember(target_id))co_return;
         party->chief_char_id = target_id;
         members = party->members;
         obtain  = party->obtain_type;
@@ -999,6 +1050,7 @@ OnChgPartyTypeAck(std::shared_ptr<PeerSession> peer,
                   const HandlerContext&        ctx)
 {
     const std::string& ip = peer->Wire()->RemoteIPv4();
+    auto operation=co_await ctx.party_operations->Acquire();
     if (!ctx.chars || !ctx.peers || !ctx.parties)
     {
         spdlog::warn("OnChgPartyTypeAck[{}]: registries not wired", ip);
@@ -1008,7 +1060,7 @@ OnChgPartyTypeAck(std::shared_ptr<PeerSession> peer,
     wire::Reader r(body.data(), body.size());
     std::uint32_t char_id = 0, key = 0;
     std::uint8_t  party_type = 0;
-    if (!r.Read(char_id) || !r.Read(key) || !r.Read(party_type))
+    if (!r.Read(char_id) || !r.Read(key) || !r.Read(party_type)||!r.Eof()||party_type>party::kObtainOrder)
     {
         spdlog::warn("OnChgPartyTypeAck[{}]: short body ({} bytes)", ip,
             body.size());
@@ -1017,6 +1069,7 @@ OnChgPartyTypeAck(std::shared_ptr<PeerSession> peer,
 
     auto requester = ctx.chars->Find(char_id);
     if (!requester) co_return;
+    if(!(co_await party_authority::Authorize(ctx,peer,requester)).valid)co_return;
     std::uint32_t actual_key = 0, party_id32 = 0;
     {
         std::lock_guard g(requester->lock);
@@ -1040,10 +1093,12 @@ OnChgPartyTypeAck(std::shared_ptr<PeerSession> peer,
             party::kNotChief, party_type);
         co_return;
     }
+    if(!co_await AuthorizePartyRoster(ctx,party,peer,requester))co_return;
 
     std::vector<std::uint32_t> members;
     {
         std::lock_guard pg(party->lock);
+        if(!party->IsChief(char_id)||!party->IsMember(char_id))co_return;
         party->obtain_type = party_type;
         members = party->members;
     }
@@ -1059,7 +1114,8 @@ OnChgPartyTypeAck(std::shared_ptr<PeerSession> peer,
             mkey = c->key;
             mmsi = c->main_server_id;
         }
-        if (auto p = FindMapPeer(ctx, mmsi))
+        if (auto p = FindMapPeer(ctx, mmsi);party_authority::Current(ctx,p,c,mkey)&&
+            (co_await party_authority::Authorize(ctx,p,c)).valid)
             co_await senders::SendMwChgPartyTypeReq(p, mid, mkey,
                 /*result=*/0, party_type);
     }

@@ -161,6 +161,7 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
             if(sess->IsOpen()&&ctx.presence){ctx.presence->Bind(identity->char_id,identity->channel,sess);
                 ctx.presence->UpdatePosition(identity->char_id,s->wMapID,{s->fPosX,s->fPosY,s->fPosZ});}
         }
+        if(sess->IsOpen())co_await RefreshReadyParty(sess,ctx);
         co_return;
     }
     if (!body.empty() || !identity || identity->phase != SessionPhase::Admitted) {
@@ -221,10 +222,12 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
         ctx.presence->UpdatePosition(cid, snap->wMapID,
             Position{ snap->fPosX, snap->fPosY, snap->fPosZ });
 
-    if(identity->role==MapSessionRole::Primary&&snap->payload) {
-        co_await RefreshReadyParty(sess,ctx);
-        if(!sess->IsOpen())co_return;
-    }
+    // Admission's lease protects the SQL/local Ready boundary. Party recovery
+    // can now project immediately; entry AOI/quest sends must not hold it until
+    // the independent World projection deadline closes a legitimate actor.
+    admission_operation.reset();
+    co_await RefreshReadyParty(sess,ctx);
+    if(!sess->IsOpen())co_return;
 
     spdlog::info("CS_CONREADY_REQ char={} name='{}' map={} — connection ready "
                  "(source CHARINFO already sent on native primary)", cid, snap->szNAME, snap->wMapID);
@@ -253,9 +256,8 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
         {
             struct Nearby
             {
-                CharSnapshot                          snap;
+                SessionIdentity                       identity;
                 std::shared_ptr<tnetlib::AsioSession> sess;
-                bool primary{};
             };
             std::vector<Nearby> nearby;
             ctx.presence->ForEachInChannel(me->channel, cid,
@@ -263,31 +265,62 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
                     std::shared_ptr<tnetlib::AsioSession> osess)
                 {
                     const auto other=ctx.session_reg->Identity(osess.get());
-                    if (auto osnap = ctx.char_state->Get(e.char_id);osnap&&other)
-                        nearby.push_back({ std::move(*osnap), std::move(osess),other->role==MapSessionRole::Primary });
+                    if (ctx.char_state->Get(e.char_id)&&other)
+                        nearby.push_back({ *other, std::move(osess) });
                 });
 
             // Faction tint (legacy CanFight / TNCOLOR) is PvP gameplay —
             // default friendly until the combat layer lands.
             constexpr std::uint8_t kColorFriendly = 0;
-            const Position my_pos{ snap->fPosX, snap->fPosY, snap->fPosZ };
-            const auto my_enter = primary?
-                EncodeEnterAck(*snap, my_pos, kColorFriendly, /*new_member=*/1):std::vector<std::byte>{};
+            const auto current_ready=[&](const auto& session,const SessionIdentity& expected,bool main_only) {
+                const auto current=ctx.session_reg->Identity(session.get());
+                return session->IsOpen()&&current&&current->phase==SessionPhase::Ready&&
+                    current->char_id==expected.char_id&&current->key==expected.key&&current->connection_id==expected.connection_id&&
+                    current->authority_epoch==expected.authority_epoch&&current->role==expected.role&&
+                    (!main_only||current->role==MapSessionRole::Primary);
+            };
+            const auto actor_lease=[&](const std::shared_ptr<tnetlib::AsioSession>& actor,const SessionIdentity& expected)
+                ->boost::asio::awaitable<bool> {
+                boost::asio::steady_timer wait(co_await boost::asio::this_coro::executor);
+                const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(3);
+                while(current_ready(actor,expected,true)) {
+                    if(ctx.session_reg->BeginGameplay(actor.get())) {
+                        if(current_ready(actor,expected,true))co_return true;
+                        ctx.session_reg->EndOperation(actor.get());co_return false;
+                    }
+                    if(std::chrono::steady_clock::now()>=deadline) {
+                        spdlog::warn("Entry actor sampling lease timed out char={}",expected.char_id);co_return false;
+                    }
+                    wait.expires_after(std::chrono::milliseconds(5));co_await wait.async_wait(boost::asio::use_awaitable);
+                }
+                co_return false;
+            };
 
             for (auto& n : nearby)
             {
-                const Position their_pos{ n.snap.fPosX, n.snap.fPosY,
-                                          n.snap.fPosZ };
                 // Original TCell::EnterPlayer exposes only primary actors;
                 // a replica is an observer, not another full character graph.
-                if(n.primary) {
-                    const auto their = EncodeEnterAck(n.snap, their_pos, kColorFriendly,/*new_member=*/0);
-                    co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK), their);
+                if(current_ready(n.sess,n.identity,true)&&co_await actor_lease(n.sess,n.identity)) {
+                    // A short actor lease covers fresh metadata sampling and
+                    // this actual enqueue; an ATTR cannot be queued first and
+                    // then overwritten by a captured pre-Ready ENTER snapshot.
+                    SessionOperation actor_operation(*ctx.session_reg,n.sess.get());
+                    if(const auto live=ctx.char_state->Get(n.identity.char_id);live&&current_ready(sess,*identity,false)) {
+                        const Position their_pos{live->fPosX,live->fPosY,live->fPosZ};
+                        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK),
+                            EncodeEnterAck(*live,their_pos,kColorFriendly,/*new_member=*/0));
+                    }
                 }
-                if (primary&&n.sess)
-                    co_await n.sess->SendPacket(           // they see me arrive
-                        static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK),
-                        my_enter);
+                if(!current_ready(sess,*identity,false))co_return;
+                if(primary&&current_ready(sess,*identity,true)&&current_ready(n.sess,n.identity,false)&&
+                   co_await actor_lease(sess,*identity)) {
+                    SessionOperation actor_operation(*ctx.session_reg,sess.get());
+                    if(const auto live=ctx.char_state->Get(cid);live&&current_ready(n.sess,n.identity,false)) {
+                        const Position my_pos{live->fPosX,live->fPosY,live->fPosZ};
+                        co_await n.sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_ENTER_ACK),
+                            EncodeEnterAck(*live,my_pos,kColorFriendly,/*new_member=*/1));
+                    }
+                }
             }
 
             if (!nearby.empty())

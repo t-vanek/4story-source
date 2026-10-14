@@ -211,6 +211,7 @@ CS_* wire handlers ported           ██░░░░░░░░░░░░�
 | **Skill effects** (TSKILLDATA) | 🟡 | **SDT_CURE heal (SCT_HP/MP) works** — `skill_effect.h` ports `GetValue`/`Calculate`/`CalcValue` (all 4 calc modes incl. exponential via `f1stRateX`) + the 0–15 % cure roll, applied in the Defend path on PC targets. DOT/buff/status (SA_DOT/SA_BUFF, SDT_STATUS), mon/recall cures, `CS_DEFEND_ACK` relay pending |
 | Real player AP/WAP/DP from stats + gear | ❌ | combat uses client-sent powers vs monster DP; player defense = 0 placeholder |
 | Basic native party | 🟡 | Original ADD/JOIN/DEL requests and ADD/JOIN/DEL/ATTR/MANSTAT replies plus party chat wired through World; native primary/replica actor fences and source client bytes. Implemented, unverified; corps/loot/XP/arena/instance/equipment dependencies remain OPEN. See [Map evidence](../../_rewrite/docs/modernization/evidence/phase-a-native-party-20261014/map-party.md). |
+| Party metadata recovery and manual changes | 🟡 | Primary/replica recovery after real Ready repeats original entered identity ACK; source chief/type requests and replies are wired with native actor fences. No guessed replica stats or roster replay. Implemented, unverified; see [Map recovery evidence](../../_rewrite/docs/modernization/evidence/phase-a-party-recovery-20261014/map-recovery.md). |
 | BR-BoW queue | ❌ | `OnRegisterBow*` remain subsystem stubs. Native chat/TMS and Control have their separately documented scopes. |
 
 ## Wired handlers

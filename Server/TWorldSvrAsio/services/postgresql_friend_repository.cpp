@@ -124,6 +124,17 @@ bool PostgreSQLFriendRepository::AuthorizeCommunication(soci::session& sql,std::
         return sql.got_data()&&ready==1;
     } catch(const StaleActor&) {return false;}
 }
+bool PostgreSQLFriendRepository::AuthorizeReplicaParty(soci::session& sql,std::uint32_t character,FriendAuthority a) {
+    try {
+        if(a.key!=a.other_key||a.server==a.other_server)return false;
+        // Both process rows precede the account, as in mutual social reads.
+        // Only the primary owns the actor. The caller separately guards the
+        // exact ready replica under these already acquired process/account locks.
+        LockActors(sql,character,character,a,true);
+        GuardActor(sql,character,a);
+        return true;
+    } catch(const StaleActor&) {return false;}
+}
 FriendLoad PostgreSQLFriendRepository::LoadForChar(std::uint32_t character,FriendAuthority a) {
     std::lock_guard guard(m_mutex);if(m_failed)throw std::runtime_error("Native social persistence stopped");
     try {

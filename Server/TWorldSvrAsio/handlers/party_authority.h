@@ -28,6 +28,31 @@ inline bool ModesCompatible(std::uint8_t origin,std::uint8_t target) {
     // Direct NetCode.h source values: BOW30, BR50. Normal Maps may differ.
     return !((origin==30||target==30||origin==50||target==50)&&origin!=target);
 }
+inline bool CurrentReplica(const HandlerContext& ctx,const std::shared_ptr<PeerSession>& peer,
+    const std::shared_ptr<PeerSession>& main,const std::shared_ptr<TChar>& character,std::uint32_t key) {
+    if(!Current(ctx,main,character,key)||!peer||!ctx.peers||!ctx.peers->IsCurrentMap(peer)||
+       !peer->Wire()->IsOpen()||peer==main)return false;
+    const auto server=static_cast<std::uint8_t>(peer->Wid());
+    std::lock_guard g(character->lock);
+    return character->key==key&&!character->closing&&!character->logout&&!character->main_handoff&&
+        character->chg_main_id==0&&character->main_server_id==static_cast<std::uint8_t>(main->Wid())&&
+        std::any_of(character->cons.begin(),character->cons.end(),[server](const auto& c){
+            return c.server_id==server&&c.valid&&c.ready;});
+}
+inline boost::asio::awaitable<std::array<PartyIdentity,2>> AuthorizeReplica(const HandlerContext& ctx,
+    const std::shared_ptr<PeerSession>& peer,const std::shared_ptr<PeerSession>& main,
+    const std::shared_ptr<TChar>& character,std::uint32_t key) {
+    if(!ctx.chat_repo||!CurrentReplica(ctx,peer,main,character,key))co_return std::array<PartyIdentity,2>{};
+    std::string name;{std::lock_guard g(character->lock);name=character->name;}
+    const auto result=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+        [repo=ctx.chat_repo,id=character->char_id,key,source=static_cast<std::uint8_t>(main->Wid()),
+         target=static_cast<std::uint8_t>(peer->Wid())]
+        {return repo->AuthorizePartyReplica(id,{key,source,key,target});});
+    if(!CurrentReplica(ctx,peer,main,character,key)||!result[0].valid||!result[1].valid||
+       result[0].name!=name||result[1].name!=name||result[0].map_token!=main->NativeMapToken()||
+       result[1].map_token!=peer->NativeMapToken())co_return std::array<PartyIdentity,2>{};
+    co_return result;
+}
 inline boost::asio::awaitable<std::array<PartyIdentity,2>> AuthorizePair(const HandlerContext& ctx,
     const std::shared_ptr<PeerSession>& first_peer,const std::shared_ptr<TChar>& first,
     const std::shared_ptr<PeerSession>& second_peer,const std::shared_ptr<TChar>& second) {

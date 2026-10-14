@@ -821,6 +821,8 @@ DispatchWorld(std::uint16_t          wId,
     case MessageId::MW_PARTYDEL_REQ:
     case MessageId::MW_PARTYATTR_REQ:
     case MessageId::MW_PARTYMANSTAT_REQ:
+    case MessageId::MW_CHGPARTYCHIEF_REQ:
+    case MessageId::MW_CHGPARTYTYPE_REQ:
         co_await OnWorldParty(wId,std::move(body),ctx);break;
     case MessageId::MW_TMSRECV_REQ:
     case MessageId::MW_TMSINVITEASK_REQ:

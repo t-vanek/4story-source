@@ -7,6 +7,7 @@
 #include "services/player_service.h"
 #include "services/session_registry.h"
 #include "services/world_client.h"
+#include "services/world_senders.h"
 #include "services/party_runtime.h"
 #include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
@@ -130,6 +131,30 @@ boost::asio::awaitable<void> OnPartyDelReq(std::shared_ptr<tnetlib::AsioSession>
     co_await Relay(client,MessageId::MW_PARTYDEL_ACK,std::move(request),ctx);
 }
 
+boost::asio::awaitable<void> OnPartyChangeReq(std::shared_ptr<tnetlib::AsioSession> client,
+    std::uint16_t opcode,std::vector<std::byte> body,const HandlerContext& ctx) {
+    const auto op=static_cast<MessageId>(opcode);
+    const bool change_chief=op==MessageId::CS_CHGPARTYCHIEF_REQ;
+    if(!change_chief&&op!=MessageId::CS_CHGPARTYTYPE_REQ)throw std::runtime_error("Unknown party change request");
+    const auto id=ctx.session_reg->Identity(client.get());
+    if(!id||id->role!=MapSessionRole::Primary||id->phase!=SessionPhase::Ready)co_return;
+    const auto s=ctx.char_state->Get(id->char_id);
+    if(!s||!s->cluster.hydrated||s->persistence_uncertain||!ctx.presence||!ctx.presence->FindEntry(id->char_id))co_return;
+    // Source CSHandler3377/3400: map/main gate for both; BR suppresses
+    // chief only. World owns actual membership/chief permission and errors.
+    if(change_chief&&ctx.mode==Mode::Br)co_return;
+    wire::Reader r(body);std::uint32_t target=0;std::uint8_t type=0;
+    if(change_chief) {
+        if(!r.Read(target)||!r.Eof())throw std::runtime_error("Invalid CHGPARTYCHIEF body");
+    }else {
+        if(!r.Read(type)||!r.Eof())throw std::runtime_error("Invalid CHGPARTYTYPE body");Obtain(type);
+    }
+    if(!co_await Authorize(client,*id,*s,ctx))co_return;
+    std::vector<std::byte> request;wire::WritePOD(request,id->char_id);wire::WritePOD(request,id->key);
+    if(change_chief)wire::WritePOD(request,target);else wire::WritePOD(request,type);
+    co_await Relay(client,change_chief?MessageId::MW_CHGPARTYCHIEF_ACK:MessageId::MW_CHGPARTYTYPE_ACK,std::move(request),ctx);
+}
+
 boost::asio::awaitable<void> OnWorldParty(std::uint16_t opcode,std::vector<std::byte> body,const HandlerContext& ctx) {
     wire::Reader r(body);std::uint32_t character=0,key=0;
     if(!r.Read(character)||!r.Read(key))throw std::runtime_error("Short World party prefix");
@@ -152,6 +177,10 @@ boost::asio::awaitable<void> OnWorldParty(std::uint16_t opcode,std::vector<std::
         if(!r.Read(member)||!r.Read(chief)||!r.Read(commander)||!r.Read(party)||!r.Read(reply)||!r.Eof()||reply>1||!member)throw std::runtime_error("Invalid World PARTYDEL");
     }else if(op==MessageId::MW_PARTYATTR_REQ) {
         if(!r.Read(party)||!r.Read(obtain)||!r.Read(chief)||!r.Read(commander)||!r.Eof())throw std::runtime_error("Invalid World PARTYATTR");Obtain(obtain);
+    }else if(op==MessageId::MW_CHGPARTYCHIEF_REQ) {
+        if(!r.Read(reply)||!r.Eof()||reply>11)throw std::runtime_error("Invalid World CHGPARTYCHIEF");
+    }else if(op==MessageId::MW_CHGPARTYTYPE_REQ) {
+        if(!r.Read(reply)||!r.Read(obtain)||!r.Eof()||reply>11)throw std::runtime_error("Invalid World CHGPARTYTYPE");Obtain(obtain);
     }else if(op==MessageId::MW_PARTYMANSTAT_REQ) {
         if(!r.Read(member)||!r.Read(type)||!r.Read(level)||!r.Read(max_hp)||!r.Read(hp)||!r.Read(max_mp)||!r.Read(mp)||!r.Eof()||!member)throw std::runtime_error("Invalid World PARTYMANSTAT");
     }else throw std::runtime_error("Unsupported World party opcode");
@@ -164,10 +193,23 @@ boost::asio::awaitable<void> OnWorldParty(std::uint16_t opcode,std::vector<std::
     if(!refreshed||!Same(*id,*refreshed)||!Current(client,*refreshed,ctx))co_return;
     id=refreshed;
     const auto s=ctx.char_state->Get(character);if(!s||!s->cluster.hydrated||s->persistence_uncertain)co_return;
+    if((op==MessageId::MW_CHGPARTYCHIEF_REQ||op==MessageId::MW_CHGPARTYTYPE_REQ)&&
+       (id->role!=MapSessionRole::Primary||id->phase!=SessionPhase::Ready))co_return;
     if(op==MessageId::MW_PARTYADD_REQ&&(id->role!=MapSessionRole::Primary||id->phase!=SessionPhase::Ready||!ctx.presence||!ctx.presence->FindEntry(character)))co_return;
     const bool unsupported_vitals=op==MessageId::MW_PARTYADD_REQ&&!reply&&(!s->payload||!s->payload->statistics);
     const auto authority=co_await Authorize(client,*id,*s,ctx,inviter,op==MessageId::MW_PARTYADD_REQ&&reply==0&&!unsupported_vitals);if(!authority)co_return;
-    if(op==MessageId::MW_PARTYADD_REQ) {
+    if(op==MessageId::MW_CHGPARTYCHIEF_REQ) {
+        // PARTY_CHGCHIEF10 is the original successful result. ATTR alone
+        // owns chief metadata, so forwarding does not invent a local change.
+        co_await Send(client,MessageId::CS_CHGPARTYCHIEF_ACK,std::vector<std::byte>{static_cast<std::byte>(reply)});
+    }else if(op==MessageId::MW_CHGPARTYTYPE_REQ) {
+        if(!reply)ctx.char_state->Update(character,[&](CharSnapshot& state){state.cluster.party_type=obtain;});
+        co_await Send(client,MessageId::CS_CHGPARTYTYPE_ACK,
+            std::vector<std::byte>{static_cast<std::byte>(reply),static_cast<std::byte>(obtain)});
+        // Source sends this only to party primaries and no extra ATTR.
+        // Client raw party id/chief/commander therefore retain their source
+        // values even when its loot-mode byte switches to SOLO1.
+    }else if(op==MessageId::MW_PARTYADD_REQ) {
         if(reply) {
             std::vector<std::byte> answer;wire::WriteString(answer,origin);wire::WriteString(answer,target);wire::WritePOD(answer,reply);
             co_await Send(client,MessageId::CS_PARTYADD_ACK,std::move(answer));co_return;
@@ -233,20 +275,17 @@ boost::asio::awaitable<void> PublishPartyVitals(const std::shared_ptr<tnetlib::A
     co_await Relay(client,MessageId::MW_PARTYMANSTAT_ACK,std::move(request),ctx);
 }
 boost::asio::awaitable<void> RefreshReadyParty(const std::shared_ptr<tnetlib::AsioSession>& client,const HandlerContext& ctx) {
+    if(!ctx.player_service||!ctx.player_service->HasNativePartyAuthority())co_return;
     const auto id=ctx.session_reg->Identity(client.get());
-    if(!id||id->role!=MapSessionRole::Primary||id->phase!=SessionPhase::Ready||!ctx.char_state)co_return;
+    if(!id||id->phase!=SessionPhase::Ready||!ctx.char_state)co_return;
     const auto before=ctx.char_state->Get(id->char_id);
-    if(!before||!before->cluster.hydrated||before->persistence_uncertain||!before->payload||!before->payload->statistics) {
-        spdlog::warn("Ready party refresh unavailable: native current statistics unsupported char={}",id->char_id);co_return;
+    if(!before||!before->cluster.hydrated||before->persistence_uncertain) {
+        client->Close();co_return;
     }
     if(!co_await Authorize(client,*id,*before,ctx)){client->Close();co_return;}
-    const auto current=ctx.char_state->Get(id->char_id);
-    if(!current||!current->cluster.hydrated||current->persistence_uncertain||!current->payload||!current->payload->statistics)co_return;
-    // No invented Ready ACK: this original status frame is sent only after
-    // MarkReady committed. World supplies the actual current PARTYATTR before
-    // interpreting the possibly stale cached/effective party id for stat fanout.
-    std::vector<std::byte> request;wire::WritePOD(request,Party(*current));wire::WritePOD(request,id->char_id);
-    wire::WritePOD(request,std::uint8_t{1});wire::WritePOD(request,current->bLevel);Vitals(request,*current);
-    co_await Relay(client,MessageId::MW_PARTYMANSTAT_ACK,std::move(request),ctx);
+    // No new opcode or invented fields. The native World completed-connection
+    // branch rechecks exact SQL ready actor/peer authority and refreshes ATTR;
+    // it does not replay connection verdicts or import unknown replica vitals.
+    co_await Relay(client,MessageId::MW_ENTERCHAR_ACK,EncodeEnterCharAck(id->char_id,id->key),ctx);
 }
 }

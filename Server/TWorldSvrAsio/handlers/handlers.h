@@ -1268,6 +1268,8 @@ boost::asio::awaitable<void> OnPartyDelAck(
     const HandlerContext&         ctx);
 void InvalidatePartyInvitations(const HandlerContext&,const std::shared_ptr<TChar>&);
 boost::asio::awaitable<void> RetirePartyForClose(const HandlerContext&,const std::shared_ptr<TChar>&);
+boost::asio::awaitable<void> RefreshReadyParty(const HandlerContext&,
+    const std::shared_ptr<PeerSession>&,const std::shared_ptr<TChar>&,std::uint32_t key);
 
 // --- W3b-4: party attribute changes (handlers_party.cpp) -----------
 //

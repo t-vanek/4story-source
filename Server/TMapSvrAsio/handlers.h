@@ -240,6 +240,8 @@ boost::asio::awaitable<void> OnPartyDelReq(
     std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte>                body,
     const HandlerContext&                 ctx);
+boost::asio::awaitable<void> OnPartyChangeReq(std::shared_ptr<tnetlib::AsioSession>,
+    std::uint16_t,std::vector<std::byte>,const HandlerContext&);
 
 boost::asio::awaitable<void> OnRegisterBowReq(
     std::shared_ptr<tnetlib::AsioSession> sess,

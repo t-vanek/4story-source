@@ -501,6 +501,11 @@ OnCheckMainAck(std::shared_ptr<PeerSession> peer, std::vector<std::byte> body,
     if(!ctx.chars||!ctx.peers||!r.Read(cid)||!r.Read(key)||!r.Eof()||!ctx.peers->IsCurrentMap(peer))co_return;
     auto ch=ctx.chars->Find(cid);
     if(!ch){co_await senders::SendMwDelCharReq(peer,cid,key,1,0);co_return;}
+    // The source batch does not begin a handoff halfway through a party
+    // decision/fan-out. Wait for that operation before changing main/phase,
+    // then release before PopConCess, whose cleanup may acquire this gate.
+    auto party_operation=co_await ctx.party_operations->Acquire();
+    if(!ctx.peers->IsCurrentMap(peer)||!peer->Wire()->IsOpen()||ctx.chars->Find(cid)!=ch)co_return;
     const auto sid=static_cast<std::uint8_t>(peer->Wid());
     std::uint8_t old{},channel{};std::uint16_t map{};float x{},y{},z{};
     std::shared_ptr<PeerSession> main;
@@ -523,7 +528,6 @@ OnCheckMainAck(std::shared_ptr<PeerSession> peer, std::vector<std::byte> body,
             for(const auto& c:ch->cons)if(c.valid)live.push_back(c.server_id);
             if(ch->main_handoff&&ch->main_handoff->deadline)ch->main_handoff->deadline->cancel();
             ch->main_handoff.reset();
-            ch->party_refresh_needed=true;
         } else {
             handoff=std::make_shared<MainHandoff>();
             handoff->source_id=old;handoff->target_id=sid;handoff->source=main;handoff->target=peer;
@@ -533,6 +537,7 @@ OnCheckMainAck(std::shared_ptr<PeerSession> peer, std::vector<std::byte> body,
             ch->saving=false;
         }
     }
+    party_operation.reset();
     if(handoff) {
         InvalidatePartyInvitations(ctx,ch);
         // Publish the expected source/target before suspending to send. An ACK
@@ -822,6 +827,20 @@ OnEnterCharAck(std::shared_ptr<PeerSession> peer,
 
     const std::uint8_t reporting_id =
         static_cast<std::uint8_t>(peer->Wid() & 0xFF);
+
+    bool ready_probe=false;
+    if(ctx.chat_repo) {
+        std::lock_guard g(ch->lock);
+        ready_probe=ch->key==key&&!ch->closing&&!ch->logout&&!ch->main_handoff&&ch->chg_main_id==0&&
+            std::any_of(ch->cons.begin(),ch->cons.end(),[reporting_id](const auto& c){
+                return c.server_id==reporting_id&&c.valid&&c.ready;});
+    }
+    if(ready_probe) {
+        // Native Map repeats the existing entered identity after actual client
+        // SQL/local Ready. It is a read-only party refresh, not another World
+        // readiness transition or a fabricated CONRESULT/registration ACK.
+        co_await RefreshReadyParty(ctx,peer,ch,key);co_return;
+    }
 
     bool key_ok = true;
     bool found_con = false;

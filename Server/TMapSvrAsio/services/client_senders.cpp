@@ -285,9 +285,12 @@ std::vector<std::byte> EncodeEnterAck(
     wire::WritePOD<std::uint32_t>(b, s.dwHP);
     wire::WritePOD<std::uint32_t>(b, s.dwMaxMP);
     wire::WritePOD<std::uint32_t>(b, s.dwMP);
-    wire::WritePOD<std::uint32_t>(b, s.cluster.party_chief);
-    wire::WritePOD<std::uint16_t>(b, s.cluster.party);
-    wire::WritePOD<std::uint16_t>(b, s.cluster.commander);
+    // Source CSSender453–455 uses GetPartyChiefID/GetPartyID/GetCommanderID.
+    // TYPE ACK preserves the client's raw fields, but later ENTER visibility
+    // must still honor the server's effective SOLO1 getters.
+    wire::WritePOD<std::uint32_t>(b, s.cluster.party_type==1?0:s.cluster.party_chief);
+    wire::WritePOD<std::uint16_t>(b, s.cluster.party_type==1?0:s.cluster.party);
+    wire::WritePOD<std::uint16_t>(b, s.cluster.party_type==1?0:s.cluster.commander);
 
     // --- live position + movement/action state -----------------------
     wire::WritePOD<float>        (b, pos.x);

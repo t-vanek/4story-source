@@ -11,7 +11,20 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-14), based on `2e406dc`, connects source
+Latest local Phase A work (2026-10-14), based on `622fb2e`, connects manual
+party chief/type changes and repairs post-ready attributes for both primary and
+replica. The existing ENTERCHAR identity is repeated only after SQL/local Ready;
+World verifies native primary/replica ownership and republishes actual ATTR,
+without importing unknown replica vitals or repeating connection verdicts.
+Handoff start waits for party decisions/fan-out; Map admission releases its lease
+at Ready before the independent recovery/AOI path. Source chief result10 and
+TYPE main-only result0/no-ATTR ordering are preserved. **INTEGRATED_UNVERIFIED**:
+static review only, no build/test/SQL/service/client/container run or new migration
+(next070). Full roster reconciliation, source admission/bootstrap and full
+party/gameplay dependencies remain OPEN. Local Git only; no push.
+[Source contracts, differences and deferred acceptance](evidence/phase-a-party-recovery-20261014/README.md).
+
+Previous code `622fb2e` (2026-10-14), based on `2e406dc`, connects source
 basic party ADD/JOIN/DEL, succession/dissolution/logout cleanup, primary/replica
 ATTR and native HPMP/level MANSTAT. Normal party chat uses the existing full-text
 pipeline and current World membership. Typed peer ownership, native SQL pair

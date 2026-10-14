@@ -37,6 +37,8 @@ public:
     virtual ~IPlayerService() = default;
     virtual void CheckControlOwner() {throw std::runtime_error("Native Control ownership unavailable");}
     virtual bool AuthorizeControlKick(const MapSessionClaim&,const std::string&) {throw std::runtime_error("Native Control kick authority unavailable");}
+    // Immutable adapter capability, never a fallback after failed native proof.
+    virtual bool HasNativePartyAuthority() const {return false;}
     virtual std::optional<PartyAuthority> AuthorizeParty(const MapSessionClaim&,const CharSnapshot&,
         std::uint32_t=0,bool=false) {throw std::runtime_error("Native party actor authority unavailable");}
     virtual std::optional<CommunicationAuthority> AuthorizeCommunication(const MapSessionClaim&,bool=false,std::uint32_t=0,std::uint8_t=0) {

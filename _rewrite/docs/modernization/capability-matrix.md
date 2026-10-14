@@ -2,7 +2,19 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Latest local Phase A work (2026-10-14), based on `c389976`, connects original
+Latest local Phase A work (2026-10-14), based on `0b97c18`, connects direct
+Control–Map administration through the original unencrypted16-byte CPacket.
+Configured/current Control transport reaches announcements, ready primary/replica
+character kicks, real four-DWORD service monitoring and historical active-user
+reset. PostgreSQL checks use live Map ownership/exact claims; ordinary save/release
+retains uncertain reservations. Periodic probes replace the missing producer and
+response echo loop; kick audit records requested intent. **INTEGRATED_UNVERIFIED**,
+source review only, no build/test/SQL/service/client/container run. No new migration;
+next070. Other modern8 service/operator framing, TLS, direct Map event replay,
+other admin operations and full gameplay/bootstrap remain OPEN. [Source proof,
+framing correction and subsequent acceptance](evidence/phase-a-control-map-20261014/README.md).
+
+Previous code `0b97c18`, based on `c389976`, connects original
 Map fallback/local chat, TMS, native bans and operator authority, targeted admin
 notices and event text into the existing Map/World dispatchers and PostgreSQL
 claim fences. Written069 adds exact operator publication and durable raw-name ban

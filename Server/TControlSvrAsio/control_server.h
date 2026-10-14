@@ -101,7 +101,7 @@ public:
     const OperatorRegistry& Operators() const { return m_operators; }
 
     // 1Hz peer keep-alive watchdog (legacy TimerThread). Walks the
-    // PeerRegistry, marks peers offline if last_recv_tick is older
+    // PeerRegistry, sends source ACK(tick) probes and marks peers offline if last_recv_tick is older
     // than `offline_after`, and broadcasts an empty SERVICEDATA_ACK
     // to operators on the transition. Public so main can spawn it.
     boost::asio::awaitable<void> PeerKeepaliveLoop(

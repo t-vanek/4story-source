@@ -34,6 +34,8 @@ class IPlayerService
 {
 public:
     virtual ~IPlayerService() = default;
+    virtual void CheckControlOwner() {throw std::runtime_error("Native Control ownership unavailable");}
+    virtual bool AuthorizeControlKick(const MapSessionClaim&,const std::string&) {throw std::runtime_error("Native Control kick authority unavailable");}
     virtual std::optional<CommunicationAuthority> AuthorizeCommunication(const MapSessionClaim&,bool=false,std::uint32_t=0,std::uint8_t=0) {
         throw std::runtime_error("Native communication authority unavailable");
     }

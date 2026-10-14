@@ -117,6 +117,9 @@ OnConnectReq(std::shared_ptr<tnetlib::AsioSession> sess,
         ctx.audit->Emit(ev);
     }
     if (result == ConnectResult::Ok) {
+        // Source m_mapPLAYER and historical unique accounts begin at accepted
+        // CS identity, before World loading. TryBind alone precedes PG claim.
+        if(!ctx.session_reg->MarkAccepted(sess.get())){sess->Close();co_return;}
         // Only an attempted World announcement may later request World close.
         // Set before suspension: a reply/close can arrive while the write waits.
         if (!ctx.session_reg->SetWorldPresence(sess.get(), WorldPresence::Announced)) {

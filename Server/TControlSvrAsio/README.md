@@ -16,6 +16,15 @@ This README only covers what F1 ships and how to bring it up.
 
 ## Current Phase A — native PostgreSQL, unverified
 
+Latest local continuation based on `0b97c18` implements the original Plain16
+Control–Map transport and five bounded Map operations: announcement, ready-player
+kick, monitor reply, active-user reset and empty handshake. Control now sends
+periodic monitor probes without a reply echo loop, checks exact current service
+identity and records kick intent rather than target success. No build/test/SQL/
+runtime ran. The retained modern SS8/operator profiles are not proof of original
+framing; other source16 links, Map TLS/direct event replay and full admin/gameplay
+dependencies remain OPEN. [Source evidence and deferred acceptance](../../_rewrite/docs/modernization/evidence/phase-a-control-map-20261014/README.md).
+
 The production binary requires a database. New migrations049/050, following
 Patch migration048, add native topology, operator credentials, event metadata,
 ban metadata and peer state. The offline tool

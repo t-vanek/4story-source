@@ -89,6 +89,15 @@ port = 8917
 # load-balancer health checks.
 port = 8916
 
+[security]
+# Source plaintext16 Control role is selected by a private, isolated transport
+# address before game-client crypto/admission. Empty denies the Control role.
+# Requires native PostgreSQL ownership. The first frame is empty CTRLSVR;
+# it supplies no cryptographic identity proof. Control-to-Map TLS remains open.
+control_ip_allowlist = []
+# Enabling this currently fails startup; no plaintext fallback is allowed.
+peer_tls_enabled = false
+
 [log]
 # spdlog level. One of: trace | debug | info | warn | error | critical | off
 level = "info"

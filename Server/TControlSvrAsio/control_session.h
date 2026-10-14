@@ -2,10 +2,11 @@
 
 // ControlSession — TCP framing primitive shared by OperatorSession
 // (inbound from GM operators / TController.exe) and PeerSession
-// (outbound to LoginSvr/MapSvr/...). Legacy wire format is the same
-// 8-byte CPacket header as Patch (WORD wSize | WORD wID | DWORD
-// dwChkSum), no RC4 — TControlSvr is on the operator LAN, not the
-// public internet.
+// (outbound to peer services). Existing modern endpoints use the eight-byte
+// SS profile. The original unencrypted CPacket is sixteen bytes, with zero
+// sequence/checksum fields; Map peers select that source profile explicitly.
+// Neither profile adds client RC4. Other source peer/operator framing ports
+// remain separate implementation work.
 //
 // The session is intentionally protocol-only: handlers are wired by
 // the caller through Run()'s callback. State that's specific to a
@@ -40,10 +41,18 @@ struct PacketHeader
 #pragma pack(pop)
 static_assert(sizeof(PacketHeader) == kPacketHeaderSize,
               "PacketHeader must be 8 bytes");
+enum class WireProfile { ModernSs8, SourcePlain16 };
+#pragma pack(push, 1)
+struct SourcePacketHeader {
+    std::uint16_t wSize, wID;
+    std::uint32_t number;
+    std::int64_t checksum;
+};
+#pragma pack(pop)
+static_assert(sizeof(SourcePacketHeader)==16);
 
-// Body checksum identical to TPatchSvrAsio (running 32-bit XOR fold).
-// Matches the legacy CPacket::Encrypt branch with crypto disabled —
-// see Lib/Own/TNetLib/TNetLib/Packet.cpp.
+// Retained modern SS8 body checksum, identical to TPatchSvrAsio's XOR fold.
+// Original !UseCrypt packets keep checksum zero and do not use this function.
 std::uint32_t ComputeChecksum(const std::byte* body, std::size_t len);
 
 struct DecodedPacket
@@ -62,13 +71,13 @@ public:
     using TlsStream   = boost::asio::ssl::stream<PlainSocket>;
 
     // Plain-TCP ctor — legacy operator and pre-Phase-A peer paths.
-    explicit ControlSession(PlainSocket sock);
+    explicit ControlSession(PlainSocket sock,WireProfile profile=WireProfile::ModernSs8);
 
     // TLS ctor — caller already wrapped the accepted socket in an
     // ssl::stream and (typically) co_awaited async_handshake(server)
     // before constructing the session. Inbound bytes from here on
     // arrive plaintext on this side, ciphertext on the wire.
-    explicit ControlSession(TlsStream stream);
+    explicit ControlSession(TlsStream stream,WireProfile profile=WireProfile::ModernSs8);
 
     // Read loop. Returns when peer closes or framing breaks.
     boost::asio::awaitable<void> Run(PacketHandler on_packet);
@@ -83,6 +92,7 @@ public:
 
     void Close();
     bool IsOpen() const;
+    WireProfile Profile() const {return m_profile;}
 
     const std::string& RemoteIPv4() const { return m_remote_ipv4; }
 
@@ -134,6 +144,7 @@ private:
 
     using SocketVariant = std::variant<PlainSocket, TlsStream>;
     SocketVariant                         m_socket;
+    const WireProfile                     m_profile;
     std::string                           m_remote_ipv4;
     std::string                           m_peer_cn;
     std::vector<std::string>              m_peer_sans;

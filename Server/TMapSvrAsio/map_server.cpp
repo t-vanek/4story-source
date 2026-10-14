@@ -26,6 +26,7 @@
 #include <chrono>
 #include <cstdint>
 #include <exception>
+#include <stdexcept>
 #include <utility>
 
 namespace tmapsvr {
@@ -36,6 +37,10 @@ MapServer::MapServer(boost::asio::io_context& io, MapServerConfig config)
     , m_port(config.port)
     , m_cfg(std::move(config))
 {
+    if(m_control_allowlist.AddAll(m_cfg.control_ip_allowlist)!=m_cfg.control_ip_allowlist.size())
+        throw std::runtime_error("Invalid Map Control allowlist");
+    if(!m_control_allowlist.Empty()&&!m_cfg.check_control_owner)
+        throw std::runtime_error("Configured Map Control requires native process ownership");
     using boost::asio::ip::tcp;
     tcp::endpoint ep(tcp::v4(), m_port);
     m_acceptor.open(ep.protocol());
@@ -56,6 +61,21 @@ MapServer::Run()
         tcp::socket sock = co_await m_acceptor.async_accept(
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec) break;
+
+        // Original Map Accept selects SESSION_SERVER by configured Control
+        // address before client crypt/admission. Control stays a separate raw
+        // Plain16 socket, including while the World link is unavailable.
+        const auto remote=sock.remote_endpoint(ec);
+        if(!ec&&remote.address().is_v4()&&m_control_allowlist.Allows(remote.address().to_v4().to_string())) {
+            if(m_control&&m_control->IsOpen()) {boost::system::error_code ignored;sock.close(ignored);continue;}
+            auto control=std::make_shared<ControlSession>(std::move(sock));m_control=control;
+            m_control_operations.fetch_add(1);
+            boost::asio::co_spawn(m_io,HandleControl(control),[this,control](std::exception_ptr error) {
+                if(error)spdlog::warn("Map Control handler failed; connection closed without retry");
+                control->Close();if(m_control==control)m_control.reset();m_control_operations.fetch_sub(1);
+            });
+            continue;
+        }
 
         if (m_cfg.require_registered_world &&
             (!m_cfg.handlers.world_client || !m_cfg.handlers.world_client->IsRegistered())) {
@@ -120,6 +140,7 @@ void MapServer::StopAccepting()
 {
     boost::system::error_code ignored;
     m_acceptor.close(ignored);
+    if(m_control)m_control->Close();
 }
 
 void MapServer::Register(std::shared_ptr<tnetlib::AsioSession> session)
@@ -127,9 +148,9 @@ void MapServer::Register(std::shared_ptr<tnetlib::AsioSession> session)
     std::lock_guard<std::mutex> lk(m_sessions_mtx);
     m_sessions.erase(
         std::remove_if(m_sessions.begin(), m_sessions.end(),
-            [](const std::weak_ptr<tnetlib::AsioSession>& w) { return w.expired(); }),
+            [](const ClientTransport& row) { return row.session.expired(); }),
         m_sessions.end());
-    m_sessions.emplace_back(std::move(session));
+    m_sessions.push_back({std::move(session),static_cast<std::uint32_t>(SkillClockMs()),0});
 }
 
 void MapServer::Unregister(tnetlib::AsioSession* raw)
@@ -137,9 +158,9 @@ void MapServer::Unregister(tnetlib::AsioSession* raw)
     std::lock_guard<std::mutex> lk(m_sessions_mtx);
     m_sessions.erase(
         std::remove_if(m_sessions.begin(), m_sessions.end(),
-            [raw](const std::weak_ptr<tnetlib::AsioSession>& w)
+            [raw](const ClientTransport& row)
             {
-                auto sp = w.lock();
+                auto sp = row.session.lock();
                 return !sp || sp.get() == raw;
             }),
         m_sessions.end());
@@ -153,9 +174,9 @@ MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> session)
         watchdog->expires_after(std::chrono::seconds(m_cfg.pre_auth_timeout_seconds));
         watchdog->async_wait([session, watchdog, reg = m_cfg.handlers.session_reg](auto ec) {
             if (ec || !session->IsOpen()) return;
-            const auto id = reg ? reg->Identity(session.get()) : std::nullopt;
-            if (!id || (id->phase != SessionPhase::Admitted && id->phase != SessionPhase::Ready))
-                session->Close();
+            // Source clears m_dwAcceptTick at accepted CS identity, before
+            // World load/CONREADY. A slow legitimate load is not pre-auth.
+            if(!reg||!reg->Accepted(session.get()))session->Close();
         });
     }
     try {
@@ -169,6 +190,9 @@ MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> session)
         session->Close();
     }
     watchdog->cancel();
+    {std::lock_guard lock(m_sessions_mtx);
+     for(auto& row:m_sessions)if(auto current=row.session.lock();current.get()==session.get())
+         if(!row.closing_at)row.closing_at=static_cast<std::uint32_t>(SkillClockMs());}
 
     const auto& ctx = m_cfg.handlers;
     std::optional<SessionIdentity> identity;
@@ -248,7 +272,55 @@ void MapServer::CloseSessions()
 {
     std::lock_guard lock(m_sessions_mtx);
     for (const auto& weak : m_sessions)
-        if (auto session = weak.lock()) session->Close();
+        if (auto session = weak.session.lock()) session->Close();
+}
+
+bool MapServer::IsCurrentControl(const std::shared_ptr<ControlSession>& peer) const {
+    return m_acceptor.is_open()&&peer&&peer==m_control&&peer->IsOpen()&&m_control_allowlist.Allows(peer->RemoteIPv4());
+}
+boost::asio::awaitable<bool> MapServer::CheckControl(const std::shared_ptr<ControlSession>& peer) {
+    if(!IsCurrentControl(peer)||!m_cfg.check_control_owner) {if(peer)peer->Close();co_return false;}
+    if(!co_await m_cfg.check_control_owner()){peer->Close();co_return false;}
+    co_return IsCurrentControl(peer);
+}
+boost::asio::awaitable<void> MapServer::HandleControl(std::shared_ptr<ControlSession> peer) {
+    auto handshake=std::make_shared<boost::asio::steady_timer>(m_io);handshake->expires_after(std::chrono::seconds(5));
+    handshake->async_wait([peer,handshake](auto ec){if(!ec)peer->Close();});
+    bool first=true;
+    std::exception_ptr failure;
+    try {
+        co_await peer->Run([this,peer,handshake,&first](std::uint16_t id,std::vector<std::byte> body)->boost::asio::awaitable<void> {
+            using tnetlib::protocol::MessageId;
+            if(first&&(id!=static_cast<std::uint16_t>(MessageId::CT_CTRLSVR_REQ)||!body.empty())) {peer->Close();co_return;}
+            if(!co_await CheckControl(peer))co_return;
+            if(first){first=false;handshake->cancel();} // source empty handshake is a no-op; no ACK
+            co_await OnControlPacket(peer,id,std::move(body),m_cfg.handlers,*this);
+        });
+    }catch(...){failure=std::current_exception();}
+    handshake->cancel();
+    if(failure) {
+        // A target read may discover lost ownership after the initial command
+        // check. Reconfirm via the pooled fail-stop callback, even though Run
+        // has already closed this peer; never share the owner's SOCI session.
+        if(m_cfg.check_control_owner)co_await m_cfg.check_control_owner();
+        peer->Close();std::rethrow_exception(failure);
+    }
+}
+void MapServer::SweepControlClients() {
+    const auto now=static_cast<std::uint32_t>(SkillClockMs());
+    if(!m_last_control_sweep){m_last_control_sweep=now;return;}
+    if(static_cast<std::uint32_t>(now-*m_last_control_sweep)<=5000)return;
+    m_last_control_sweep=now;
+    std::lock_guard lock(m_sessions_mtx);
+    for(auto& row:m_sessions)if(auto session=row.session.lock()) {
+        const bool accepted=m_cfg.handlers.session_reg&&m_cfg.handlers.session_reg->Accepted(session.get());
+        if(!accepted&&row.accepted_at&&static_cast<std::uint32_t>(now-row.accepted_at)>10000)session->Close();
+        if(row.closing_at&&static_cast<std::uint32_t>(now-row.closing_at)>10000) {
+            // Repeated close is safe. The normal coroutine still owns its
+            // asynchronous save/release; never force-delete a pending claim.
+            session->Close();row.closing_at=now;
+        }
+    }
 }
 
 } // namespace tmapsvr

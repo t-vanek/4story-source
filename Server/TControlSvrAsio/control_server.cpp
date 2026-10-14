@@ -237,6 +237,17 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
 {
     if (!m_cfg.peers)
         co_return;
+    auto owner_current=[this]() -> boost::asio::awaitable<bool> {
+        try {if(m_cfg.check_owner)co_await m_cfg.check_owner();}
+        catch(...) {
+            spdlog::error("Control monitor ownership failed; stopping without replay");
+            boost::system::error_code ignored;m_acceptor.close(ignored);
+            const auto services=m_cfg.peers->Services();
+            for(const auto& svc:services)if(auto peer=m_cfg.peers->Connection(svc.service_id);peer&&peer->Wire())peer->Wire()->Close();
+            m_io.stop();co_return false;
+        }
+        co_return m_acceptor.is_open();
+    };
     boost::asio::steady_timer timer(m_io);
     while (m_acceptor.is_open())
     {
@@ -245,6 +256,8 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
         co_await timer.async_wait(
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec || !m_acceptor.is_open()) break;
+
+        if(!co_await owner_current())co_return;
 
         // For each registered service, if there's a live connection
         // and we haven't heard from it in offline_after, mark it
@@ -261,7 +274,8 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
             auto* st   = m_cfg.peers->Status(svc.service_id);
             auto  conn = m_cfg.peers->Connection(svc.service_id);
             if (!st) continue;
-            const bool has_conn = conn && conn->Wire() && conn->Wire()->IsOpen();
+            const bool has_conn = m_cfg.peers->IsCurrentConnection(conn);
+            if(conn&&conn->Wire()&&conn->Wire()->IsOpen()&&!has_conn)conn->Wire()->Close();
             if (!has_conn)
             {
                 const auto status=*st;
@@ -298,7 +312,16 @@ ControlServer::PeerKeepaliveLoop(std::chrono::milliseconds offline_after,
                 // Legacy: fire SMS alert on the 60s-timeout branch.
                 if (m_cfg.alerter)
                     m_cfg.alerter->Notify(svc.type_id, svc.service_id, 3);
+                continue;
             }
+            // Source CT_TIMER_REQ sends one ACK(tick) every CTRL_TIMER=1000ms.
+            // The peer responds with REQ(tick,sessions,players,active users).
+            // Keep the same socket across ownership checks and queued writes.
+            if(!co_await owner_current())co_return;
+            if(!m_cfg.peers->IsCurrentConnection(conn))continue;
+            const auto current_tick=static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count());
+            co_await senders::SendServiceMonitorAck(conn->Wire(),current_tick);
         }
     }
 }

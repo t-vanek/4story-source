@@ -28,6 +28,7 @@ enum class AdminOutcome
     Success,
     Failed,        // forwarded to a peer that's offline / no longer registered
     Denied,        // CheckAuthority gate rejected
+    Requested,     // intent/dispatch only; source kick has no target application ACK
 };
 
 class IAdminAuditLogger

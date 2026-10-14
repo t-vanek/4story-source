@@ -13,6 +13,7 @@ const char* OutcomeStr(AdminOutcome o)
     case AdminOutcome::Success: return "Success";
     case AdminOutcome::Failed:  return "Failed";
     case AdminOutcome::Denied:  return "Denied";
+    case AdminOutcome::Requested: return "Requested";
     }
     return "Unknown";
 }

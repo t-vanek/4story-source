@@ -250,6 +250,18 @@ OnNewConnectReq(std::shared_ptr<OperatorSession> op,
 
     // Topology reload may replace its backing vector while Dial is suspended.
     const auto service=*svc;
+    if(ctx.events&&service.type_id==svr_type::kMapSvr) {
+        // Original Control can replay direct CT events to Map, but the source
+        // Map receiver registers only the separate World MW event route.
+        // This unresolved producer/consumer conflict cannot become a no-op or
+        // a published successful connection with partially applied events.
+        for(const auto& event:ctx.events->Snapshot())if(event.state&&event.server_type==service.type_id&&
+            (!event.group_id||event.group_id==service.group_id)&&(!event.server_id||event.server_id==service.server_id)) {
+            spdlog::warn("Map Control connection blocked: direct event replay contract unresolved svc={}",service_id);
+            if(ctx.audit)ctx.audit->LogAdminAction(op->UserId(),"map_control_event_replay_blocked",std::to_string(service_id));
+            co_return;
+        }
+    }
     auto result = co_await ctx.dialer->Dial(service,false);
     if (!result.session)
     {
@@ -359,7 +371,7 @@ OnServiceMonitorReq(std::shared_ptr<PeerSession> peer,
                     std::vector<std::byte> body,
                     const HandlerContext& ctx)
 {
-    if (!peer || !ctx.peers||ctx.peers->Connection(peer->ServiceId())!=peer) co_return;
+    if (!ctx.peers||!ctx.peers->IsCurrentConnection(peer)) co_return;
     wire::Reader r(body);
     std::uint32_t tick = 0, sessions = 0, users = 0, active_users = 0;
     if (!r.Read(tick) || !r.Read(sessions) ||
@@ -370,10 +382,9 @@ OnServiceMonitorReq(std::shared_ptr<PeerSession> peer,
     }
 
     const auto svc_id = peer->ServiceId();
-    // Echo the tick back so the peer can RTT-measure (legacy
-    // CTServer::SendCT_SERVICEMONITOR_ACK).
-    co_await senders::SendServiceMonitorAck(peer->Wire(), tick);
-    if(!peer->Wire()->IsOpen()||ctx.peers->Connection(svc_id)!=peer)co_return;
+    // This is the response to Control's periodic ACK(tick). Source consumes
+    // four DWORDs without another echo; echoing here creates a busy loop.
+    if(!ctx.peers->IsCurrentConnection(peer))co_return;
     auto* st=ctx.peers->Status(svc_id);
     if(!st)co_return;
 
@@ -385,7 +396,7 @@ OnServiceMonitorReq(std::shared_ptr<PeerSession> peer,
     st->status         = ServiceStatus::Running;
     st->cur_users      = users;
     st->last_recv_tick = now_ms;
-    if (users > st->max_users)
+    if (users >= st->max_users)
     {
         st->max_users      = users;
         st->peak_time_unix = std::chrono::duration_cast<std::chrono::seconds>(
@@ -421,7 +432,7 @@ RunPeerLoop(std::shared_ptr<PeerSession> peer, HandlerContext ctx)
                     DecodedPacket pkt) -> boost::asio::awaitable<void>
         {
             if(ctx.check_owner)co_await ctx.check_owner();
-            if(!ctx.peers||ctx.peers->Connection(peer->ServiceId())!=peer) {
+            if(!ctx.peers||!ctx.peers->IsCurrentConnection(peer)) {
                 peer->Wire()->Close();co_return;
             }
             const auto id = ToMessageId(pkt.wId);

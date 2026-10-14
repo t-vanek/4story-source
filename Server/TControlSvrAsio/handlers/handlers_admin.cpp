@@ -95,7 +95,7 @@ OnAnnouncementReq(std::shared_ptr<OperatorSession> op,
     wire::Reader r(body);
     std::uint32_t world_filter = 0;
     std::string   message;
-    if (!r.Read(world_filter) || !r.ReadString(message))
+    if (!r.Read(world_filter) || !r.ReadString(message)||!r.Eof()||message.find('\0')!=std::string::npos)
     {
         spdlog::warn("CT_ANNOUNCEMENT_REQ malformed body");
         co_return;
@@ -110,13 +110,17 @@ OnAnnouncementReq(std::shared_ptr<OperatorSession> op,
     // every Map peer in that group. world_filter == 0 means "every
     // world".
     std::vector<std::uint8_t> needs_map_fallback;
-    for (const auto& svc : ctx.peers->Services())
+    const auto services=ctx.peers->Services();
+    for (const auto& svc : services)
     {
         if (svc.type_id != svr_type::kRlySvr) continue;
         if (world_filter != 0 && world_filter != svc.group_id) continue;
         auto conn = ctx.peers->Connection(svc.service_id);
         if (conn && conn->Wire() && conn->Wire()->IsOpen())
         {
+            if(ctx.check_owner)co_await ctx.check_owner();
+            if(!op->LoggedIn()||!op->Wire()->IsOpen())co_return;
+            if(!ctx.peers->IsCurrentConnection(conn))continue;
             co_await senders::SendAnnouncementAck(conn->Wire(), message);
             // For a specific world filter the legacy code stops after
             // the first relay match. Mirror that to avoid double-send.
@@ -130,8 +134,12 @@ OnAnnouncementReq(std::shared_ptr<OperatorSession> op,
     }
     for (auto gid : needs_map_fallback)
     {
-        for (const auto& map_peer : PeersByType(ctx, gid, svr_type::kMapSvr))
+        for (const auto& map_peer : PeersByType(ctx, gid, svr_type::kMapSvr)) {
+            if(ctx.check_owner)co_await ctx.check_owner();
+            if(!op->LoggedIn()||!op->Wire()->IsOpen())co_return;
+            if(!ctx.peers->IsCurrentConnection(map_peer))continue;
             co_await senders::SendAnnouncementAck(map_peer->Wire(), message);
+        }
     }
 }
 
@@ -145,16 +153,20 @@ OnUserKickoutReq(std::shared_ptr<OperatorSession> op,
 
     wire::Reader r(body);
     std::string user;
-    if (!r.ReadString(user))
+    if (!r.ReadString(user)||!r.Eof()||user.find('\0')!=std::string::npos)
     {
         spdlog::warn("CT_USERKICKOUT_REQ malformed body");
         co_return;
     }
     if (ctx.audit)
-        ctx.audit->LogKick(op->UserId(), user, AdminOutcome::Success);
+        ctx.audit->LogKick(op->UserId(), user, AdminOutcome::Requested);
 
-    for (const auto& peer : PeersByTypeAll(ctx, svr_type::kMapSvr))
+    for (const auto& peer : PeersByTypeAll(ctx, svr_type::kMapSvr)) {
+        if(ctx.check_owner)co_await ctx.check_owner();
+        if(!op->LoggedIn()||!op->Wire()->IsOpen())co_return;
+        if(!ctx.peers||!ctx.peers->IsCurrentConnection(peer))continue;
         co_await senders::SendUserKickoutAck(peer->Wire(), user);
+    }
 }
 
 boost::asio::awaitable<void>

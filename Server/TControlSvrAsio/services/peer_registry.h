@@ -88,6 +88,9 @@ public:
     // Active outbound connection to the peer. nullptr until
     // CT_NEWCONNECT_REQ + dial succeeds; cleared on disconnect.
     std::shared_ptr<PeerSession> Connection(std::uint32_t service_id) const;
+    // Exact socket and service identity; topology replacement may retain a
+    // service ID while changing its target machine/port.
+    bool IsCurrentConnection(const std::shared_ptr<PeerSession>& peer) const;
     void                          SetConnection(std::uint32_t service_id,
                                                 std::shared_ptr<PeerSession> conn);
     void                          ClearConnection(std::uint32_t service_id);

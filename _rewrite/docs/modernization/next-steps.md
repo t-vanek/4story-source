@@ -11,7 +11,19 @@ clients, containers, tests and runtime verification deferred. This increment
 uses static inspection only; it also leaves builds for the next phase.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-14), based on `c389976`, connects original
+Latest local Phase A work (2026-10-14), based on `0b97c18`, connects direct
+Control–Map administration through the original unencrypted16-byte CPacket.
+Configured/current Control transport reaches announcements, ready primary/replica
+character kicks, real four-DWORD service monitoring and historical active-user
+reset. PostgreSQL checks use live Map ownership/exact claims; ordinary save/release
+retains uncertain reservations. Periodic probes replace the missing producer and
+response echo loop; kick audit records requested intent. **INTEGRATED_UNVERIFIED**,
+source review only, no build/test/SQL/service/client/container run. No new migration;
+next070. Other modern8 service/operator framing, TLS, direct Map event replay,
+other admin operations and full gameplay/bootstrap remain OPEN. [Source proof,
+framing correction and subsequent acceptance](evidence/phase-a-control-map-20261014/README.md).
+
+Previous code `0b97c18`, based on `c389976`, connects original
 Map fallback/local chat, TMS, native bans and operator authority, targeted admin
 notices and event text into the existing Map/World dispatchers and PostgreSQL
 claim fences. Written069 adds exact operator publication and durable raw-name ban
@@ -77,6 +89,14 @@ Phase A, PostgreSQL-only World bootstrap and original-client acceptance remain
 incomplete. [Contracts, differences and compilation evidence](evidence/phase-a-quest-mail-offline-bills-20261013/README.md).
 
 Active next source paths after this increment:
+
+Continue source16 framing for remaining Control/operator/service peers and native
+Map–World links. Preserve actual CS16 client crypto; retained modern8 fixtures do
+not establish original framing parity. Direct Map event/cash producer/consumer
+conflict, other Control commands/TLS, admin-shell queued ownership and source
+combat/logout/transfer kick behavior remain required. The bounded five-operation
+Control–Map path is integrated, unverified; no permission wait or Phase B startup
+replaces those remaining implementation tasks.
 
 1. Complete native Map guild/party/corps/tactics membership producers and source
    chat targets;BR team whisper/party and BOW peace authority;source Relay path

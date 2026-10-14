@@ -96,6 +96,14 @@ void PeerRegistry::ClearConnection(std::uint32_t service_id)
     m_conn.erase(service_id);
 }
 
+bool PeerRegistry::IsCurrentConnection(const std::shared_ptr<PeerSession>& peer) const {
+    if(!peer||Connection(peer->ServiceId())!=peer||!peer->Wire()||!peer->Wire()->IsOpen())return false;
+    const auto* current=FindService(peer->ServiceId());if(!current)return false;
+    const auto& identity=peer->Service();
+    return current->group_id==identity.group_id&&current->type_id==identity.type_id&&
+        current->server_id==identity.server_id&&current->machine_id==identity.machine_id&&current->port==identity.port;
+}
+
 bool PeerRegistry::ClearConnection(std::uint32_t service_id,const std::shared_ptr<PeerSession>& expected)
 {
     const auto it=m_conn.find(service_id);

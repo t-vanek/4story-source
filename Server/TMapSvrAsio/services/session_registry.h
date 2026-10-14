@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include "domain/session.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace tmapsvr {
@@ -28,6 +29,7 @@ struct SessionIdentity {
     std::uint64_t authority_epoch{};
     MapSessionClaim Claim(std::uint8_t group) const { return {user_id,key,char_id,group,channel,connection_id,role,endpoint_ip,endpoint_port,authority_epoch}; }
 };
+struct SourceServiceData {std::uint32_t players{},active_users{};};
 
 // A reservation remains owned until disconnect persistence completes. A new
 // socket may never replace a live reservation, even when its socket is closed.
@@ -63,6 +65,10 @@ public:
     virtual std::optional<std::uint32_t> FindCharIdBySession(
         const tnetlib::AsioSession* session) const = 0;
     virtual std::size_t Size() const = 0;
+    virtual bool MarkAccepted(const tnetlib::AsioSession*) {throw std::runtime_error("Source accepted registry unavailable");}
+    virtual bool Accepted(const tnetlib::AsioSession*) const {throw std::runtime_error("Source accepted registry unavailable");}
+    virtual SourceServiceData ServiceData() const {throw std::runtime_error("Source service statistics unavailable");}
+    virtual void ClearServiceData() {throw std::runtime_error("Source active-user registry unavailable");}
     virtual std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> ReadyPrimaries() const {
         throw std::runtime_error("Communication primary registry unavailable");
     }
@@ -221,6 +227,28 @@ public:
         return std::nullopt;
     }
     std::size_t Size() const override { std::lock_guard lock(m_mtx); return m_rows.size(); }
+    bool MarkAccepted(const tnetlib::AsioSession* session) override {
+        std::lock_guard lock(m_mtx);
+        for(auto& [cid,row]:m_rows)if(auto current=row.session.lock();current&&current.get()==session) {
+            if(row.id.phase!=SessionPhase::Pending)return false;
+            row.accepted=true;m_active_users.insert(row.id.user_id);return true;
+        }
+        return false;
+    }
+    bool Accepted(const tnetlib::AsioSession* session) const override {
+        std::lock_guard lock(m_mtx);
+        for(const auto& [cid,row]:m_rows)if(auto current=row.session.lock();current&&current.get()==session)return row.accepted;
+        return false;
+    }
+    SourceServiceData ServiceData() const override {
+        std::lock_guard lock(m_mtx);SourceServiceData data;
+        for(const auto& [cid,row]:m_rows)if(row.accepted&&!row.session.expired())++data.players;
+        data.active_users=static_cast<std::uint32_t>(m_active_users.size());return data;
+    }
+    void ClearServiceData() override {
+        std::lock_guard lock(m_mtx);m_active_users.clear();
+        for(const auto& [cid,row]:m_rows)if(row.accepted&&!row.session.expired())m_active_users.insert(row.id.user_id);
+    }
     std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> ReadySessions() const {
         std::lock_guard lock(m_mtx);
         std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> out;
@@ -246,10 +274,13 @@ public:
         return out;
     }
 private:
-    struct Row { SessionIdentity id; std::weak_ptr<tnetlib::AsioSession> session; unsigned operations=0; bool checkpoint=false; };
+    struct Row { SessionIdentity id; std::weak_ptr<tnetlib::AsioSession> session; unsigned operations=0; bool checkpoint=false,accepted=false; };
     std::uint64_t m_generation=0;
     mutable std::mutex m_mtx;
     std::unordered_map<std::uint32_t, Row> m_rows;
+    // Original m_mapACTIVEUSER records unique accepted accounts until a
+    // Control DATACLEAR rebuild. Logout alone never removes an entry.
+    std::unordered_set<std::uint32_t> m_active_users;
 };
 
 class SessionOperation final {

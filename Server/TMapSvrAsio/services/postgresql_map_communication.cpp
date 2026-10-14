@@ -6,6 +6,39 @@
 #include <stdexcept>
 
 namespace tmapsvr {
+namespace {
+void ControlOwner(soci::session& sql,const PostgreSQLMapConfig& config) {
+    const int world=config.world,server=config.server,node=(world<<8)|server,ns=0x344d4150;
+    int live=0;
+    sql<<"SELECT 1 FROM app_world.map_runtime_owner o WHERE o.world_id=:w AND o.server_id=:s AND o.owner_token=:t "
+         "AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=o.backend_pid AND l.locktype='advisory' "
+         "AND l.classid=CAST(:ns AS oid) AND l.objid=CAST(:node AS oid) AND l.objsubid=2 AND l.granted)",
+        soci::use(world,"w"),soci::use(server,"s"),soci::use(config.owner_token,"t"),soci::use(ns,"ns"),soci::use(node,"node"),soci::into(live);
+    if(!sql.got_data()||live!=1)throw std::runtime_error("Native Control requires the live Map process lease");
+}
+}
+void PostgreSQLMapService::CheckControlOwner() {
+    auto lease=m_pool.Acquire();auto tx=BeginMapTransaction(*lease,m_config.world,m_config.server,m_config.owner_token);
+    ControlOwner(*lease,m_config);
+    tx->commit();
+}
+bool PostgreSQLMapService::AuthorizeControlKick(const MapSessionClaim& c,const std::string& name) {
+    auto lease=m_pool.Acquire();auto& sql=*lease;
+    auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    ControlOwner(sql,m_config);
+    std::string phase;if(!LockAccount(sql,c))return false;
+    if(c.role==MapSessionRole::Primary){if(!LockClaim(sql,c,phase)||phase!="ready")return false;}
+    else if(!LockReplica(sql,c,phase)||phase!="ready")return false;
+    const auto decoded=native_wire_text::Decode(sql,name,m_config.client_text_encoding);
+    const int world=c.group,character=std::bit_cast<std::int32_t>(c.char_id),user=std::bit_cast<std::int32_t>(c.user_id),key=std::bit_cast<std::int32_t>(c.key);
+    int found=0;
+    sql<<"SELECT 1 FROM app_world.\"TCHARTABLE\" c JOIN app_global.\"TCURRENTUSER\" u "
+         "ON u.\"dwCharID\"=c.\"dwCharID\" AND u.\"dwUserID\"=c.\"dwUserID\" AND u.\"bGroupID\"=c.\"bWorldID\" "
+         "WHERE c.\"bWorldID\"=:w AND c.\"dwCharID\"=:c AND c.\"dwUserID\"=:u AND c.\"bDelete\"=0 "
+         "AND c.\"szNAME\"=:name AND u.\"dwKEY\"=:k AND u.\"bLocked\"=0 FOR SHARE OF c",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(user,"u"),soci::use(decoded,"name"),soci::use(key,"k"),soci::into(found);
+    const bool allowed=sql.got_data()&&found==1;tx->commit();return allowed;
+}
 std::optional<CommunicationAuthority> PostgreSQLMapService::AuthorizeCommunication(const MapSessionClaim& c,bool chat,std::uint32_t sender,std::uint8_t option) {
     // Only recipient chat delivery can use a partial replica. Its client may
     // never originate a TMS/chat request or receive a primary-only MW fanout.

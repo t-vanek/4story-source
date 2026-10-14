@@ -28,5 +28,10 @@ drain_ms = 2000
 
 [log]
 level = "info"
-# Native Map now requires written migrations001-067 and existing runtime/social
-# grants plus deploy/sql/soulmate-runtime-grants.sql during later acceptance.
+# Native Map now requires written migrations001-069 and existing runtime/social,
+# soulmate/communication grants and full059 message publication in Phase B.
+
+[security]
+# Source direct Control role: Plain16, configured private transport only.
+control_ip_allowlist = []
+peer_tls_enabled = false

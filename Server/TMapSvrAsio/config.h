@@ -97,11 +97,11 @@ struct AdminConfig
     std::string    secret;            // empty = no auth (bind protects)
 };
 
-// TControlSvr cluster coordinates — optional, used by CT_* control handlers
-// to authorize inbound control traffic and identify this map node.
+// Cluster identity. The historical control_host/control_port fields remain
+// parse-only; actual inbound Control trust is security.control_ip_allowlist.
 struct ClusterConfig
 {
-    std::string    control_host;   // TControlSvr host (empty = gate open)
+    std::string    control_host;   // historical field; does not authorize a peer
     std::uint16_t  control_port = 0;
     std::uint8_t   group_id     = 0;   // world/group this map belongs to
     std::uint8_t   server_id    = 0;   // map server id within the group

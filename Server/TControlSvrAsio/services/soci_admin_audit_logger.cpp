@@ -83,7 +83,8 @@ void SociAdminAuditLogger::LogKick(const std::string& operator_id,
                                     const std::string& target_user,
                                     AdminOutcome outcome)
 {
-    const char* res = (outcome == AdminOutcome::Success) ? "ok"
+    const char* res = (outcome == AdminOutcome::Requested) ? "requested"
+                    : (outcome == AdminOutcome::Success) ? "ok"
                     : (outcome == AdminOutcome::Denied)  ? "denied" : "failed";
     m_log->info("audit op='{}' action=kick target='{}' outcome={}",
         operator_id, target_user, res);

@@ -600,7 +600,7 @@ std::string AdminShell::CmdKick(std::uint32_t /*uid*/,
     }
     if (m_audit)
         m_audit->LogKick("admin-shell", user,
-            fanout > 0 ? AdminOutcome::Success : AdminOutcome::Failed);
+            fanout > 0 ? AdminOutcome::Requested : AdminOutcome::Failed);
     std::ostringstream os;
     os << "kick " << user << " → " << fanout << " map peer(s)";
     return os.str();

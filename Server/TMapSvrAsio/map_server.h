@@ -11,6 +11,8 @@
 
 #include "asio_session.h"
 #include "handlers.h"
+#include "services/control_session.h"
+#include "fourstory/security/ip_allowlist.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
@@ -18,7 +20,9 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <mutex>
 #include <vector>
 
@@ -35,10 +39,14 @@ struct MapServerConfig
 
     // Native clients require an acknowledged World registration.
     bool require_registered_world = false;
+    // Source fixed-Control-IP role selection, explicitly configured and
+    // denied by default. It never depends on a client opcode/claimed role.
+    std::vector<std::string> control_ip_allowlist;
+    std::function<boost::asio::awaitable<bool>()> check_control_owner;
 
     // T5 pre-auth watchdog. After this many seconds, sessions that
-    // haven't yet completed CS_CONNECT_REQ (= not bound in
-    // session_reg) get their socket closed. Zero disables.
+    // haven't yet completed accepted CS_CONNECT identity/claim get their
+    // socket closed. Accepted World loading is excluded. Zero disables.
     std::uint32_t           pre_auth_timeout_seconds = 30;
 
     // Per-packet handler context — owns no state, just non-owning
@@ -72,10 +80,16 @@ public:
     std::uint32_t FailedSaves() const { return m_failed_save_count.load(); }
 
     std::uint32_t LiveSessions() const { return m_active_connections.load(); }
+    std::uint32_t ControlOperations() const {return m_control_operations.load();}
+    bool IsCurrentControl(const std::shared_ptr<ControlSession>&) const;
+    boost::asio::awaitable<bool> CheckControl(const std::shared_ptr<ControlSession>&);
+    void SweepControlClients();
+    std::uint32_t SourceSessionCount() const {return LiveSessions()+ControlOperations();}
 
 private:
     boost::asio::awaitable<void> HandleConnection(
         std::shared_ptr<tnetlib::AsioSession> session);
+    boost::asio::awaitable<void> HandleControl(std::shared_ptr<ControlSession>);
 
     boost::asio::io_context&        m_io;
     boost::asio::ip::tcp::acceptor  m_acceptor;
@@ -83,10 +97,15 @@ private:
     MapServerConfig                 m_cfg;
     std::atomic<std::uint32_t>      m_active_connections{0};
     std::atomic<std::uint32_t>      m_failed_save_count{0};
+    std::atomic<std::uint32_t> m_control_operations{0};
+    fourstory::security::IpAllowlist m_control_allowlist;
+    std::shared_ptr<ControlSession> m_control;
+    std::optional<std::uint32_t> m_last_control_sweep;
 
     std::vector<std::shared_ptr<tnetlib::AsioSession>> m_failed_saves;
     std::mutex                                            m_sessions_mtx;
-    std::vector<std::weak_ptr<tnetlib::AsioSession>>      m_sessions;
+    struct ClientTransport {std::weak_ptr<tnetlib::AsioSession> session;std::uint32_t accepted_at{},closing_at{};};
+    std::vector<ClientTransport> m_sessions;
 };
 
 } // namespace tmapsvr

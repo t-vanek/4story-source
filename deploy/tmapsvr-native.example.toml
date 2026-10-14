@@ -5,6 +5,13 @@
 # social/soulmate Map grants and full059 server-message publication/grants.
 # Chat requires verified TOPERATORTABLE via import_world_operators.py (source0).
 # Applying/migrating this scope is deferred until Phase B.
+[security]
+# Original Control-to-Map uses raw Plain16 before game-client RC4/admission.
+# Configure the actual isolated Control IPv4/CIDR; empty denies this role.
+control_ip_allowlist = []
+# TLS is not implemented for this Map endpoint; true is rejected, no downgrade.
+peer_tls_enabled = false
+
 [server]
 port = 5815
 

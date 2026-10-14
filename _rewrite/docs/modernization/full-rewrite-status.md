@@ -9,9 +9,12 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–069 are **written, not applied**.
-Latest local increment is based on `c389976`: native communication authority,
-Map chat/TMS, durable bans and admin/event notices, with static source review only. No build,
+Latest local increment is based on `0b97c18`: direct source Plain16 Control–Map
+transport, five bounded admin operations and corrected monitor producer/consumer,
+with static source review only. No build,
 test, SQL, server, client, container or runtime verification occurred.
+Previous code increment: `0b97c18` (native chat/TMS/bans/admin-event text), based on
+`c389976`.
 Previous code increment: `c389976` (soulmate economy, guild-level/message loading
 and maintained timers), based on `75125a2`.
 Previous code increment: `1f1eb59` / `e709281` (native World social persistence and original Map relay), based on `374d56a`.
@@ -24,6 +27,39 @@ based on `802a232`. Previous `18ee496` implements item expiration and mail, base
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Direct Control–Map transport and operations — source review, 2026-10-14
+
+- Source CPacket is16 bytes, unencrypted for the fixed Control-IP server role.
+  Existing modern Control8 and encrypted Map client transport were incompatible
+  with that path. The real Map listener now selects one configured/current raw
+  Plain16 Control connection before client admission/RC4, and Control's Map
+  dialer selects its matching profile. The empty handshake has no invented ACK.
+- Five source operations now reach actual Map effects: announcements via raw059
+  caption6/groupWORLD3/sender0/protectedCHAT1; exact ready primary/replica name kick
+  via native claim proof and ordinary teardown; real session/accepted-player/
+  historical unique-account counters; data clear rebuilding the account set.
+- Native owner checks use pooled live advisory/row proof, independent from the
+  dedicated heartbeat connection. Current Control/actor/socket/epoch gates span
+  awaits; shutdown drains Control operations and client saves. Dirty/unknown
+  reservations remain retained; no direct claim deletion or write replay.
+- Control now sends real one-second monitor probes, consumes one four-DWORD reply
+  without another echo, preserves source >= peak refresh/live counts, rejects
+  stale service machine/port/socket topology and marks kick audit Requested.
+- Accepted CS identity clears pre-auth timeout even during legitimate World load;
+  monitor sweeps retain source >5s/>10s stages. Busy Control announcements skip a
+  recipient instead of closing it. Original full strings and frame caps remain.
+- Other modern8 server/operator profiles are **not original framing evidence**;
+  their source16 port remains required, including native Map–World transport.
+  Direct Map event/cash replay has a proved original producer/consumer conflict;
+  Control refuses active unresolved replay before connection publication. No
+  unsupported opcode becomes a successful no-op. TLS, remaining Map Control
+  operations, combat/logout penalties and transfer kick parity remain OPEN.
+- No new migration/build/test/runtime. Full Phase A and whole native World/
+  gameplay remain incomplete. Private manifests, missing Patch SQL and original
+  executable/assets remain inputs; next unused migration070.
+
+[Source proof, exact boundaries and Phase B acceptance](evidence/phase-a-control-map-20261014/README.md).
 
 ## Native chat, TMS, bans and notices — source review, 2026-10-14
 
@@ -614,12 +650,15 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    inventories/economy/crafting/mail/trade, social/companions/modes/BOW/BR; all
    source timers/internal messages/build variants/tools and historical data paths.
    Preserve existing bounded implementations; the full inventory gate is open.
-6. Then do the whole Phase A static gate, Phase B validation/migration and fixes,
+6. Complete source16 framing for remaining service/operator links; direct Map
+   event/cash conflict, other Map Control commands/TLS, admin-shell recovery,
+   combat/logout penalties and entered/transferring kick variants remain required.
+7. Then do the whole Phase A static gate, Phase B validation/migration and fixes,
    and finally Phase C local cluster. **No full PostgreSQL-only runtime claim.**
 
 ## Activities actually performed
 
-Latest local work based on `c389976`: original/server/client source reads,
+Latest local work based on `0b97c18`: original/server/client source reads,
 declaration/call/CMake/SQL/packet/diff review, implementation and documentation.
 `git diff --check` passes. No build, test, SQL execution, service/client/container
 startup or runtime acceptance was performed. The following build results belong

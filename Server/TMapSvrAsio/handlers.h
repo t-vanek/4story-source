@@ -18,6 +18,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -49,6 +50,8 @@ class TitleRelayQueue;
 class IServerRouteResolver;
 class ILogPeer;
 class IRateLimiter;
+class ControlSession;
+class MapServer;
 enum class Mode : std::uint8_t;
 
 namespace audit { class IAuditLog; }
@@ -220,6 +223,8 @@ boost::asio::awaitable<void> OnChatReq(
     const HandlerContext&                 ctx);
 boost::asio::awaitable<void> OnTmsReq(std::shared_ptr<tnetlib::AsioSession>,std::uint16_t,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnChatBanReq(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
+boost::asio::awaitable<void> OnControlPacket(std::shared_ptr<ControlSession>,std::uint16_t,std::vector<std::byte>,const HandlerContext&,MapServer&);
+boost::asio::awaitable<void> OnControlAnnouncement(std::string,const HandlerContext&,std::function<bool()>);
 
 boost::asio::awaitable<void> OnPartyAddReq(
     std::shared_ptr<tnetlib::AsioSession> sess,

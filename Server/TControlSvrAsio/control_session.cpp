@@ -18,10 +18,9 @@
 namespace tcontrolsvr {
 
 namespace {
-// Identical to TPatchSvrAsio's FoldChecksum — sum body bytes as
+// Retained modern SS8 checksum, identical to TPatchSvrAsio's FoldChecksum:
 // little-endian DWORDs running XOR; the unaligned tail is folded one
-// byte at a time into the low byte of the accumulator. See
-// Lib/Own/TNetLib/TNetLib/Packet.cpp for the legacy primitive.
+// byte at a time into the low byte of the accumulator. Source Plain16 skips it.
 std::uint32_t FoldChecksum(const std::byte* p, std::size_t n)
 {
     std::uint32_t acc = 0;
@@ -117,8 +116,9 @@ struct ControlSession::SendState {
     static constexpr std::size_t max_frames=256,max_bytes=4*1024*1024;
 };
 
-ControlSession::ControlSession(PlainSocket sock)
+ControlSession::ControlSession(PlainSocket sock,WireProfile profile)
     : m_socket(std::in_place_type<PlainSocket>, std::move(sock))
+    , m_profile(profile)
     , m_send_state(std::make_shared<SendState>(UnderlyingTcp().get_executor()))
 {
     boost::system::error_code ec;
@@ -127,8 +127,9 @@ ControlSession::ControlSession(PlainSocket sock)
         m_remote_ipv4 = ep.address().to_v4().to_string();
 }
 
-ControlSession::ControlSession(TlsStream stream)
+ControlSession::ControlSession(TlsStream stream,WireProfile profile)
     : m_socket(std::in_place_type<TlsStream>, std::move(stream))
+    , m_profile(profile)
     , m_send_state(std::make_shared<SendState>(UnderlyingTcp().get_executor()))
 {
     boost::system::error_code ec;
@@ -202,31 +203,43 @@ ControlSession::Run(PacketHandler on_packet)
 
     while (UnderlyingTcp().is_open())
     {
-        PacketHeader hdr{};
+        const auto header_size=m_profile==WireProfile::SourcePlain16?sizeof(SourcePacketHeader):sizeof(PacketHeader);
+        std::vector<std::byte> header(header_size);
         boost::system::error_code ec;
-        if (!co_await read_into(&hdr, sizeof(hdr), ec)) break;
-        if (hdr.wSize < kPacketHeaderSize || hdr.wSize > kMaxPacketSize)
+        if (!co_await read_into(header.data(), header_size, ec)) break;
+        std::uint16_t size=0,id=0;std::uint32_t checksum=0;
+        if(m_profile==WireProfile::SourcePlain16) {
+            SourcePacketHeader source{};std::memcpy(&source,header.data(),sizeof(source));
+            // Source Clear() zeros these fields and !UseCrypt preserves them.
+            // Reject malformed metadata instead of interpreting client crypto.
+            if(source.number||source.checksum)break;
+            size=source.wSize;id=source.wID;
+        } else {
+            PacketHeader modern{};std::memcpy(&modern,header.data(),sizeof(modern));
+            size=modern.wSize;id=modern.wID;checksum=modern.dwChkSum;
+        }
+        if (size < header_size || (m_profile==WireProfile::SourcePlain16&&size>=kMaxPacketSize))
         {
             spdlog::warn("control_session[{}]: framing error wSize={} — closing",
-                m_remote_ipv4, hdr.wSize);
+                m_remote_ipv4, size);
             break;
         }
-        const std::size_t body_size = hdr.wSize - kPacketHeaderSize;
+        const std::size_t body_size = size - header_size;
         std::vector<std::byte> body(body_size);
         if (body_size > 0)
         {
             if (!co_await read_into(body.data(), body_size, ec)) break;
         }
         const std::uint32_t expected = ComputeChecksum(body.data(), body_size);
-        if (expected != hdr.dwChkSum)
+        if (m_profile==WireProfile::ModernSs8&&expected != checksum)
         {
             spdlog::warn("control_session[{}]: checksum mismatch wID=0x{:04X} "
                          "got=0x{:08X} expected=0x{:08X} — closing",
-                m_remote_ipv4, hdr.wID, hdr.dwChkSum, expected);
+                m_remote_ipv4, id, checksum, expected);
             break;
         }
         TouchRecv();
-        DecodedPacket pkt{hdr.wID, std::move(body)};
+        DecodedPacket pkt{id, std::move(body)};
         co_await on_packet(shared_from_this(), std::move(pkt));
     }
 }
@@ -236,14 +249,16 @@ ControlSession::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
 {
     const auto self=shared_from_this();
     if (!IsOpen()) co_return;
-    if (body.size() > kMaxPacketSize-kPacketHeaderSize)
+    const auto header_size=m_profile==WireProfile::SourcePlain16?sizeof(SourcePacketHeader):sizeof(PacketHeader);
+    if (body.size() > kMaxPacketSize-header_size||
+        (m_profile==WireProfile::SourcePlain16&&body.size()>=kMaxPacketSize-header_size))
     {
         spdlog::error("control_session[{}]: outbound body too big ({}); closing",
             m_remote_ipv4, body.size());
         Close();
         co_return;
     }
-    const std::size_t total=kPacketHeaderSize+body.size();
+    const std::size_t total=header_size+body.size();
     const auto state=m_send_state;
     if(state->pending_frames>=SendState::max_frames||total>SendState::max_bytes-state->pending_bytes) {
         spdlog::warn("control_session[{}]: outbound backlog exceeded; closing",m_remote_ipv4);
@@ -264,13 +279,16 @@ ControlSession::SendPacket(std::uint16_t wId, std::vector<std::byte> body)
     // The frame is owned by this suspended invocation. Serializing only the
     // callbacks would not protect either a shared buffer or async_write itself.
     std::vector<std::byte> frame(total);
-    PacketHeader hdr{};
-    hdr.wSize    = static_cast<std::uint16_t>(total);
-    hdr.wID      = wId;
-    hdr.dwChkSum = ComputeChecksum(body.data(), body.size());
-    std::memcpy(frame.data(), &hdr, sizeof(hdr));
+    if(m_profile==WireProfile::SourcePlain16) {
+        SourcePacketHeader header{};header.wSize=static_cast<std::uint16_t>(total);header.wID=wId;
+        std::memcpy(frame.data(),&header,sizeof(header));
+    } else {
+        PacketHeader header{};header.wSize=static_cast<std::uint16_t>(total);header.wID=wId;
+        header.dwChkSum=ComputeChecksum(body.data(),body.size());
+        std::memcpy(frame.data(),&header,sizeof(header));
+    }
     if (!body.empty())
-        std::memcpy(frame.data() + sizeof(hdr),
+        std::memcpy(frame.data() + header_size,
                     body.data(), body.size());
     // Dispatch the write through the active variant arm.
     if (auto* tls = std::get_if<TlsStream>(&m_socket))

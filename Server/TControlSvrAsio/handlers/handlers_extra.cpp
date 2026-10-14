@@ -198,10 +198,10 @@ OnPlatformReq(std::shared_ptr<OperatorSession> /*op*/,
 
 boost::asio::awaitable<void>
 OnServiceDataClearReq(std::shared_ptr<OperatorSession> op,
-                      std::vector<std::byte> /*body*/,
+                      std::vector<std::byte> body,
                       const HandlerContext& ctx)
 {
-    if (!op->LoggedIn()) co_return;
+    if (!op->LoggedIn()||!body.empty()) co_return;
 
     if (ctx.peers)
     {
@@ -211,17 +211,20 @@ OnServiceDataClearReq(std::shared_ptr<OperatorSession> op,
         const auto now_unix = std::chrono::duration_cast<
             std::chrono::seconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
-        for (const auto& svc : ctx.peers->Services())
+        const auto services=ctx.peers->Services();
+        for (const auto& svc : services)
         {
+            if(ctx.check_owner)co_await ctx.check_owner();
+            if(!op->LoggedIn()||!op->Wire()->IsOpen())co_return;
             auto* st = ctx.peers->Status(svc.service_id);
             if (!st) continue;
             st->max_users        = 0;
             st->stop_count       = 0;
-            st->cur_users        = 0;
+            // Source resets historic counters, not the live player count.
             st->latest_stop_unix = 0;
             st->peak_time_unix   = 0;
             auto conn = ctx.peers->Connection(svc.service_id);
-            if (conn && conn->Wire() && conn->Wire()->IsOpen())
+            if (ctx.peers->IsCurrentConnection(conn))
             {
                 st->latest_stop_unix = now_unix;
                 st->peak_time_unix   = now_unix;

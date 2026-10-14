@@ -15,6 +15,8 @@ struct PostgreSQLMapConfig {
 class PostgreSQLMapService final : public IPlayerService, public IMapSessionValidator, public IServerRouteResolver {
 public:
     PostgreSQLMapService(fourstory::db::SessionPool& pool,PostgreSQLMapConfig config);
+    void CheckControlOwner() override;
+    bool AuthorizeControlKick(const MapSessionClaim&,const std::string&) override;
     std::optional<MapSessionInfo> LookupSession(std::uint32_t user,std::uint32_t key) override;
     std::optional<MapSessionInfo> ClaimSession(const MapSessionClaim&,const MapSessionInfo&) override;
     std::optional<std::vector<std::uint8_t>> NeighborServers(const MapSessionClaim&,std::uint16_t,float,float) override;

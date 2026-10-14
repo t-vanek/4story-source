@@ -243,6 +243,20 @@ AppConfig LoadConfig(const std::string& path)
         if (auto a = (*c)["reported_addr"].value<std::string>())
             cfg.cluster.reported_addr = *a;
     }
+    if(auto security=tbl["security"].as_table()) {
+      if(auto tls=(*security)["peer_tls_enabled"];tls) {
+        const auto enabled=tls.value<bool>();if(!enabled)throw std::runtime_error("security.peer_tls_enabled requires bool");
+        if(*enabled)throw std::runtime_error("Control-to-Map TLS is not implemented; plaintext downgrade is forbidden");
+      }
+      if(auto field=(*security)["control_ip_allowlist"];field) {
+        const auto* entries=field.as_array();if(!entries)throw std::runtime_error("security.control_ip_allowlist must be an IPv4/CIDR array");
+        for(const auto& entry:*entries) {
+            const auto value=entry.value<std::string>();if(!value)throw std::runtime_error("security.control_ip_allowlist requires strings");
+            cfg.server.control_ip_allowlist.push_back(*value);
+        }
+        if(fourstory::security::IpAllowlist::FirstInvalid(cfg.server.control_ip_allowlist))throw std::runtime_error("Invalid Map Control allowlist");
+      }
+    }
     spdlog::info("loaded config from '{}' — port={} mode={} crypto={} world={}:{} db={}",
         path, cfg.server.port, ModeName(cfg.mode),
         cfg.server.rc4_secret_key.empty() ? "off" : "on",

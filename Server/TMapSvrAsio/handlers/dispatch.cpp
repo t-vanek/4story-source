@@ -52,6 +52,11 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
     using tnetlib::protocol::ToMessageId;
 
     const auto id = ToMessageId(wId);
+    // Control has an independently trusted Plain16 transport role. A ready
+    // game character cannot acquire administrative authority by choosing CT.
+    if(tnetlib::protocol::NameOf(id).starts_with("CT_")) {
+        spdlog::warn("Map rejected CT command on game-client transport");sess->Close();co_return;
+    }
     std::optional<SessionOperation> operation;
     if (id != MessageId::CS_CONNECT_REQ && id != MessageId::CS_CONREADY_REQ) {
         const auto identity = ctx.session_reg ? ctx.session_reg->Identity(sess.get()) : std::nullopt;

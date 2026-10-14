@@ -4,7 +4,21 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Latest local increment based on `c389976` keeps original chat/TMS/ban/admin
+Latest local increment based on `0b97c18` repairs direct Control–Map framing:
+original linked CPacket header is16 bytes, metadata zero and no crypt for
+SESSION_SERVER. Control selects SourcePlain16 for Map; the Map listener separates
+that configured/current network role from game-client RC4/admission. Announcements
+retain group3/sender0/source059 caption6/full NetString/protected1; kick is silent
+and uses existing native save/release, with requested-intent audit. Monitor is
+periodic DWORD tick followed by four DWORDs; no second echo or fabricated ACK.
+DATACLEAR resets historical account membership, not gameplay caches/live users.
+Other retained modern8 service/operator/Map–World profiles have not been proved
+original framing; earlier source8 wording is superseded by this direct linked-
+library audit. Their16-byte port, TLS, direct Map event conflict and full kick/
+combat/transfer dependencies remain OPEN. No client/source library changed, and
+no build/test/runtime/executable acceptance ran. [Source proof and exact boundaries](evidence/phase-a-control-map-20261014/README.md).
+
+Previous code `0b97c18`, based on `c389976`, keeps original chat/TMS/ban/admin
 opcodes, INT32 string lengths, BYTE audiences/types, DWORD IDs/keys and payload
 order. Map fallback chat reaches native authority and original CS_CHAT_ACK; TMS
 responses strip only the two MW identity DWORDs. Operator text uses published

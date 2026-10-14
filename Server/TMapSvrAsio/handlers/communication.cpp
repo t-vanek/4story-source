@@ -55,13 +55,15 @@ boost::asio::awaitable<std::optional<CommunicationAuthority>> Authorize(
     co_return result;
 }
 boost::asio::awaitable<bool> Projection(const std::shared_ptr<tnetlib::AsioSession>& client,
-    const SessionIdentity& id,const HandlerContext& ctx,bool admission=false) {
+    const SessionIdentity& id,const HandlerContext& ctx,bool admission=false,const std::function<bool()>& origin={},bool close_on_timeout=true) {
+    if(origin&&!origin())co_return false;
     boost::asio::steady_timer wait(co_await boost::asio::this_coro::executor);
     const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(3);
     while(!ctx.session_reg->BeginProjection(client.get())) {
+        if(origin&&!origin())co_return false;
         const auto now=ctx.session_reg->Identity(client.get());
         if(!client->IsOpen()||!now||!(admission?SameProjection(id,*now):Same(id,*now)))co_return false;
-        if(std::chrono::steady_clock::now()>=deadline){client->Close();co_return false;}
+        if(std::chrono::steady_clock::now()>=deadline){if(close_on_timeout)client->Close();co_return false;}
         wait.expires_after(std::chrono::milliseconds(5));co_await wait.async_wait(boost::asio::use_awaitable);
     }
     co_return true;
@@ -69,7 +71,7 @@ boost::asio::awaitable<bool> Projection(const std::shared_ptr<tnetlib::AsioSessi
 boost::asio::awaitable<void> Relay(std::shared_ptr<tnetlib::AsioSession> client,MessageId op,
     std::vector<std::byte> body,const HandlerContext& ctx) {
     if(!client->IsOpen())co_return;
-    // WorldClient uses the original eight-byte SS header and permits a total
+    // The current native WorldClient uses an eight-byte SS header and permits a total
     // of 65535 bytes. A larger relay envelope is a known codec rejection, not
     // a transport failure or permission to replay the request.
     if(body.size()>0xFFFFU-8U) {
@@ -130,7 +132,8 @@ bool CheckChat(ChatFloodState& log,const std::string& talk,std::uint32_t tick) {
 enum class ChatRoute {Unavailable,Handled,Stopped};
 boost::asio::awaitable<ChatRoute> DeliverChat(std::shared_ptr<tnetlib::AsioSession> client,const SessionIdentity& id,
     std::uint8_t group,std::uint32_t sender,const std::string& name,const std::string& talk,const HandlerContext& ctx,
-    const std::function<bool(const CharSnapshot&)>& gate,bool sender_lease=false) {
+    const std::function<bool(const CharSnapshot&)>& gate,bool sender_lease=false,const std::function<bool()>& origin={}) {
+    if(origin&&!origin())co_return ChatRoute::Stopped;
     std::optional<SessionOperation> operation;
     if(!sender_lease) {
         boost::asio::steady_timer wait(co_await boost::asio::this_coro::executor);
@@ -146,6 +149,7 @@ boost::asio::awaitable<ChatRoute> DeliverChat(std::shared_ptr<tnetlib::AsioSessi
     // Read protection in the same native claim transaction. A simultaneous
     // protected-list writer may still be publishing its cache after COMMIT.
     const auto authority=co_await Authorize(client,id,ctx,false,sender,1);
+    if(origin&&!origin())co_return ChatRoute::Stopped;
     if(!authority)co_return ChatRoute::Unavailable;
     const auto s=ctx.char_state->Get(id.char_id);
     if(!s||(!s->payload&&!s->cluster.hydrated)||s->persistence_uncertain||!gate(*s))co_return ChatRoute::Unavailable;
@@ -162,7 +166,7 @@ boost::asio::awaitable<ChatRoute> DeliverChat(std::shared_ptr<tnetlib::AsioSessi
     // World fallback that could repeat the same message.
     co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHAT_ACK),packet);
     const auto now=ctx.session_reg->Identity(client.get());
-    co_return client->IsOpen()&&now&&Same(id,*now)?ChatRoute::Handled:ChatRoute::Stopped;
+    co_return client->IsOpen()&&now&&Same(id,*now)&&(!origin||origin())?ChatRoute::Handled:ChatRoute::Stopped;
 }
 boost::asio::awaitable<void> WorldChat(std::vector<std::byte> body,const HandlerContext& ctx) {
     wire::Reader r(body);std::uint32_t character=0,key=0,sender=0,target=0;
@@ -220,15 +224,19 @@ std::string NoticeText(const std::string& message) {
     return formatted+message; // source BuildNetString(NAME_NULL, plain message)
 }
 boost::asio::awaitable<void> DeliverNotice(const std::shared_ptr<tnetlib::AsioSession>& client,const SessionIdentity& id,
-    std::uint8_t group,const std::string& formatted,const HandlerContext& ctx) {
-    if(!co_await Projection(client,id,ctx))co_return;
+    std::uint8_t group,const std::string& formatted,const HandlerContext& ctx,const std::function<bool()>& origin={}) {
+    // A Control announcement cannot become an unintended kick merely because
+    // a recipient's durable checkpoint is slow. Skip that bounded wait.
+    if(!co_await Projection(client,id,ctx,false,origin,!origin))co_return;
     SessionOperation operation(*ctx.session_reg,client.get());
+    if(origin&&!origin())co_return;
     if(!co_await Authorize(client,id,ctx))co_return;
+    if(origin&&!origin())co_return;
     auto* service=ctx.player_service;
     const auto name=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
         [service,claim=id.Claim(ctx.expected_group)]{return service->NoticeOperatorName(claim);});
     const auto now=ctx.session_reg->Identity(client.get());
-    if(!name||!client->IsOpen()||!now||!Same(id,*now))co_return;
+    if(!name||!client->IsOpen()||!now||!Same(id,*now)||(origin&&!origin()))co_return;
     // The eight hex bytes and both INT32 string prefixes count toward the
     // actual frame cap. Preserve full text, but never close a valid recipient
     // because an administrative notice cannot fit its original CS envelope.
@@ -239,7 +247,7 @@ boost::asio::awaitable<void> DeliverNotice(const std::shared_ptr<tnetlib::AsioSe
     }
     // Sender zero still has source PROTECTED_CHAT. Notices have no
     // CheckChat/chat-ban/country gate and do not truncate their plain text.
-    co_await DeliverChat(client,id,group,0,*name,formatted,ctx,[](const CharSnapshot&){return true;},true);
+    co_await DeliverChat(client,id,group,0,*name,formatted,ctx,[](const CharSnapshot&){return true;},true,origin);
 }
 boost::asio::awaitable<void> WorldNotice(std::vector<std::byte> body,const HandlerContext& ctx) {
     wire::Reader r(body);std::string target,message;
@@ -259,6 +267,15 @@ boost::asio::awaitable<void> WorldEventNotice(std::vector<std::byte> body,const 
     const auto formatted=NoticeText(message);
     for(const auto& [id,client]:ctx.session_reg->ReadyPrimaries())co_await DeliverNotice(client,id,3,formatted,ctx);
 }
+}
+
+boost::asio::awaitable<void> OnControlAnnouncement(std::string message,const HandlerContext& ctx,std::function<bool()> origin) {
+    if(!origin||!origin()||!ctx.session_reg||!ctx.char_state)co_return;
+    const auto formatted=NoticeText(message);
+    for(const auto& [id,client]:ctx.session_reg->ReadyPrimaries()) {
+        if(!origin())co_return;
+        co_await DeliverNotice(client,id,3,formatted,ctx,origin);
+    }
 }
 
 boost::asio::awaitable<void> OnChatReq(std::shared_ptr<tnetlib::AsioSession> client,std::vector<std::byte> body,const HandlerContext& ctx) {

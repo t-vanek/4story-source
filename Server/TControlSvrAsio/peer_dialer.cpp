@@ -1,6 +1,7 @@
 #include "peer_dialer.h"
 
 #include "MessageId.h"
+#include "services/svr_type.h"
 
 #include "fourstory/security/hostname_match.h"
 
@@ -35,6 +36,13 @@ PeerDialer::Dial(const ServiceInstance& requested,bool publish)
     const auto svc=requested;
     const auto snapshot=m_inventory.Snapshot();
     PeerDialResult res{};
+    const auto profile=svc.type_id==svr_type::kMapSvr?WireProfile::SourcePlain16:WireProfile::ModernSs8;
+    if(profile==WireProfile::SourcePlain16&&m_ssl_ctx) {
+        // The source Map endpoint is plaintext with configured network trust.
+        // Its TLS adapter is unimplemented; never downgrade requested TLS.
+        res.failure_reason="Source Map Control TLS transport is not implemented";
+        co_return res;
+    }
     const Machine* m = FindMachine(snapshot, svc.machine_id);
     if (!m || m->private_addrs.empty())
     {
@@ -118,7 +126,7 @@ PeerDialer::Dial(const ServiceInstance& requested,bool publish)
             stream.next_layer().close(ig);
             co_return res;
         }
-        wire = std::make_shared<ControlSession>(std::move(stream));
+        wire = std::make_shared<ControlSession>(std::move(stream),profile);
 
         // Outbound identity enforcement. When the security gate is
         // wired (typical Phase A deployment), the cert's CN / SAN
@@ -172,7 +180,7 @@ PeerDialer::Dial(const ServiceInstance& requested,bool publish)
     }
     else
     {
-        wire = std::make_shared<ControlSession>(std::move(sock));
+        wire = std::make_shared<ControlSession>(std::move(sock),profile);
     }
 
     auto peer = std::make_shared<PeerSession>(wire, svc);

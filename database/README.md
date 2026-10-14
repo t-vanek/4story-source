@@ -5,7 +5,16 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, local work based on `c389976`:** written chain001–069,
+**Current Phase A, based on `0b97c18`:** direct source Plain16 Control–Map
+transport uses existing native Map ownership/claim/current-user/character schema.
+Owner and kick reads prove the actual live Map advisory lease through pooled
+queries; ordinary save/release remains the only ownership writer. Counters are
+source process memory, not invented historical tables. No new migration, grant
+or import needed; chain001–069/new044–069 still unapplied, next070. No build,
+SQL/tool, test or runtime ran. Full native bootstrap/framing/gameplay remain OPEN.
+[Source contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-control-map-20261014/README.md).
+
+**Previous code `0b97c18`, based on `c389976`:** written chain001–069,
 next070; new044–069 are unapplied.069 adds exact native TOPERATORTABLE publication
 and durable raw-name chat bans/current-generation audit. The pinned source
 operator table has zero rows. import_world_operators.py requires full historical

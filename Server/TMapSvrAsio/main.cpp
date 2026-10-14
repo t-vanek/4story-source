@@ -8,17 +8,13 @@
 #include <set>
 // Entry point for the modernized TMapSvrAsio binary.
 //
-// Phase F17: control protocol + ops endpoints. Five CT_* ids land
-// in dispatch as stubs (announce, kickout, service monitor + data
-// clear, control-server handshake). Optional /healthz HTTP endpoint
+// Five original Control operations use an explicitly trusted Plain16
+// transport (announcement, kick, monitor, active-user clear and empty
+// handshake). Game-client dispatch rejects CT authority. Optional /healthz HTTP endpoint
 // spawns alongside the listener when [health].port is set in TOML —
 // k8s liveness probes and load balancers hit it. UDP audit shim +
-// admin TCP shell wait for the consolidation pass.
-//
-// This commit closes the F1-F17 scaffolding sweep — all major data
-// loaders, services, and dispatch slots exist. See the audit blurb
-// in CMakeLists.txt for the documented TODOs that the consolidation
-// pass picks up.
+// admin TCP shell accompany the listener. See active modernization
+// documentation for implemented and still-open native contracts.
 
 #include "audit/audit_log.h"
 #include "config.h"
@@ -161,7 +157,7 @@ int main(int argc, char** argv)
                 if (server_ptr) server_ptr->CloseSessions();
                 // LiveSessions includes awaited disconnect writes. Keep the executor
                 // alive for their completions instead of abandoning queued saves.
-                while (world_operations != 0 || background_operations != 0 || (server_ptr && server_ptr->LiveSessions() != 0)) {
+                while (world_operations != 0 || background_operations != 0 || (server_ptr && (server_ptr->LiveSessions() != 0||server_ptr->ControlOperations()!=0))) {
                     timer.expires_after(std::chrono::milliseconds(20));
                     co_await timer.async_wait(boost::asio::use_awaitable);
                 }
@@ -476,6 +472,29 @@ int main(int argc, char** argv)
         ctx.world_client = world_client.get();
         cfg.server.handlers = ctx;
         cfg.server.require_registered_world = static_cast<bool>(native_owner);
+        if(native_map)cfg.server.check_control_owner=[&]() -> boost::asio::awaitable<bool> {
+            if(stopping)co_return false;
+            ++background_operations;bool healthy=false;
+            try {
+                // A separate lease from the regular service pool. Never share
+                // the ownership timer's dedicated SOCI session concurrently.
+                co_await fourstory::db::CoOffloadVoidIf(db_thread_pool.get(),[&native_map]{native_map->CheckControlOwner();});
+                healthy=true;
+            }catch(...){spdlog::critical("native Map Control owner check failed; stopping without command effects");}
+            --background_operations;
+            if(!healthy&&!stopping) {
+                stopping=true;ownership_lost=true;
+                if(server_ptr){server_ptr->StopAccepting();server_ptr->CloseSessions();}
+                boost::asio::co_spawn(io,[&]() -> boost::asio::awaitable<void> {
+                    boost::asio::steady_timer wait(io);
+                    while(world_operations||background_operations||(server_ptr&&(server_ptr->LiveSessions()||server_ptr->ControlOperations()))) {
+                        wait.expires_after(std::chrono::milliseconds(20));co_await wait.async_wait(boost::asio::use_awaitable);
+                    }
+                    io.stop();
+                },boost::asio::detached);
+            }
+            co_return healthy&&!stopping;
+        };
 
         const bool crypto_on = !cfg.server.rc4_secret_key.empty();
         const auto mode_name = tmapsvr::ModeName(cfg.mode);
@@ -605,7 +624,7 @@ int main(int argc, char** argv)
                     stopping=true;
                     ownership_lost=true;spdlog::critical("native Map ownership lost; stopping listener and draining sessions");
                     server.StopAccepting();server.CloseSessions();
-                    while(world_operations||background_operations||server.LiveSessions()){
+                    while(world_operations||background_operations||server.LiveSessions()||server.ControlOperations()){
                         timer.expires_after(std::chrono::milliseconds(20));co_await timer.async_wait(boost::asio::use_awaitable);
                     }
                     io.stop();co_return;

@@ -4,8 +4,11 @@ The master mission remains active. This file records the next coherent slices;
 it does not defer ordinary implementation for permission. Source backups remain
 authoritative for historical values, original code/client for supported behavior.
 
-Owner instruction renewed (2026-10-11): keep implementation and versioning local on `main`
-until complete gameplay is finished. Do not push, publish or deploy to GitHub.
+Owner instruction updated (2026-10-14): publish the complete current pending
+`main` history to GitHub. This snapshot authorization supersedes the earlier push
+pause; further implementation remains local unless another publication is
+authorized. Private extracts/local audit output stay outside Git. Deployment is
+still paused, and the publication commit uses `[skip ci]` to avoid CI execution.
 The latest owner instruction requires analysis and implementation, with services,
 clients, containers, tests and runtime verification deferred. This increment
 uses static inspection only; it also leaves builds for the next phase.

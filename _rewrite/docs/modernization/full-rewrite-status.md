@@ -5,8 +5,10 @@ verification/migration and Phase C container startup. **Phase A is still active;
 the IMPLEMENTATION_COMPLETE_UNVERIFIED gate has not been reached.**
 
 Starting revision: `2fa2396`, local `main`. All changes in this increment are
-**INTEGRATED_UNVERIFIED**, **IMPLEMENTED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
-publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
+**INTEGRATED_UNVERIFIED**, **IMPLEMENTED_UNVERIFIED** or **IMPLEMENTING** as scoped below.
+The owner authorized publishing the complete pending `main` history on2026-10-14;
+the publication commit skips CI and does not change the incomplete Phase A gate.
+Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–069 are **written, not applied**.
 Latest local increment is based on `acbcaaf`: source Plain16 Map–World and

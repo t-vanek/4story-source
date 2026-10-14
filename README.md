@@ -1,9 +1,12 @@
 # 4Story Emulator Server
 
-**Development policy (owner instruction renewed 2026-10-11):** version changes only through
-local commits on `main` until complete gameplay is finished. GitHub pushes,
-publication and deployment are paused. The owner authorized the one-time push of
-`3d49e56` on 2026-10-09 and renewed local-only implementation on 2026-10-11.
+**Development policy (owner instruction updated 2026-10-14):** commit changes on
+`main`. The owner now authorizes publishing the complete current pending history
+to GitHub `origin/main`, superseding the earlier push pause for this snapshot.
+The publication commit uses `[skip ci]` to preserve the prohibition on builds,
+tests, services, clients, containers and runtime verification. Private database
+extracts and local audit output stay outside Git. Further implementation remains
+local unless another publication is authorized; deployment remains paused.
 
 **Current workflow:** complete implementation (Phase A), then verification and
 migration (Phase B), then local container startup (Phase C). New changes are

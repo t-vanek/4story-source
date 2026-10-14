@@ -154,10 +154,10 @@ int main()
     p1.connect(ep); p2.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -176,6 +176,13 @@ int main()
     EXPECT(chars.Find(42) && chars.Find(200));
     chars.Rename(42, "Alice");
     chars.Rename(200, "Bob");
+    // This bounded codec/handler fixture seeds completed admission. Full entry
+    // ownership is exercised by its separate admission tests in Phase B.
+    for(auto id:{42U,200U}) {
+        auto character=chars.Find(id);std::lock_guard guard(character->lock);
+        character->db_loading=false;
+        for(auto& connection:character->cons){connection.ready=true;connection.valid=true;}
+    }
 
     std::uint32_t tms_id = 0;
 
@@ -299,7 +306,8 @@ int main()
         EXPECT(w == ToUint16(MessageId::MW_TMSINVITE_REQ));
         auto h = ParseInvite(b);
         EXPECT(h.tms == tms_id); EXPECT(h.ids.size() == 2);
-        EXPECT(HasId(h.ids, 42) && HasId(h.ids, 200));
+        EXPECT(h.char_id == 42); EXPECT(h.key == kAliceKey); EXPECT(h.inviter == 200);
+        EXPECT(h.ids == std::vector<std::uint32_t>({42,200}));
     }
     {
         auto [w, b] = ReadFramed(p1);
@@ -315,6 +323,7 @@ int main()
         EXPECT(w == ToUint16(MessageId::MW_TMSINVITE_REQ));
         auto h = ParseInvite(b);
         EXPECT(h.tms == tms_id); EXPECT(h.ids.size() == 2);
+        EXPECT(h.char_id == 200); EXPECT(h.key == kBobKey); EXPECT(h.inviter == 200);
     }
     {
         auto [w, b] = ReadFramed(p2);

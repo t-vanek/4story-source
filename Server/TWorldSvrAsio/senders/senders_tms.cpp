@@ -2,6 +2,7 @@
 #include "wire_codec.h"
 
 #include "MessageId.h"
+#include <stdexcept>
 
 namespace tworldsvr::senders {
 
@@ -57,6 +58,7 @@ SendMwTmsInviteReq(std::shared_ptr<PeerSession>      peer,
                    std::uint32_t                     tms,
                    const std::vector<TmsMemberInfo>& members)
 {
+    if(members.size()>255)throw std::runtime_error("TMS roster exceeds source BYTE count");
     using namespace wire;
     std::vector<std::byte> body;
     WritePOD<std::uint32_t>(body, char_id);

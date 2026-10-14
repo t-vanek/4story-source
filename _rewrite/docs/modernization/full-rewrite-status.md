@@ -8,10 +8,12 @@ Starting revision: `2fa2396`, local `main`. All changes in this increment are
 **INTEGRATED_UNVERIFIED**, **IMPLEMENTED_UNVERIFIED** or **IMPLEMENTING** as scoped below. No pushes or
 publication. Pre-existing untracked `_rewrite/docs/audits/` is outside this work.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–068 are **written, not applied**.
-Latest local increment is based on `75125a2`: atomic soulmate economy, native
-guild-level/server-message loading and durable effect sampling, with static source review only. No build,
+evidence remain unchanged. New migrations044–069 are **written, not applied**.
+Latest local increment is based on `c389976`: native communication authority,
+Map chat/TMS, durable bans and admin/event notices, with static source review only. No build,
 test, SQL, server, client, container or runtime verification occurred.
+Previous code increment: `c389976` (soulmate economy, guild-level/message loading
+and maintained timers), based on `75125a2`.
 Previous code increment: `1f1eb59` / `e709281` (native World social persistence and original Map relay), based on `374d56a`.
 Previous code increment: `11e0df1` / `dd07164` (atomic mutual friend adapter repair), based on `5fe42f8`.
 Previous code increments: `e84ece4` / `65be6d1` (quest mail and offline bill returns), based on `c537883`.
@@ -22,6 +24,35 @@ based on `802a232`. Previous `18ee496` implements item expiration and mail, base
 Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
+
+## Native chat, TMS, bans and notices — source review, 2026-10-14
+
+- Real CS chat/TMS/ban dispatch and MW response consumers are connected to native
+  current primary/replica claims. Source local neighbors/country/spam/whisper,
+  original type/group fields and full message bytes are retained. Recipient
+  CHAT1/INVITE2 protection uses committed native state. Normal connected Relay
+  and Map group/mode producers remain open.
+- Written069 and an offline exact operator importer require the complete pinned
+  archival manifest/checkpoint and native checksum. Source operator count0 is
+  legitimate evidence; missing publication is an error, never an implicit empty
+  authority or generated GM account. Mutable operator tools are still required.
+- Native World commits ban/deadline/current-generation audit before projection
+  or result, restores ban on entry and distinguishes MW stacking/zero-clear from
+  Control replacement/zero-now. Persistence across World restart is an explicit
+  extension of the source memory-only list. Unknown writes stop without replay.
+- Independent communication serialization and member/pending keys guard TMS
+  across awaits/logout. The source target-ID/recipient-key defect is repaired,
+  unsigned roster order and BYTE255 bounds retained. Map CONREADY holds its
+  primary lease before snapshot/Ready; names convert losslessly to source bytes.
+- Authenticated existing Control targeted and event text routing now reaches
+  current typed Maps and actual primary clients with published message6 and
+  source NetString. Event text changes no reward/gameplay state. Full Control
+  correlation/recovery, RW ban leg and complete event system remain open.
+- Full original inventory and native World bootstrap are incomplete. This code
+  has no build/test/runtime evidence. New044–069 remain unapplied; next070.
+
+[Contracts, deliberate changes, source mapping, required OPEN work and later
+acceptance](evidence/phase-a-chat-tms-20261014/README.md).
 
 ## Soulmate economy, World catalogs and timers — source review, 2026-10-13
 
@@ -571,10 +602,13 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
    complete missing pre-version contracts if further authoritative SQL is found.
    Operator/offline tools, service variants and remaining admin behavior still
    need per-responsibility review; native DB paths alone do not complete Control.
-4. Native World friend/group ownership and Map response integration are now
-   scoped by1f1eb59/e709281. Complete initial-load soulmate level checks, Map
-   search/registration/NPC purse/item atomicity and party XP; port guild/war/event/
-   rank/item/service repositories and the actual schema validator/bootstrap.
+4. Native friend/group ownership, soulmate initial-load checks and Map atomic
+   SEARCH/REGREADY/REG are now integrated, unverified. Complete party XP/emergency
+   HP and native guild/party/corps/tactics Map topology; port guild/war/event/rank/
+   item/service repositories and actual schema validator/bootstrap. Chat/TMS and
+   admin/event text now have bounded native Map/World paths; complete connected
+   Relay/RW bans, group producers, BR team and BOW peace authority, mutable
+   operator administration and Control response-loss/recovery correlation.
    Existing SpCall/unqualified legacy repositories must not be treated as PG-ready.
 5. Complete general combat targets/effects/interrupts, AI and rewards; all remaining
    inventories/economy/crafting/mail/trade, social/companions/modes/BOW/BR; all
@@ -585,7 +619,7 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `75125a2`: original/server/client source reads,
+Latest local work based on `c389976`: original/server/client source reads,
 declaration/call/CMake/SQL/packet/diff review, implementation and documentation.
 `git diff --check` passes. No build, test, SQL execution, service/client/container
 startup or runtime acceptance was performed. The following build results belong

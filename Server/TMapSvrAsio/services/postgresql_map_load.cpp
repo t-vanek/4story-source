@@ -8,6 +8,7 @@
 #include "services/posture_effects.h"
 #include "services/item_expiration.h"
 #include "services/native_item_row.h"
+#include "services/native_wire_text.h"
 #include <set>
 #include <soci/soci.h>
 #include <algorithm>
@@ -473,7 +474,8 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     s.bStatLevel=U8(row,"bStatLevel");
     s.bStatPoint=U8(row,"bStatPoint");
     s.dwStatExp=U32(row,"dwStatExp");
-    s.szNAME=row.get<std::string>("szNAME");
+    s.szNAME=native_wire_text::Encode(sql,row.get<std::string>("szNAME"),m_config.client_text_encoding);
+    if(s.szNAME.empty()||s.szNAME.size()>50)throw std::runtime_error("Native character name exceeds its source wire width");
     if(!std::isfinite(s.fPosX)||!std::isfinite(s.fPosY)||!std::isfinite(s.fPosZ))throw std::runtime_error("Invalid character position");
     auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
     p.effects.emplace();

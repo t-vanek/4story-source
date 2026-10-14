@@ -4,7 +4,23 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Latest local source-reviewed increment based on `75125a2` connects original
+Latest local increment based on `c389976` keeps original chat/TMS/ban/admin
+opcodes, INT32 string lengths, BYTE audiences/types, DWORD IDs/keys and payload
+order. Map fallback chat reaches native authority and original CS_CHAT_ACK; TMS
+responses strip only the two MW identity DWORDs. Operator text uses published
+message6, no-receiver message5/7 and uppercase eight-hex NetString lengths.
+Left(1024) return values were ignored in source: full bounded strings remain.
+ProtectedCHAT1/INVITE2, current peer/claim generations and admission projections
+are enforced. Deliberate changes include durable World bans, commit-before-result,
+canonical target names, TMS recipient-ID/key repair, bounded BYTE rosters and
+stale/unsolicited response rejection. MW ban zero clears0; Control zero replaces
+with now. Notices use sender0, targeted type7 or event groupWORLD3 and native
+recipient protection. No extra event gameplay effect is inferred from its BYTE
+metadata. Connected Relay, group/mode branches, native operator tools and locale/
+DWORD high-bit parity remain OPEN. No build/test/runtime/client acceptance ran.
+[Source contract and explicit differences](evidence/phase-a-chat-tms-20261014/README.md).
+
+Previous code `c389976`, based on `75125a2`, connects original
 SEARCH21532/READY21538/REG21534 through native Map/World offers. Existing MW
 layouts are unchanged; receipt IDs/owner/key/connection/epoch metadata stay in
 PostgreSQL. SEARCH/REG replies retain their BYTE result, DWORD target, original

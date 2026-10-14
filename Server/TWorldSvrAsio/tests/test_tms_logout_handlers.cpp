@@ -142,6 +142,10 @@ int main()
     EXPECT(chars.Find(42) && chars.Find(200));
     chars.Rename(42, "Alice");
     chars.Rename(200, "Bob");
+    for(auto id:{42U,200U}) {
+        auto character=chars.Find(id);std::lock_guard guard(character->lock);character->db_loading=false;
+        for(auto& connection:character->cons){connection.ready=true;connection.valid=true;}
+    }
 
     // Open a conference {Alice, Bob} via INVITE; drain both rosters.
     std::uint32_t tms_id = 0;

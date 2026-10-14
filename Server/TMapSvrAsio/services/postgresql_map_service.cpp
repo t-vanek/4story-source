@@ -24,6 +24,11 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
             "connection_id,authority_epoch,request_opcode,request,world_owner_token,response_opcode,response,target_id,target_name,"
             "target_region,target_level,target_class,target_session_key,target_server,status,committed_operation_id,created_at,prepared_at,consumed_at "
             "FROM app_world.soulmate_offers WHERE false) required",soci::into(columns);
+        *lease<<"SELECT count(*) FROM (SELECT world_id,operator_rows,status FROM world_compat.operator_release WHERE false) required",soci::into(columns);
+        *lease<<"SELECT count(*) FROM (SELECT \"bWorldID\",\"dwOperatorID\" FROM app_world.\"TOPERATORTABLE\" WHERE false) required",soci::into(columns);
+        *lease<<"SELECT count(*) FROM (SELECT world_id,name_bytes,ends_at FROM app_world.chat_bans WHERE false) required",soci::into(columns);
+        *lease<<"SELECT count(*) FROM (SELECT world_id,owner_token,issuer_id,session_key,source_server,name_bytes,ends_at,"
+            "source_map_token,source_connection_id,source_authority_epoch FROM app_world.chat_ban_mutations WHERE false) required",soci::into(columns);
         tx.commit();}
     catch(...){throw std::runtime_error("Native Map schema/catalog validation failed");}
 }

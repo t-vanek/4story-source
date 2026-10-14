@@ -34,6 +34,15 @@ class IPlayerService
 {
 public:
     virtual ~IPlayerService() = default;
+    virtual std::optional<CommunicationAuthority> AuthorizeCommunication(const MapSessionClaim&,bool=false,std::uint32_t=0,std::uint8_t=0) {
+        throw std::runtime_error("Native communication authority unavailable");
+    }
+    virtual bool ConfirmChatBan(const MapSessionClaim&,const std::string&,std::int64_t,bool=false) {
+        throw std::runtime_error("Native chat ban authority unavailable");
+    }
+    virtual std::optional<std::string> NoticeOperatorName(const MapSessionClaim&) {
+        throw std::runtime_error("Native notice text authority unavailable");
+    }
     virtual bool ConfirmReplicaLevel(const MapSessionClaim&,std::uint8_t) {throw std::runtime_error("Replica level authority unavailable");}
     virtual bool ConfirmSoulmateState(const MapSessionClaim&,std::uint32_t,const std::string&,std::uint32_t) {
         throw std::runtime_error("Native soulmate state authority unavailable");

@@ -41,6 +41,9 @@ public:
     SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) override;
     bool ConfirmReplicaLevel(const MapSessionClaim&,std::uint8_t) override;
     bool ConfirmSoulmateState(const MapSessionClaim&,std::uint32_t,const std::string&,std::uint32_t) override;
+    std::optional<CommunicationAuthority> AuthorizeCommunication(const MapSessionClaim&,bool=false,std::uint32_t=0,std::uint8_t=0) override;
+    bool ConfirmChatBan(const MapSessionClaim&,const std::string&,std::int64_t,bool=false) override;
+    std::optional<std::string> NoticeOperatorName(const MapSessionClaim&) override;
     QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) override;
     TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;

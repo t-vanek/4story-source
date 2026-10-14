@@ -173,6 +173,19 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
         if(std::chrono::steady_clock::now()>=projection_deadline){sess->Close();co_return;}
         projection_wait.expires_after(std::chrono::milliseconds(5));co_await projection_wait.async_wait(boost::asio::use_awaitable);
     }
+    // Own admission before sampling or awaiting MarkReady. A late World
+    // projection must not enter the old wait/MarkReady/checkpoint race window.
+    std::optional<SessionOperation> admission_operation;
+    if(identity->role==MapSessionRole::Primary) {
+        while(!ctx.session_reg->BeginProjection(sess.get())) {
+            const auto current=ctx.session_reg->Identity(sess.get());
+            if(!sess->IsOpen()||!current||current->phase!=SessionPhase::Admitted||current->key!=identity->key||
+               current->connection_id!=identity->connection_id)co_return;
+            if(std::chrono::steady_clock::now()>=projection_deadline){sess->Close();co_return;}
+            projection_wait.expires_after(std::chrono::milliseconds(5));co_await projection_wait.async_wait(boost::asio::use_awaitable);
+        }
+        admission_operation.emplace(*ctx.session_reg,sess.get());
+    }
     const auto cid=identity->char_id;
     auto snap=ctx.char_state?ctx.char_state->Get(cid):std::nullopt;
     if(!snap){sess->Close();co_return;}
@@ -193,11 +206,6 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
     // labelled Admitted in memory and strand an otherwise clean account.
     if(!ctx.session_reg->Transition(cid,identity->key,SessionPhase::Admitted,SessionPhase::Ready)){
         sess->Close();co_return;
-    }
-    std::optional<SessionOperation> admission_operation;
-    if(identity->role==MapSessionRole::Primary&&snap->payload) {
-        if(!ctx.session_reg->BeginCheckpoint(sess.get())){sess->Close();co_return;}
-        admission_operation.emplace(*ctx.session_reg,sess.get());
     }
     if(!sess->IsOpen())co_return;
     if (ctx.presence) ctx.presence->Bind(cid, identity->channel, sess);

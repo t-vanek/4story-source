@@ -31,6 +31,17 @@ inline std::string Decode(soci::session& sql,const std::string& bytes,const std:
         throw std::runtime_error("Client text encoding is not a lossless ANSI profile");
     return decoded;
 }
+inline std::string Encode(soci::session& sql,const std::string& text,const std::string& configured) {
+    if(text.find('\0')!=std::string::npos)throw std::runtime_error("NUL in native text");
+    if(std::all_of(text.begin(),text.end(),[](unsigned char b){return b<128;}))return text;
+    if(configured.empty())throw std::runtime_error("Non-ASCII native text requires an explicit client encoding");
+    std::string encoded,roundtrip,probe;
+    sql<<"SELECT encode(convert_to(:text,:encoding),'hex'),convert_from(convert_to(:text,:encoding),:encoding),"
+         "encode(convert_to('Mail',:encoding),'hex')",
+        soci::use(text,"text"),soci::use(configured,"encoding"),soci::into(encoded),soci::into(roundtrip),soci::into(probe);
+    if(!sql.got_data()||roundtrip!=text||probe!="4d61696c")throw std::runtime_error("Native text is not losslessly representable in the client encoding");
+    return Unhex(encoded);
+}
 inline std::string Original(const soci::row& row,const char* bytes,const char* decoded) {
     if(row.get_indicator(bytes)!=soci::i_null)return Unhex(row.get<std::string>(bytes));
     const auto text=row.get<std::string>(decoded);

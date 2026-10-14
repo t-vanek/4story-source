@@ -22,10 +22,13 @@ port = 18087
 [log]
 level = "info"
 
-# Native PG World paths now require written migrations001-068, explicit verified
+# Native PG World paths now require written migrations001-069, explicit verified
 # guild-level publication and deploy/sql/world-{social,mail,guild-level}-runtime-grants.sql
 # plus soulmate-runtime-grants.sql in later acceptance.
 # Also requires full059 --server-messages publication and world-message-runtime-grants.sql.
+# Communication additionally requires exact TOPERATORTABLE publication through
+# import_world_operators.py and communication-runtime-grants.sql. The pinned
+# archive contains zero operator rows; never substitute GM-name credentials.
 # Other World repositories remain a dependency; this is not a complete PG cluster.
 [native_world]
 # Empty accepts ASCII only. Set a lossless ANSI profile only from client/data

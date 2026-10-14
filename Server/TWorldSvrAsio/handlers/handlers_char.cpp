@@ -493,11 +493,19 @@ OnEnterSvrAck(std::shared_ptr<PeerSession>  peer,
     co_await senders::SendMwFriendListReq(peer, char_id, key,
         soulmate_target,fl_groups,fl_rows,&mate_descriptor);
 
-    // CheckChatBan — legacy looks up the cluster-wide m_mapBanChar
-    // ban list (deferred — same family as W4-19's deferred cluster-
-    // wide ban list). We honour the per-char chat_ban_time the
-    // W4-19 handler already mirrors into TChar so a still-active ban
-    // is enforced on the new connection.
+    // Original CheckChatBan restores the process-wide raw-name ban at entry.
+    // Native authority makes that map durable across World replacement.
+    auto communication_operation=co_await ctx.communication_operations->Acquire();
+    if(ctx.chat_repo) {
+        const auto auth=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo=ctx.chat_repo,char_id,key,server=static_cast<std::uint8_t>(peer->Wid())]
+            {return repo->Authorize(char_id,{key,server},true);});
+        if(!auth.valid||ctx.chars->Find(char_id)!=self||!ctx.peers->IsCurrentMap(peer))co_return;
+        chat_ban_time=auth.ban_until;
+        {std::lock_guard guard(self->lock);
+         if(self->closing||self->logout||self->key!=key||self->main_server_id!=static_cast<std::uint8_t>(peer->Wid()))co_return;
+         self->chat_ban_time=chat_ban_time;}
+    }
     if (chat_ban_time > 0)
     {
         const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));

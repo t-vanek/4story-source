@@ -116,6 +116,14 @@ bool PostgreSQLFriendRepository::AuthorizeSoulmateOffer(soci::session& sql,std::
         return true;
     } catch(const StaleActor&) {return false;}
 }
+bool PostgreSQLFriendRepository::AuthorizeCommunication(soci::session& sql,std::uint32_t character,FriendAuthority a,bool loading) {
+    try {
+        LockActors(sql,character,0,a,false);GuardActor(sql,character,a,loading);
+        const int key=Signed(a.key);int ready=0;
+        sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(ready);
+        return sql.got_data()&&ready==1;
+    } catch(const StaleActor&) {return false;}
+}
 FriendLoad PostgreSQLFriendRepository::LoadForChar(std::uint32_t character,FriendAuthority a) {
     std::lock_guard guard(m_mutex);if(m_failed)throw std::runtime_error("Native social persistence stopped");
     try {

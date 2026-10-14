@@ -54,6 +54,7 @@
 #include "../services/peer_registry.h"
 #include "../services/postgresql_soulmate_offers.h"
 #include "../services/server_messages.h"
+#include "../services/postgresql_chat_repository.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
@@ -100,6 +101,9 @@ struct HandlerContext
     // "not loaded" (dev path without [database] + no fake seed).
     const GuildLevelCache*    guild_levels = nullptr;
     const ServerMessages*     server_messages = nullptr;
+    const std::vector<std::uint32_t>* operators = nullptr;
+    PostgreSQLChatRepository* chat_repo = nullptr;
+    std::shared_ptr<SocialOperationGate> communication_operations=std::make_shared<SocialOperationGate>();
 
     // W3a-11: cluster-wide list of "we are recruiting" postings.
     // One entry per guild, filtered cross-country on read. Owned
@@ -1633,9 +1637,10 @@ boost::asio::awaitable<void> OnFriendListAck(
 // PARTY (target party), FORCE (the sender's corps), MAP/WORLD/SHOW
 // (every map peer, global), or WHISPER (a direct recipient, echoed
 // back to the sender, with a war-country gate waived for peace).
-// Each recipient gets MW_CHAT_REQ. The operator-whisper sub-case
-// (whisper to "GM") is deferred — it needs the operator list +
-// server-message table.
+// Each current recipient gets MW_CHAT_REQ. Native authority validates the
+// sender's claim and verified operator catalog; Map applies source ban timing.
+// Operator whispers use
+// original message6 bytes and the source same-country online operator list.
 //
 // Wire (SSHandler.cpp:5248): BYTE channel, DWORD sender, key,
 //   STRING sender_name, BYTE type, group, DWORD target,
@@ -1649,23 +1654,22 @@ boost::asio::awaitable<void> OnChatAck(
 //
 // MW_CHATBAN_ACK — a GM bans a player from chat for N minutes (0 =
 // unban). World resolves the target by name, sets/extends/clears the
-// ban timer on the target's TChar, tells the target's map to enforce
+// native durable ban before the target's cache, tells its map to enforce
 // it (MW_CHATBAN_REQ), and echoes the result to the issuing GM's map.
-// The cluster-wide ban list + RW relay-server propagation (so the
-// ban survives the target reconnecting on another map) are deferred
-// — they need the operator/ban-list infra (same family as the
-// RW_RELAYSVR operator list).
+// Admission restores committed bans across Map/World reconnects. The source
+// RW relay-server enforcement leg is still open; no Relay service is invented.
 //   Wire (SSHandler.cpp:13098): STRING target, WORD minutes,
 //     DWORD char_id, DWORD key
 boost::asio::awaitable<void> OnChatBanAck(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
+boost::asio::awaitable<void> OnCtChatBanReq(std::shared_ptr<PeerSession>,std::vector<std::byte>,const HandlerContext&);
 
 // --- W6-8: GM char message relay (handlers_chat.cpp) ---------------
 //
 // CT_CHARMSG_ACK — the control server sends a system/GM message to a
-// char by name; world routes it (truncated to 1 KiB) to the char's
+// char by name; world routes its full source body to the char's
 // main map as MW_CHARMSG_REQ.
 //   Wire (SSHandler.cpp:111): STRING name, STRING message
 boost::asio::awaitable<void> OnCharMsgAck(

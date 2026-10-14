@@ -2,7 +2,27 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Latest local work based on `75125a2` connects soulmate SEARCH/REGREADY/REG with
+Latest local Phase A work (2026-10-14), based on `c389976`, connects original
+Map fallback/local chat, TMS, native bans and operator authority, targeted admin
+notices and event text into the existing Map/World dispatchers and PostgreSQL
+claim fences. Written069 adds exact operator publication and durable raw-name ban
+and audit state; the pinned source operator table has zero rows, with no invented GM
+IDs. Current actors, protected CHAT1/INVITE2 and admission projections are guarded.
+These paths are **INTEGRATED_UNVERIFIED**; SQL/import/grants are
+**IMPLEMENTED_UNVERIFIED**. No build, test, SQL/tool, service, client or container
+ran. Connected Relay, group topology, BR/BOW branches, mutable operator tools and
+full native World/bootstrap/gameplay remain OPEN. [Source mapping, deliberate
+repairs and deferred acceptance](evidence/phase-a-chat-tms-20261014/README.md).
+
+| Current communication scope | Connected implementation | Required OPEN work / acceptance |
+| --- | --- | --- |
+| Map local/fallback chat | Source neighbors/country/spam/type/echo and native ready primary/replica/protected delivery | Connected Relay;group topology;BR team/BOW peace;locale/highbit/client |
+| Native operator and ban authority |069 exact source0 publication;World/Map checks;commit/audit then projection;entry restoration;Control replace | Mutable operator administration;RW ban leg;fault/recovery/roles |
+| TMS conferences |Three original client requests;World generation-bound serialized members/pending;five MW consumers;recipient repair | Real-client/race/255 bounds;full social/gameplay inventory |
+| Targeted/event admin text |Existing Control source routing→current World/Map→primary52F5;source message6/netstring and protection | Connected Relay;event gameplay/durable receipts/admin correlation |
+| Admission/text boundary |Primary lease before snapshot/Ready;native name ANSI conversion;committed projection checks | Full bootstrap/build/SQL/admission/concurrency/bytes acceptance |
+
+Previous code `c389976`, based on `75125a2`, connects soulmate SEARCH/REGREADY/REG with
 exact prepared receipts and one fenced purse/caller/directed-link/checkpoint
 commit; initial ready-primary level-gap END and authority-confirmed Map state
 projection are connected. Written068 publishes/loads native guild levels with
@@ -47,10 +67,10 @@ Code `c4385af` adds Soul Lottery/effect820, MONEY/AP/special-box item paths,
 source ITEMSELL pricing/debit and DURATIONREP quote/repair transactions. Trade/shop/
 tournament producers, conditional NPC discounts and premium branches are still
 missing; these bounded ordinary-player paths are INTEGRATED_UNVERIFIED.
-Migrations044–068 and archival/import tools are written, not executed. Earlier increments compiled all six modern binaries at their recorded revisions.
+Migrations044–069 and archival/import tools are written, not executed. Earlier increments compiled all six modern binaries at their recorded revisions.
 Those results do not cover the latest changed Map/World code, which has no
 compilation evidence. Tests and runtime startup remain deferred. No named client binary is available.
-[Latest source scope and limitations](evidence/phase-a-refine-events-20261011/README.md).
+[Latest source scope and limitations](evidence/phase-a-chat-tms-20261014/README.md).
 
 Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,
@@ -355,7 +375,7 @@ been verified.
 | Money, trade, shops, crafting/upgrades | Existing money/loot/NPC handlers and World cash/item operations; enumerate original CS branches | Atomic ownership and currency changes, rollback/races | Money/loot/item tool/cashsale tests are partial | IMPLEMENTING; duplication/race/reconnect acceptance pending |
 | Parties and corps | World party/corps registries and handler modules | Persistence only where original durability is proven | Party join/order/move/delete/corps suites | INTEGRATED subset; full Map/World/client behavior comparison pending |
 | Guilds, peerage, tactics, cabinet | Existing World guild handlers/repos/cache; native typed guild-level loader | Written068 verified archived15-column TGUILDCHART release; full lifecycle/Map hydration and role meanings remain | Static source/SQL review; level0 and duplicate/reload assertions corrected without execution | INTEGRATED_UNVERIFIED guild-level loading; wider guild PG paths IMPLEMENTING |
-| Friends, chat, soulmate, social | Native World ownership/social repository; Map friend/group/state/end and SEARCH/READY/REG dispatch | Written066 directed state and067 exact offers; one fenced Map purse/caller/link/checkpoint commit | Static original server/client/SQL review only for latest code; no build/test/runtime | INTEGRATED_UNVERIFIED scoped persistence/economy/ready-load checks; party soulmate XP/HP; chat/guild/full World remain IMPLEMENTING |
+| Friends, chat, soulmate, social | Native World ownership/social/communication; Map friend/soulmate/chat/TMS/admin-text dispatch | Written066 directed state;067 exact economy offers;069 operator publication and ban audit | Static original server/client/SQL review only for latest code; no build/test/runtime | INTEGRATED_UNVERIFIED bounded persistence/economy/chat/TMS/admin text;party soulmate XP/HP;Relay/group/mode/guild/full World remain IMPLEMENTING |
 | Mail/posts, rankings and events | World post/rank/monthrank/event schedulers and handlers | Persistent post/rank/event state pending | Dedicated World tests | IMPLEMENTING; restart recovery and epoch/time semantics pending |
 | Castle/territory/war, arena, tournament, Bow/BR | Existing World war/tournament/Bow/BR registries, schedulers, repositories and Map modes | Event/reward/ranking transactions pending | Existing branch-specific suites | IMPLEMENTING; complete simulation/mode and native persistence acceptance pending |
 | Mounts, pets, recalls, companions | Map companion service; World recall/spolecnik handlers | Backed-up procedures and companion state need semantic mapping | Companion/recall handler tests | IMPLEMENTING; dynamic attribute levels require a new catalog contract |

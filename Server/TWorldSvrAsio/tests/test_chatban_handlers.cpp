@@ -132,6 +132,9 @@ int main()
     tworldsvr::HandlerContext ctx{};
     ctx.io = &io; ctx.chars = &chars; ctx.guilds = &guilds;
     ctx.peers = &peers; ctx.nation = 0;
+    // Explicit synthetic non-PG operator cache for this bounded wire fixture.
+    // Native production uses the verified pinned SQL authority (source count0).
+    const std::vector<std::uint32_t> fixture_operators{42};ctx.operators=&fixture_operators;
 
     tworldsvr::WorldServerConfig svr_cfg{};
     svr_cfg.port = 0; svr_cfg.max_connections = 4; svr_cfg.ctx = ctx;
@@ -148,10 +151,10 @@ int main()
     p1.connect(ep); p2.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
+    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0442));
     { auto [w, _] = ReadFramed(p1);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
     { auto [w, _] = ReadFramed(p1);
@@ -165,6 +168,14 @@ int main()
     chars.Rename(200, "Bob");
 
     const std::uint32_t kGm = 42, kGmKey = 0xA1;
+    SendFramed(p1,ToUint16(MessageId::MW_ADDCHAR_ACK),AddCharBody(kGm,kGmKey));
+    EXPECT(world_test::ReadFreshEnter(ReadFramed,p1,AddCharBody(kGm,kGmKey)));
+    for(int i=0;i<100&&!chars.Find(kGm);++i)std::this_thread::sleep_for(10ms);
+    EXPECT(chars.Find(kGm));chars.Rename(kGm,"FixtureOperator");
+    for(auto id:{kGm,200U}) {
+        auto character=chars.Find(id);std::lock_guard guard(character->lock);character->db_loading=false;
+        for(auto& connection:character->cons){connection.ready=true;connection.valid=true;}
+    }
 
     // --- Ban Bob for 5 minutes ------------------------------------
     SendFramed(p1, ToUint16(MessageId::MW_CHATBAN_ACK),

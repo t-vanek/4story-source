@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <limits>
+#include <stdexcept>
 #include "domain/session.h"
 #include <unordered_map>
 #include <vector>
@@ -62,6 +63,15 @@ public:
     virtual std::optional<std::uint32_t> FindCharIdBySession(
         const tnetlib::AsioSession* session) const = 0;
     virtual std::size_t Size() const = 0;
+    virtual std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> ReadyPrimaries() const {
+        throw std::runtime_error("Communication primary registry unavailable");
+    }
+    virtual std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> ReadyPlayers() const {
+        throw std::runtime_error("Communication local player registry unavailable");
+    }
+    virtual std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> PrimarySessions() const {
+        throw std::runtime_error("Communication admission registry unavailable");
+    }
 };
 
 class InMemorySessionRegistry final : public ISessionRegistry {
@@ -217,6 +227,22 @@ public:
         for(const auto& [cid,row]:m_rows)
             if(row.id.phase==SessionPhase::Ready && row.id.role==MapSessionRole::Primary)
                 if(auto session=row.session.lock())out.emplace_back(row.id,std::move(session));
+        return out;
+    }
+    std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> ReadyPrimaries() const override {return ReadySessions();}
+    std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> ReadyPlayers() const override {
+        std::lock_guard lock(m_mtx);
+        std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> out;
+        for(const auto& [cid,row]:m_rows)if(row.id.phase==SessionPhase::Ready)
+            if(auto session=row.session.lock())out.emplace_back(row.id,std::move(session));
+        return out;
+    }
+    std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> PrimarySessions() const override {
+        std::lock_guard lock(m_mtx);
+        std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> out;
+        for(const auto& [cid,row]:m_rows)if(row.id.role==MapSessionRole::Primary&&
+            (row.id.phase==SessionPhase::Loaded||row.id.phase==SessionPhase::Admitted||row.id.phase==SessionPhase::Ready))
+            if(auto session=row.session.lock())out.emplace_back(row.id,std::move(session));
         return out;
     }
 private:

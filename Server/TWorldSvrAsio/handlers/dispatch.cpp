@@ -472,6 +472,8 @@ Dispatch(std::shared_ptr<PeerSession>  peer,
     case MessageId::MW_CHATBAN_ACK:
         co_await OnChatBanAck(std::move(peer), std::move(body), ctx);
         co_return;
+    case MessageId::CT_CHATBAN_REQ:
+        co_await OnCtChatBanReq(std::move(peer),std::move(body),ctx);co_return;
     case MessageId::CT_CHARMSG_ACK:
         co_await OnCharMsgAck(std::move(peer), std::move(body), ctx);
         co_return;

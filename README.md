@@ -26,7 +26,19 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-The latest local increment, based on `75125a2`, connects original soulmate
+Latest local Phase A work (2026-10-14), based on `c389976`, connects original
+Map fallback/local chat, TMS, native bans and operator authority, targeted admin
+notices and event text into the existing Map/World dispatchers and PostgreSQL
+claim fences. Written069 adds exact operator publication and durable raw-name ban
+and audit state; the pinned source operator table has zero rows, with no invented GM
+IDs. Current actors, protected CHAT1/INVITE2 and admission projections are guarded.
+These paths are **INTEGRATED_UNVERIFIED**; SQL/import/grants are
+**IMPLEMENTED_UNVERIFIED**. No build, test, SQL/tool, service, client or container
+ran. Connected Relay, group topology, BR/BOW branches, mutable operator tools and
+full native World/bootstrap/gameplay remain OPEN. [Source mapping, deliberate
+repairs and deferred acceptance](_rewrite/docs/modernization/evidence/phase-a-chat-tms-20261014/README.md).
+
+Earlier code `c389976`, based on `75125a2`, connects original soulmate
 SEARCH/REGREADY/REG through Map → World → PostgreSQL → original client replies.
 Written067 binds exact prepared World replies to the current Map claim; purse,
 optional caller, directed relationship and checkpoint commit atomically. World
@@ -86,7 +98,7 @@ in Debug/Release; no new tests, database runs or cluster startup occurred.
 Full World/social/economy/gameplay remains incomplete.
 [Exact source scope and evidence](_rewrite/docs/modernization/evidence/phase-a-mail-send-protected-20261013/README.md).
 
-New migrations **044–068** and native code extend quest state/actions, skill audit,
+New migrations **044–069** and native code extend quest state/actions, skill audit,
 peer authentication, Patch metadata and Control persistence. Commit `ea7c811` adds
 transactional completion/crafting rewards, magic item creation, turn-in consumption,
 currency/title/skill rewards, ordinary experience/level progression and World/Map
@@ -150,9 +162,9 @@ jobs and World reserved/event/admin producers remain required.
 
 Compilation results for the changed Map target are recorded with that increment.
 Earlier evidence covers all six modern targets at its stated commits. Historical
-import tools and migrations044–068 are written, not executed. No tests, database
+import tools and migrations044–069 are written, not executed. No tests, database
 migration, server startup or container run belongs to this increment. Existing
-migrations001–066 remain unchanged; the next unused migration number is069.
+migrations001–068 remain unchanged; the next unused migration number is070.
 
 ## Historical verification through `2fa2396`
 

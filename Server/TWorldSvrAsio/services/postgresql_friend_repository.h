@@ -23,6 +23,8 @@ public:
     bool EndSoulmateExact(std::uint32_t,std::uint32_t,std::uint32_t,FriendAuthority = {}) override;
 private:
     friend class PostgreSQLSoulmateOffers;
+    friend class PostgreSQLChatRepository;
+    bool AuthorizeCommunication(soci::session&,std::uint32_t,FriendAuthority,bool loading);
     bool AuthorizeSoulmateOffer(soci::session&,std::uint32_t,std::uint32_t,FriendAuthority);
     bool Mutate(const std::string& kind,std::uint32_t character,std::uint32_t target,std::uint8_t group,
                 const std::string& name,std::uint32_t time,FriendAuthority);

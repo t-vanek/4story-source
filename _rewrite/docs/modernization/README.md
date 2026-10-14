@@ -1,6 +1,18 @@
 # Modern server implementation status
 
-Latest local Phase A work (2026-10-13), based on `75125a2`: original soulmate
+Latest local Phase A work (2026-10-14), based on `c389976`, connects original
+Map fallback/local chat, TMS, native bans and operator authority, targeted admin
+notices and event text into the existing Map/World dispatchers and PostgreSQL
+claim fences. Written069 adds exact operator publication and durable raw-name ban
+and audit state; the pinned source operator table has zero rows, with no invented GM
+IDs. Current actors, protected CHAT1/INVITE2 and admission projections are guarded.
+These paths are **INTEGRATED_UNVERIFIED**; SQL/import/grants are
+**IMPLEMENTED_UNVERIFIED**. No build, test, SQL/tool, service, client or container
+ran. Connected Relay, group topology, BR/BOW branches, mutable operator tools and
+full native World/bootstrap/gameplay remain OPEN. [Source mapping, deliberate
+repairs and deferred acceptance](evidence/phase-a-chat-tms-20261014/README.md).
+
+Previous code `c389976` (2026-10-13), based on `75125a2`: original soulmate
 SEARCH/REGREADY/REG now use fenced native offers and atomic Map purse/caller/link/
 checkpoint finalization, followed by original packets. Ready-primary World
 maintenance handles source initial level gaps and cache-only committed receipts.
@@ -17,7 +29,7 @@ exact sampled timers at periodic checkpoint/logout/transfer. Full client chat/
 TMS, general expiry producers and source save filters remain open; no historical
 build/test evidence is transferred to these additions.
 
-Updated 2026-10-13 (Europe/Prague). Target: original client → compatible C++20 server → native
+Updated 2026-10-14 (Europe/Prague). Target: original client → compatible C++20 server → native
 PostgreSQL, primarily Linux containers. The overall reimplementation is **in
 progress**. No claim of complete gameplay or real-client compatibility is made.
 Older C#/.NET plans and percentage estimates in `GAP_ANALYSIS.md`,

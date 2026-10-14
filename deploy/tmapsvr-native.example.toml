@@ -1,6 +1,9 @@
 # Verified fresh normal-character runtime. Full gameplay, social persistence,
 # advanced effects and active recall admission are still being implemented.
-# Phase A now requires written migrations001–062 and updated Map grants.
+# Phase A now requires written migrations001–069 and updated Map grants.
+# Chat/TMS/notice admission requires communication-runtime-grants.sql, existing
+# social/soulmate Map grants and full059 server-message publication/grants.
+# Chat requires verified TOPERATORTABLE via import_world_operators.py (source0).
 # Applying/migrating this scope is deferred until Phase B.
 [server]
 port = 5815

@@ -107,7 +107,7 @@ std::vector<std::byte> ChatBody(std::uint32_t sender, std::uint32_t key,
     WritePOD<std::uint32_t>(b, sender);
     WritePOD<std::uint32_t>(b, key);
     WriteString(b, sname);
-    WritePOD<std::uint8_t>(b, /*type=*/chat::kTypeNormal);
+    WritePOD<std::uint8_t>(b, /*type=*/group); // original non-operator type equals group
     WritePOD<std::uint8_t>(b, group);
     WritePOD<std::uint32_t>(b, target);
     WriteString(b, name);
@@ -182,9 +182,9 @@ int main()
         auto [w, _] = ReadFramed(s);
         EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ));
     };
-    reg(p1, 0x0042);
-    reg(p2, 0x0043); drain(p1);
-    reg(p3, 0x0044); drain(p1); drain(p2);
+    reg(p1, 0x0442);
+    reg(p2, 0x0443); drain(p1);
+    reg(p3, 0x0444); drain(p1); drain(p2);
 
     SendFramed(p1, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(42, 0xA1));
     EXPECT(world_test::ReadFreshEnter(ReadFramed, p1, AddCharBody(42, 0xA1)));
@@ -198,6 +198,12 @@ int main()
     EXPECT(chars.Find(42) && chars.Find(200) && chars.Find(400));
     chars.Rename(42, "Alice"); chars.Rename(200, "Bob");
     chars.Rename(400, "Carol");
+    for(auto id:{42U,200U,400U}) {
+        auto character=chars.Find(id);std::lock_guard guard(character->lock);
+        character->db_loading=false;
+        for(auto& connection:character->cons){connection.ready=true;connection.valid=true;}
+    }
+    {auto alice=chars.Find(42);std::lock_guard guard(alice->lock);alice->guild_id=7;alice->party_id=10;}
     // Carol's war-country differs (aid_country=1) for the whisper gate.
     { auto c = chars.Find(400); std::lock_guard g(c->lock);
       c->aid_country = 1; }

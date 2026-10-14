@@ -11,7 +11,19 @@ clients, containers, tests and runtime verification deferred. This increment
 uses static inspection only; it also leaves builds for the next phase.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest work based on `75125a2` integrates atomic soulmate SEARCH/REGREADY/REG,
+Latest local Phase A work (2026-10-14), based on `c389976`, connects original
+Map fallback/local chat, TMS, native bans and operator authority, targeted admin
+notices and event text into the existing Map/World dispatchers and PostgreSQL
+claim fences. Written069 adds exact operator publication and durable raw-name ban
+and audit state; the pinned source operator table has zero rows, with no invented GM
+IDs. Current actors, protected CHAT1/INVITE2 and admission projections are guarded.
+These paths are **INTEGRATED_UNVERIFIED**; SQL/import/grants are
+**IMPLEMENTED_UNVERIFIED**. No build, test, SQL/tool, service, client or container
+ran. Connected Relay, group topology, BR/BOW branches, mutable operator tools and
+full native World/bootstrap/gameplay remain OPEN. [Source mapping, deliberate
+repairs and deferred acceptance](evidence/phase-a-chat-tms-20261014/README.md).
+
+Previous code `c389976`, based on `75125a2`, integrates atomic soulmate SEARCH/REGREADY/REG,
 ready-primary initial level-gap END and verified native guild-level publication/
 loading. Written067/068 are not applied. No build or execution occurred.
 World also uses existing059's complete51-row message publication for relay,
@@ -44,7 +56,7 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–068; the next free number is069.
+immutable. Phase A has added unapplied migrations044–069; the next free number is070.
 
 Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,
@@ -66,18 +78,25 @@ incomplete. [Contracts, differences and compilation evidence](evidence/phase-a-q
 
 Active next source paths after this increment:
 
-1. `TWorldSvrAsio/db/schema_validator.cpp`, World main and native ownership:
+1. Complete native Map guild/party/corps/tactics membership producers and source
+   chat targets;BR team whisper/party and BOW peace authority;source Relay path
+   and RW ban propagation if its missing source contracts are found. Implement
+   native mutable operator tools/reset without inventing historical GM IDs and
+   finish Control result-loss/recovery correlation. Bounded Map/World chat/TMS,
+   targeted/event text and SQL protection are now integrated, unverified; event
+   text alone does not complete event reward/state machinery.
+2. `TWorldSvrAsio/db/schema_validator.cpp`, World main and native ownership:
    replace the remaining legacy guild/war/event/rank/item/service bootstrap and
    repositories. Native friend/group/erase and World process ownership are now
    integrated; Map soulmate economy and ready-primary initial-load level checks
    are now connected, unverified. Complete soulmate party XP/emergency HP,
    native guild lifecycle/Map hydration and remaining World bootstrap.
-2. Quest DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/REGEN plus non-request
+3. Quest DROPITEM/SPAWNMON/TELEPORT/SWITCH/DIEMON/DEFENDSKILL/REGEN plus non-request
    kill/position/map/monster producers; preserve completed SENDPOST and rewards.
-3. Other admin/event/BR/rank reserved-mail producers; notification retention and
+4. Other admin/event/BR/rank reserved-mail producers; notification retention and
    historical staged-save/obsolete attachment reconciliation. Offline bill
    returns are integrated, not executed or accepted.
-4. Complete all other Phase A gameplay/operational responsibilities. Then perform
+5. Complete all other Phase A gameplay/operational responsibilities. Then perform
    the whole static implementation gate, Phase B and Phase C in that order.
 
 The older increment notes below retain their original scope. The gaps for
@@ -98,7 +117,8 @@ and World Debug/Release; no Phase B/C execution. Continue with:
 
 1. Native World ownership/social repositories, including atomic friend erasure
    behind PROTECTEDCHECK; the existing World path still uses legacy SOCI tables.
-   Then connect protected chat/invite/deal/duel consumers and trade reservations.
+   Chat/invite consumers are now connected in the069 increment; continue
+   deal/duel consumers and trade reservations.
 2. Reserved delivery is integrated by45d130d; continue its quest/event/admin/BR/
    rank producers. Follow `QuestSendPost.cpp` and `TQuestSendPost.sql`, publish
    original TQTITLECHART with source SQL VARCHAR conversion and prefix/truncation.

@@ -161,6 +161,12 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnFriendReq(sess,wId,std::move(body),ctx);break;
     case MessageId::CS_CHAT_REQ:
         co_await OnChatReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_CHATBAN_REQ:
+        co_await OnChatBanReq(sess,std::move(body),ctx);break;
+    case MessageId::CS_TMSSEND_REQ:
+    case MessageId::CS_TMSINVITE_REQ:
+    case MessageId::CS_TMSOUT_REQ:
+        co_await OnTmsReq(sess,wId,std::move(body),ctx);break;
     case MessageId::CS_PARTYADD_REQ:
         co_await OnPartyAddReq(sess, std::move(body), ctx); break;
     case MessageId::CS_PARTYJOIN_REQ:

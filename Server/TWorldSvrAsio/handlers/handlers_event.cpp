@@ -6,6 +6,7 @@
 #include "../services/event_info_codec.h"
 #include "../services/lucky_event_codec.h"
 #include "../wire_codec.h"
+#include "communication_authority.h"
 
 #include "fourstory/db/co_offload.h"
 
@@ -96,6 +97,8 @@ OnCtEventMsgReq(std::shared_ptr<PeerSession> peer,
                 std::vector<std::byte>       body,
                 const HandlerContext&        ctx)
 {
+    auto operation=co_await ctx.communication_operations->Acquire();
+    if(!ctx.ctrl_svr||ctx.ctrl_svr->Get()!=peer||!peer->Wire()->IsOpen())co_return;
     const std::string& ip = peer->Wire()->RemoteIPv4();
     if (!ctx.peers)
     {
@@ -107,15 +110,20 @@ OnCtEventMsgReq(std::shared_ptr<PeerSession> peer,
     std::uint8_t event_id = 0;
     std::uint8_t msg_type = 0;
     std::string  msg;
-    if (!r.Read(event_id) || !r.Read(msg_type) || !r.ReadString(msg))
+    if (!r.Read(event_id) || !r.Read(msg_type) || !r.ReadString(msg)||!r.Eof()||msg.find('\0')!=std::string::npos)
     {
         spdlog::warn("OnCtEventMsgReq[{}]: short body ({} bytes)", ip,
             body.size());
         co_return;
     }
 
-    for (auto& p : ctx.peers->Snapshot())
-        co_await senders::SendMwEventMsgReq(p, event_id, msg_type, msg);
+    // The original Map consumer treats both BYTE fields as wire metadata and
+    // delivers the complete text. Event gameplay/reward state is independent.
+    for (auto& p : ctx.peers->Snapshot()) {
+        if(ctx.ctrl_svr->Get()!=peer||!peer->Wire()->IsOpen())co_return;
+        if(ctx.peers->IsCurrentMap(p))
+            co_await senders::SendMwEventMsgReq(p, event_id, msg_type, msg);
+    }
     co_return;
 }
 

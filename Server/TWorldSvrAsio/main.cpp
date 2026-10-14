@@ -21,6 +21,7 @@
 #include "services/event_registry.h"
 #include "services/guild_level_cache.h"
 #include "services/server_messages.h"
+#include "services/postgresql_chat_repository.h"
 #include "services/guild_registry.h"
 #include "services/mapper_profiles.h"
 #include "services/guild_wanted_registry.h"
@@ -152,6 +153,8 @@ int main(int argc, char** argv)
         std::unique_ptr<tworldsvr::IFriendRepository>    friend_repo;
         std::unique_ptr<tworldsvr::PostgreSQLSoulmateOffers> soulmate_offers;
         tworldsvr::ServerMessages server_messages;
+        std::vector<std::uint32_t> operators;
+        std::unique_ptr<tworldsvr::PostgreSQLChatRepository> chat_repo;
         std::atomic<bool> friend_persistence_failed{false};
         std::unique_ptr<tworldsvr::IItemStateRepository> item_state_repo;
         std::unique_ptr<tworldsvr::ICashSaleRepository>  cash_sale_repo;
@@ -205,6 +208,9 @@ int main(int argc, char** argv)
                     static_cast<tworldsvr::PostgreSQLFriendRepository&>(*friend_repo));
                 server_messages=tworldsvr::LoadPostgreSQLServerMessages(*db_pool_owner,cfg.group_id,
                     world_owner->Token(),cfg.native_world_client_text_encoding);
+                chat_repo=std::make_unique<tworldsvr::PostgreSQLChatRepository>(
+                    static_cast<tworldsvr::PostgreSQLFriendRepository&>(*friend_repo));
+                operators=chat_repo->LoadOperators();
             }
 
             // Fail-fast on missing TGUILD* columns before the
@@ -416,6 +422,8 @@ int main(int argc, char** argv)
         ctx.soulmate_offers = soulmate_offers.get();
         ctx.guild_levels = &guild_levels;
         ctx.server_messages = &server_messages;
+        ctx.operators = &operators;
+        ctx.chat_repo = chat_repo.get();
         ctx.guild_wanted = &guild_wanted;
         ctx.guild_tactics_wanted = &guild_tactics_wanted;
         ctx.parties      = &party;

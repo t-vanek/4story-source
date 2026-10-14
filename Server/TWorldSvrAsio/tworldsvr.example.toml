@@ -11,7 +11,7 @@ max_connections = 256
 
 # Production World requires an explicit database and worker pool. Supply the
 # connection through the private local configuration; do not commit credentials.
-# Native social/mail need066 and grants; guild/war/event bootstrap still needs
+# Native social/mail/communication need066-069 and grants; war/event bootstrap still needs
 # its complete native port. This example does not declare a runnable PG cluster.
 [database]
 backend = "postgresql"
@@ -27,8 +27,11 @@ port = 18087
 [log]
 level = "info"
 
-# Native PG World social/mail paths require migrations001-066 and both
-# deploy/sql/world-{social,mail}-runtime-grants.sql. Other World repositories
+# Native PG World paths require written migrations001-069, verified guild-level
+# and059 server-message publication plus world-{social,mail,guild-level,message}
+# runtime grants and soulmate-runtime-grants.sql. Communication needs verified
+# TOPERATORTABLE via import_world_operators.py and communication-runtime-grants.sql.
+# These tools/SQL are not executed in Phase A. Other World repositories
 # remain an implementation dependency; this is not a complete PG cluster.
 [native_world]
 # Empty accepts ASCII only. Set a lossless ANSI profile only from client/data

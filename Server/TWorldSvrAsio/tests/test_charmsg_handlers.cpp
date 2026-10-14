@@ -108,9 +108,13 @@ int main()
     tworldsvr::CharRegistry   chars;
     tworldsvr::GuildRegistry  guilds;
     tworldsvr::PeerRegistry   peers;
+    tworldsvr::CtrlSvrSlot control;
+    fourstory::security::IpAllowlist allowed_control;
+    EXPECT(allowed_control.Add("127.0.0.1"));
     tworldsvr::HandlerContext ctx{};
     ctx.io = &io; ctx.chars = &chars; ctx.guilds = &guilds;
     ctx.peers = &peers; ctx.nation = 0;
+    ctx.ctrl_svr=&control;ctx.control_ip_allowlist=&allowed_control;
 
     tworldsvr::WorldServerConfig svr_cfg{};
     svr_cfg.port = 0; svr_cfg.max_connections = 4; svr_cfg.ctx = ctx;
@@ -127,14 +131,10 @@ int main()
     p1.connect(ep); p2.connect(ep);
     std::this_thread::sleep_for(20ms);
 
-    SendFramed(p1, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0042));
-    { auto [w, _] = ReadFramed(p1);
-      EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0043));
+    SendFramed(p1,ToUint16(MessageId::CT_CTRLSVR_REQ),{});
+    SendFramed(p2, ToUint16(MessageId::RW_RELAYSVR_REQ), RelaysvrBody(0x0443));
     { auto [w, _] = ReadFramed(p2);
       EXPECT(w == ToUint16(MessageId::RW_RELAYSVR_ACK)); }
-    { auto [w, _] = ReadFramed(p1);
-      EXPECT(w == ToUint16(MessageId::MW_RELAYCONNECT_REQ)); }
 
     // Bob (200) online on p2.
     SendFramed(p2, ToUint16(MessageId::MW_ADDCHAR_ACK), AddCharBody(200, 0xB0));
@@ -143,6 +143,8 @@ int main()
     { if (chars.Find(200)) break; std::this_thread::sleep_for(10ms); }
     EXPECT(chars.Find(200));
     chars.Rename(200, "Bob");
+    {auto bob=chars.Find(200);std::lock_guard guard(bob->lock);bob->db_loading=false;
+     for(auto& connection:bob->cons){connection.ready=true;connection.valid=true;}}
 
     // Unknown target → dropped; valid one still routes (sent first so
     // the dropped one can't sneak ahead in p2's stream).
@@ -159,6 +161,12 @@ int main()
         EXPECT(name == "Bob");
         EXPECT(msg == "Hello from a GM");
     }
+    // Original Left(ONE_KBYTE) calls ignore their return value.
+    const std::string long_message(1500,'x');
+    SendFramed(p1,ToUint16(MessageId::CT_CHARMSG_ACK),CharMsgBody("Bob",long_message));
+    {auto [w,b]=ReadFramed(p2);EXPECT(w==ToUint16(MessageId::MW_CHARMSG_REQ));
+     wire::Reader reader(b);std::string name,message;reader.ReadString(name);reader.ReadString(message);
+     EXPECT(name=="Bob");EXPECT(message==long_message);}
 
     p1.close(); p2.close();
     io.stop();

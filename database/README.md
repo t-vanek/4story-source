@@ -5,8 +5,20 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, local work based on `75125a2`:** written chain001–068,
-next069; new044–068 are unapplied.067 adds current-claim exact soulmate offers:
+**Current Phase A, local work based on `c389976`:** written chain001–069,
+next070; new044–069 are unapplied.069 adds exact native TOPERATORTABLE publication
+and durable raw-name chat bans/current-generation audit. The pinned source
+operator table has zero rows. import_world_operators.py requires full historical
+manifest/checkpoint/hash evidence, explicit injective character mapping and
+Map/World offline barriers; it rejects invented nonempty extracts and overwrite.
+world_compat.operator_release checks actual native count/checksum against receipt.
+communication-runtime-grants.sql is written only. Bans are a documented durable
+extension of the original World memory list, with MW stack/clear and Control
+replace rules. Existing059 server-message and native social/soulmate grants stay
+prerequisites. No SQL/tool/build/test/runtime ran. Full World/bootstrap PG-only
+operation remains incomplete. [Communication source/SQL scope and acceptance](../_rewrite/docs/modernization/evidence/phase-a-chat-tms-20261014/README.md).
+
+Previous code `c389976`:067 adds current-claim exact soulmate offers:
 World prepares a reply without a relationship write, then one native Map
 transaction commits purse/caller/directed link/audit/checkpoint.068 introduces a
 verified archived guild-level release and activation history; native World reads

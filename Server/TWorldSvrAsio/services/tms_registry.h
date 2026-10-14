@@ -16,6 +16,9 @@
 // holds a TChar lock must not then take a TTms lock and vice
 // versa; snapshot the ids you need under one lock, release, then
 // take the other (the W4-11 handlers follow this).
+// Production communication decisions also hold a coroutine permit across
+// authority awaits and delivery, matching the source batch queue. Member keys
+// and back-links exclude a replacement TChar from an older conference.
 //
 // TTms members are stored by char_id (legacy keeps raw
 // LPTCHARACTER pointers in m_mapMember). The char's TMS back-link
@@ -39,6 +42,10 @@ namespace tworldsvr {
 // collapsed 1:1 channel), and the current member char_ids.
 struct TTms
 {
+    struct PendingInvite {
+        std::uint32_t sender{},sender_key{},target_key{};
+        std::string message;
+    };
     mutable std::mutex lock;
 
     std::uint32_t id = 0;           // m_dwID
@@ -47,6 +54,10 @@ struct TTms
     // Member char_ids (legacy m_mapMember). Typical size 2..N;
     // lookups are linear.
     std::vector<std::uint32_t> members;
+    std::unordered_map<std::uint32_t,std::uint32_t> member_keys;
+    // Source conferences are ephemeral; bind a reply to one current prompt.
+    // Multiple legitimate sends may await the same target, even with equal text.
+    std::unordered_map<std::uint32_t,std::vector<PendingInvite>> pending;
 
     bool IsMember(std::uint32_t char_id) const
     {

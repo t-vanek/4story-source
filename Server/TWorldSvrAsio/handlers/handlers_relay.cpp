@@ -68,7 +68,7 @@ OnRelaysvrReq(std::shared_ptr<PeerSession>  peer,
         ip, wid, ctx.nation, ctx.peers->Size());
 
     co_await senders::SendRwRelaysvrAck(peer, ctx.nation,
-        /*operators=*/{},
+        ctx.operators?*ctx.operators:std::vector<std::uint32_t>{},
         ctx.server_messages?*ctx.server_messages:ServerMessages{});
 
     // W3a-3: fan-out RELAYCONNECT to every other registered peer

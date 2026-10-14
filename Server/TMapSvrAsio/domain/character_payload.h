@@ -8,6 +8,7 @@
 #include "domain/during_item.h"
 #include "domain/item_cooldown.h"
 #include "domain/pvp_balance.h"
+#include "domain/communication.h"
 #include <array>
 #include <memory>
 #include <optional>
@@ -45,6 +46,7 @@ struct CharacterPet { std::uint16_t id{}; std::string name; std::int64_t used_at
 // belong to their fenced repositories; core movement/save never replaces mail,
 // inventory or skills with empty/unloaded collections.
 struct CharacterPayload {
+    ChatFloodState chat_log;
     SecureCodeState security;
     // Full typed source graph retained across primary tenures. Its nested
     // character has no payload pointer, avoiding a shared ownership cycle.

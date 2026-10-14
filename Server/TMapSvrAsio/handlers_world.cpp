@@ -816,6 +816,15 @@ DispatchWorld(std::uint16_t          wId,
     const auto id = ToMessageId(wId);
     switch (id)
     {
+    case MessageId::MW_TMSRECV_REQ:
+    case MessageId::MW_TMSINVITEASK_REQ:
+    case MessageId::MW_TMSINVITE_REQ:
+    case MessageId::MW_TMSOUT_REQ:
+    case MessageId::MW_CHAT_REQ:
+    case MessageId::MW_CHATBAN_REQ:
+    case MessageId::MW_CHARMSG_REQ:
+    case MessageId::MW_EVENTMSG_REQ:
+        co_await OnWorldCommunication(wId,std::move(body),ctx);break;
     case MessageId::MW_LEVELUP_REQ: {
         wire::Reader r(body.data(),body.size());std::uint32_t cid=0,key=0;std::uint8_t level=0;
         if(!r.Read(cid)||!r.Read(key)||!r.Read(level)||!r.Eof())break;

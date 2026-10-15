@@ -1,4 +1,5 @@
 #pragma once
+#include "native_identity.h"
 #include "player_service.h"
 #include "session_validator.h"
 #include "server_route_resolver.h"

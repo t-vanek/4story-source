@@ -46,14 +46,15 @@ bool PostgreSQLMapService::LockAccount(soci::session& sql,const MapSessionClaim&
     if(c.group!=m_config.world||!c.user_id||!c.key||!c.char_id||!c.connection_id||
        c.connection_id>static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())||
        c.authority_epoch>static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))return false;
-    const long long user=c.user_id;int n=0;
+    const int user=SqlInt32Identity(c.user_id);int n=0;
     sql<<"SELECT 1 FROM app_global.\"TACCOUNT_PW\" WHERE \"dwUserID\"=:u FOR UPDATE",soci::use(user,"u"),soci::into(n);
     return sql.got_data()&&n==1;
 }
 bool PostgreSQLMapService::LockClaim(soci::session& sql,const MapSessionClaim& c,std::string& phase) const {
     if(c.role!=MapSessionRole::Primary)return false;
     const int world=c.group,server=m_config.server,channel=c.channel;
-    const long long user=c.user_id,key=c.key,character=c.char_id,generation=c.connection_id,epoch=c.authority_epoch;
+    const int user=SqlInt32Identity(c.user_id),key=SqlInt32Identity(c.key),character=SqlInt32Identity(c.char_id);
+    const long long generation=c.connection_id,epoch=c.authority_epoch;
     sql<<"SELECT m.phase FROM app_world.map_sessions m JOIN app_global.\"TCURRENTUSER\" s ON s.\"dwKEY\"=m.session_key "
          "WHERE m.world_id=:w AND m.server_id=:s AND m.char_id=:c AND m.user_id=:u AND m.session_key=:k AND m.channel=:ch "
          "AND m.owner_token=:t AND m.connection_id=:g AND m.authority_epoch=:epoch AND m.phase NOT IN ('orphaned','quarantined') "
@@ -64,7 +65,7 @@ bool PostgreSQLMapService::LockClaim(soci::session& sql,const MapSessionClaim& c
 }
 std::optional<MapSessionInfo> PostgreSQLMapService::LookupSession(std::uint32_t user,std::uint32_t key){
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
-    const long long uid=user,k=key;int ch=0,world=0,character=0,locked=0;
+    const int uid=SqlInt32Identity(user),k=SqlInt32Identity(key);int ch=0,world=0,character=0,locked=0;
     sql<<"SELECT \"bGroupID\",\"bChannel\",\"dwCharID\",\"bLocked\" FROM app_global.\"TCURRENTUSER\" WHERE \"dwUserID\"=:u AND \"dwKEY\"=:k",
         soci::use(uid,"u"),soci::use(k,"k"),soci::into(world),soci::into(ch),soci::into(character),soci::into(locked);
     if(!sql.got_data())return {};
@@ -78,7 +79,8 @@ std::optional<MapSessionInfo> PostgreSQLMapService::ClaimSession(const MapSessio
     if(!LockAccount(sql,c))return {};
     CheckCatalogs(sql);
     const int world=c.group,server=m_config.server,channel=c.channel;
-    const long long user=c.user_id,key=c.key,character=c.char_id,generation=c.connection_id;
+    const int user=SqlInt32Identity(c.user_id),key=SqlInt32Identity(c.key),character=SqlInt32Identity(c.char_id);
+    const long long generation=c.connection_id;
     int n=0;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" s JOIN app_global.\"TUSERINFOTABLE\" i USING(\"dwUserID\") "
          "JOIN app_world.\"TCHARTABLE\" c ON c.\"bWorldID\"=s.\"bGroupID\" AND c.\"dwCharID\"=s.\"dwCharID\" "
@@ -105,7 +107,7 @@ std::optional<MapSessionInfo> PostgreSQLMapService::ClaimSession(const MapSessio
 }
 void PostgreSQLMapService::MarkReady(const MapSessionClaim&){throw std::runtime_error("Native ready requires its initial core checkpoint");}
 void PostgreSQLMapService::CloseClaim(soci::session& sql,const MapSessionClaim& c) const {
-    const long long key=c.key,user=c.user_id;
+    const int key=SqlInt32Identity(c.key),user=SqlInt32Identity(c.user_id);
     sql<<"UPDATE app_global.\"TLOG\" SET \"timeLOGOUT\"=CURRENT_TIMESTAMP WHERE \"dwKEY\"=:k AND \"dwUserID\"=:u",soci::use(key,"k"),soci::use(user,"u");
     sql<<"DELETE FROM app_world.map_sessions WHERE session_key=:k",soci::use(key,"k");
     sql<<"DELETE FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"dwUserID\"=:u",soci::use(key,"k"),soci::use(user,"u");
@@ -114,7 +116,7 @@ void PostgreSQLMapService::ReleaseSession(const MapSessionClaim& c){
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     if(!LockAccount(sql,c))return;
     std::string phase;if(!LockClaim(sql,c,phase)) {
-        const int world=c.group,character=c.char_id;const long long generation=c.connection_id,epoch=c.authority_epoch;int uncertain=0;
+        const int world=c.group,character=SqlInt32Identity(c.char_id);const long long generation=c.connection_id,epoch=c.authority_epoch;int uncertain=0;
         sql<<"SELECT 1 FROM app_world.map_sessions WHERE world_id=:w AND char_id=:c AND owner_token=:t "
              "AND connection_id=:g AND authority_epoch>:e",
             soci::use(world,"w"),soci::use(character,"c"),soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(epoch,"e"),soci::into(uncertain);
@@ -124,7 +126,7 @@ void PostgreSQLMapService::ReleaseSession(const MapSessionClaim& c){
     if(phase=="ready"||phase=="transferring")throw std::runtime_error("Authoritative Map session must save before release");
     if(phase=="loaded"&&c.authority_epoch) {
         int retired=0;
-        const int world=c.group,character=c.char_id;const long long generation=c.connection_id,epoch=c.authority_epoch;
+        const int world=c.group,character=SqlInt32Identity(c.char_id);const long long generation=c.connection_id,epoch=c.authority_epoch;
         sql<<"UPDATE app_world.map_checkpoints SET outcome='logout',saved_at=clock_timestamp() WHERE world_id=:w AND char_id=:c "
              "AND owner_token=:t AND connection_id=:g AND authority_epoch=:e AND outcome='active' "
              "AND app_world.map_checkpoint_matches(map_checkpoints) RETURNING 1",

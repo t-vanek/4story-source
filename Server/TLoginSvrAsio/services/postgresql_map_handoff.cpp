@@ -7,6 +7,7 @@
 #include <soci/postgresql/soci-postgresql.h>
 #endif
 #include <spdlog/spdlog.h>
+#include <bit>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -55,7 +56,9 @@ StartResponse SociMapServerLocator::StartAuthorized(const StartRequest& request)
         return IMapServerLocator::StartAuthorized(request);
     if (m_owner_token.empty() || m_routing_manifest.size()!=64 || m_routing_manifest.find_first_not_of("0123456789abcdef")!=std::string::npos)
         return {StartStatus::Internal,{}};
-    if (request.user_id<=0 || request.char_id<=0 || !request.session_key)
+    // Account/session DWORDs retain signed SQL INT bits. Native character
+    // allocation still has its separate positive-only schema contract (012).
+    if (request.user_id==0 || request.char_id<=0 || !request.session_key)
         return {StartStatus::NoServer,{}};
     for (int attempt=0;attempt<3;++attempt) {
         try { return StartNative(request); }
@@ -71,7 +74,7 @@ StartResponse SociMapServerLocator::StartNative(const StartRequest& r) {
     auto lease=m_pool.Acquire(); auto& sql=*lease;
     auto tx=BeginLoginTransaction(m_pool,sql,m_owner_token,true);
     const int user=r.user_id,world=r.group_id,channel=r.channel,cid=r.char_id;
-    const long long key=r.session_key;
+    const int key=std::bit_cast<std::int32_t>(r.session_key);
     int n=0;
     // Lock order: owner fence -> account -> current session -> character -> machine.
     // Touching the account forces retries for an older repeatable-read snapshot.

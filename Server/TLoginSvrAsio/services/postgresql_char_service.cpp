@@ -8,6 +8,7 @@
 #endif
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <bit>
 #include <stdexcept>
 
 namespace tloginsvr::services {
@@ -65,15 +66,16 @@ bool PostgreSQLCharService::HasWorld(soci::session& sql, int world) const {
     return n==1;
 }
 bool PostgreSQLCharService::LockSession(soci::session& sql, int user, std::uint32_t key) const {
-    if (!key || user<=0) return false;
-    int n=0; const long long wire_key=key;
+    if (!key || user==0) return false;
+    // TCURRENTUSER stores the original DWORD key's signed SQL INT bit pattern.
+    int n=0; const int sql_key=std::bit_cast<std::int32_t>(key);
     // Same lock ordering as native Authenticate; this protects limits across worlds.
     sql << "UPDATE app_global.\"TACCOUNT_PW\" SET \"dLastLogin\"=\"dLastLogin\" WHERE \"dwUserID\"=:u RETURNING 1", soci::use(user,"u"), soci::into(n);
     if (!sql.got_data()) return false;
     n=0;
     sql << "SELECT 1 FROM app_global.\"TCURRENTUSER\" s JOIN app_global.\"TUSERINFOTABLE\" i USING (\"dwUserID\") "
            "WHERE s.\"dwUserID\"=:u AND s.\"dwKEY\"=:k AND s.\"bLocked\"=0 AND s.\"dwCharID\"=0 AND i.\"bAgreement\"=1 FOR UPDATE OF s",
-        soci::use(user,"u"), soci::use(wire_key,"k"), soci::into(n);
+        soci::use(user,"u"), soci::use(sql_key,"k"), soci::into(n);
     return sql.got_data() && n==1;
 }
 

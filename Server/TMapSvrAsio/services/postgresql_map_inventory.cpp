@@ -25,7 +25,7 @@ std::string InventoryHash(std::span<const std::byte> bytes) {
 std::string PostgreSQLMapService::ValidateInventoryState(soci::session& sql,const MapSessionClaim& c,
     const CharSnapshot& before,bool all_fresh_items) const {
     CheckCastHead(sql,c,before);
-    const bool graph=bool(before.payload->transfer_state);const int world=c.group,character=c.char_id;
+    const bool graph=bool(before.payload->transfer_state);const int world=c.group,character=SqlInt32Identity(c.char_id);
     std::string graph_hash;
     if(!graph)CheckMaintainedTimers(sql,c,before);
     if(all_fresh_items&&!graph) {
@@ -95,7 +95,7 @@ PostgreSQLMapService::InventoryStoragePlan PostgreSQLMapService::ValidateInvento
         throw std::runtime_error("Inventory move changes unrelated character state");
     const bool graph=bool(before.payload->transfer_state);
     if(graph!=bool(after.payload->transfer_state))throw std::runtime_error("Inventory storage contract changed");
-    const int world=c.group,character=c.char_id;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);
     out.before_graph=ValidateInventoryState(sql,c,before,equipment);
     // Claim/checkpoint locks serialize supported inventory writers. Re-read bag
     // metadata and pinned capacities in this transaction; do not trust the DTO.

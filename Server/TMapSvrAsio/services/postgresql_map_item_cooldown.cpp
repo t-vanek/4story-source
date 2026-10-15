@@ -5,7 +5,7 @@
 
 namespace tmapsvr {
 std::vector<ItemCooldown> PostgreSQLMapService::ReadItemCooldowns(soci::session& sql,const MapSessionClaim& c) {
-    const int world=c.group,character=c.char_id;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);
     std::vector<ItemCooldown> out;
     soci::rowset<soci::row> rows=(sql.prepare <<
         "SELECT delay_group,remaining FROM app_world.item_cooldowns WHERE world_id=:w AND char_id=:c ORDER BY delay_group",
@@ -37,7 +37,7 @@ void PostgreSQLMapService::CheckItemCooldowns(soci::session& sql,const MapSessio
 void PostgreSQLMapService::WriteItemCooldowns(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     if(!s.payload||!s.payload->item_cooldowns)throw std::runtime_error("Item cooldown state was not hydrated");
     if(s.payload->transfer_state)return;
-    const int world=c.group,character=c.char_id;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);
     const auto state=ItemCooldownJson(ActiveItemCooldowns(*s.payload->item_cooldowns));
     // Only called after ownership, checkpoint and mutation-head validation.
     // Core saves may reduce timers; the native ITEMUSE transaction alone may

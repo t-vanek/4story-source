@@ -61,7 +61,8 @@ std::string Fingerprint(const MapSessionClaim& claim,const CharSnapshot& s) {
 }
 struct Receipt {bool found=false,core_matches=false;long long revision=0;int contract=0;std::string fingerprint,outcome,transfer_hash;};
 Receipt ReadReceipt(soci::session& sql,const MapSessionClaim& claim,int server,const std::string& token){
-    const int world=claim.group;const long long cid=claim.char_id,uid=claim.user_id,key=claim.key,generation=claim.connection_id,epoch=claim.authority_epoch;
+    const int world=claim.group,cid=SqlInt32Identity(claim.char_id),uid=SqlInt32Identity(claim.user_id),key=SqlInt32Identity(claim.key);
+    const long long generation=claim.connection_id,epoch=claim.authority_epoch;
     Receipt r;int matches=0;
     sql<<"SELECT revision,fingerprint,outcome,CASE WHEN app_world.map_checkpoint_matches(map_checkpoints) THEN 1 ELSE 0 END,COALESCE(transfer_hash,''),recovery_contract "
          "FROM app_world.map_checkpoints WHERE world_id=:w AND char_id=:c AND user_id=:u AND session_key=:k "
@@ -72,14 +73,14 @@ Receipt ReadReceipt(soci::session& sql,const MapSessionClaim& claim,int server,c
 }
 }
 bool PostgreSQLMapService::MaintainCheckpointMatches(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
-    const int world=c.group,character=c.char_id;const auto json=MaintainJson(s);int matches=0;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);const auto json=MaintainJson(s);int matches=0;
     sql<<"SELECT CASE WHEN app_world.map_maintain_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:effects AS jsonb) THEN 1 ELSE 0 END",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"effects"),soci::into(matches);
     return matches==1;
 }
 void PostgreSQLMapService::CheckMaintainedTimers(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     if(!s.payload)throw std::runtime_error("Maintained timers require native hydration");
-    const int world=c.group,character=c.char_id;std::vector<MaintainedEffect> stored;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);std::vector<MaintainedEffect> stored;
     soci::rowset<soci::row> rows=(sql.prepare<<
         "SELECT skill_id,skill_level,remaining,attack_type,attack_id,host_type,host_id,attack_country "
         "FROM app_world.map_maintained_effects WHERE world_id=:w AND char_id=:c ORDER BY ordinal FOR UPDATE",
@@ -93,7 +94,7 @@ void PostgreSQLMapService::CheckMaintainedTimers(soci::session& sql,const MapSes
     CheckMaintainedProjection(stored,*s.payload);
 }
 void PostgreSQLMapService::WriteMaintainedEffects(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
-    const int world=c.group,character=c.char_id;const auto json=MaintainJson(s);
+    const int world=c.group,character=SqlInt32Identity(c.char_id);const auto json=MaintainJson(s);
     sql<<"DELETE FROM app_world.map_maintained_effects WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c");
     sql<<"INSERT INTO app_world.map_maintained_effects(world_id,char_id,ordinal,skill_id,skill_level,remaining,attack_type,attack_id,host_type,host_id,attack_country) "
          "SELECT :w,:c,n-1,(e->>0)::integer,(e->>1)::smallint,(e->>2)::bigint,(e->>3)::smallint,(e->>4)::bigint,(e->>5)::smallint,(e->>6)::bigint,(e->>7)::smallint "
@@ -101,7 +102,7 @@ void PostgreSQLMapService::WriteMaintainedEffects(soci::session& sql,const MapSe
         soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"effects");
 }
 bool PostgreSQLMapService::SkillCheckpointMatches(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
-    const int world=c.group,character=c.char_id;const auto json=SkillJson(s);int matches=0;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);const auto json=SkillJson(s);int matches=0;
     sql<<"SELECT CASE WHEN app_world.map_skill_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:skills AS jsonb) THEN 1 ELSE 0 END",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(json,"skills"),soci::into(matches);
     if(matches!=1||!MaintainCheckpointMatches(sql,c,s)||!ItemCooldownCheckpointMatches(sql,c,s))return false;
@@ -111,7 +112,7 @@ void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSess
     WriteQuestTimers(sql,c,s);
     CheckItemCooldowns(sql,c,s);
     WriteItemCooldowns(sql,c,s);
-    const int world=c.group,character=c.char_id;const auto skills=OrderedSkills(s);
+    const int world=c.group,character=SqlInt32Identity(c.char_id);const auto skills=OrderedSkills(s);
     CheckMaintainedTimers(sql,c,s);
     WriteMaintainedEffects(sql,c,s);
     // This operation only persists timers. Learning, forgetting or changing a
@@ -140,7 +141,8 @@ void PostgreSQLMapService::StoreSkillCheckpoint(soci::session& sql,const MapSess
 std::string PostgreSQLMapService::CoreFingerprint(const MapSessionClaim& c,const CharSnapshot& s) const {return Fingerprint(c,s);}
 void PostgreSQLMapService::RecordCheckpoint(soci::session& sql,const MapSessionClaim& claim,long long revision,
                                           const std::string& fingerprint,const std::string& outcome) const {
-    const int world=claim.group,server=m_config.server;const long long cid=claim.char_id,uid=claim.user_id,key=claim.key,generation=claim.connection_id,epoch=claim.authority_epoch;
+    const int world=claim.group,server=m_config.server,cid=SqlInt32Identity(claim.char_id),uid=SqlInt32Identity(claim.user_id),key=SqlInt32Identity(claim.key);
+    const long long generation=claim.connection_id,epoch=claim.authority_epoch;
     int stored=0;
     sql<<"INSERT INTO app_world.map_checkpoints(world_id,char_id,user_id,server_id,session_key,owner_token,connection_id,authority_epoch,revision,"
          "fingerprint,recovery_contract,core_state,during_state,item_cooldown_state,outcome) VALUES(:w,:c,:u,:s,:k,:t,:g,:epoch,:r,:f,1,app_world.map_core_state(CAST(:w AS smallint),CAST(:c AS integer)),app_world.map_exp_state(CAST(:w AS smallint),CAST(:c AS integer)),app_world.map_item_cooldown_state(CAST(:w AS smallint),CAST(:c AS integer)),:o) "
@@ -160,7 +162,7 @@ void PostgreSQLMapService::MarkReady(const MapSessionClaim& claim,const CharSnap
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;
     if(!LockAccount(sql,claim)||!LockClaim(sql,claim,phase)||phase!="loaded")throw std::runtime_error("Map admission claim is not loaded");
-    const long long key=claim.key;int n=0;
+    const int key=SqlInt32Identity(claim.key);int n=0;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(n);
     if(!sql.got_data())throw std::runtime_error("Map admission session was revoked");
     WriteCore(sql,claim,s,0);RecordCheckpoint(sql,claim,0,fingerprint,"active");StoreTransferCheckpoint(sql,claim,s);
@@ -197,7 +199,7 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
         // An outgoing frozen source may close after the target committed. Only
         // its exact transferred core receipt can confirm that ownership left;
         // no target row, account reservation or checkpoint is written here.
-        const int world=claim.group,character=claim.char_id,user=claim.user_id,key=claim.key;
+        const int world=claim.group,character=SqlInt32Identity(claim.char_id),user=SqlInt32Identity(claim.user_id),key=SqlInt32Identity(claim.key);
         const long long generation=claim.connection_id,epoch=claim.authority_epoch;int confirmed=0;
         sql<<"SELECT 1 FROM app_world.map_transfers WHERE world_id=:w AND char_id=:c AND user_id=:u AND session_key=:k "
              "AND source_token=:t AND source_connection=:g AND source_epoch=:e AND core_fingerprint=:f AND phase='consumed' LIMIT 1",
@@ -209,7 +211,7 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
     if((phase!="ready"&&phase!="transferring")||!r.found||r.outcome!="active"||!r.core_matches||
        r.revision==std::numeric_limits<long long>::max())throw std::runtime_error("Native save claim or checkpoint invalid");
     if(phase=="transferring") {
-        const int world=claim.group,character=claim.char_id;const long long generation=claim.connection_id,epoch=claim.authority_epoch;
+        const int world=claim.group,character=SqlInt32Identity(claim.char_id);const long long generation=claim.connection_id,epoch=claim.authority_epoch;
         int cancelled=0;
         sql<<"UPDATE app_world.map_transfers SET phase='cancelled',settled_at=clock_timestamp() "
              "WHERE world_id=:w AND char_id=:c AND source_token=:t AND source_connection=:g AND source_epoch=:e "
@@ -227,7 +229,7 @@ void PostgreSQLMapService::SaveAuthorized(const MapSessionClaim& claim,const Cha
     if(phase=="transferring") {
         // Cancellation saves the prepared graph itself, including fields absent
         // from the core/client projection. Its exact core was checked above.
-        const int world=claim.group,character=claim.char_id;const long long generation=claim.connection_id,epoch=claim.authority_epoch;
+        const int world=claim.group,character=SqlInt32Identity(claim.char_id);const long long generation=claim.connection_id,epoch=claim.authority_epoch;
         sql<<"UPDATE app_world.map_checkpoints p SET recovery_contract=2,skill_state=NULL,maintain_state=NULL,transfer_body=t.body,transfer_hash=t.body_sha256,"
              "character_manifest=t.character_manifest,routing_manifest=t.routing_manifest,actor_manifest=t.actor_manifest "
              "FROM app_world.map_transfers t WHERE t.world_id=:w AND t.char_id=:c AND t.source_token=:token "
@@ -280,10 +282,11 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
     const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
     if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
         throw std::runtime_error("Reagent recovery receipt changed");
-    const long long session_key=c.key;int unlocked=0;
+    const int session_key=SqlInt32Identity(c.key);int unlocked=0;
+    const long long wire_key=c.key; // operational receipts store unsigned DWORD in BIGINT
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(session_key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Reagent session was revoked");
-    const int world=c.group,character=c.char_id;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);
     ReagentGraphPlan graph_plan;std::vector<std::string> hashes;auto kind=ConsumptionKind::Reagent;
     if(cast) {
         graph_plan.before_hash=ValidateInventoryState(sql,c,*cast_before,true);
@@ -347,13 +350,13 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
                  "AND x.action_id=(SELECT max(action_id) FROM app_world.skill_action_operations WHERE world_id=:w AND char_id=:c AND session_key=:k AND result=0) "
                  "AND x.skill_id=:skill AND x.charge_ms>0 AND x.channel_id=:channel AND x.map_id=:map "
                  "AND NOT EXISTS(SELECT 1 FROM app_world.accepted_skill_casts a WHERE a.charge_action_id=x.action_id)",
-                soci::use(world,"w"),soci::use(character,"c"),soci::use(session_key,"k"),soci::use(id,"skill"),
+                soci::use(world,"w"),soci::use(character,"c"),soci::use(wire_key,"k"),soci::use(id,"skill"),
                 soci::use(channel,"channel"),soci::use(map,"map"),soci::into(charge_action);
         }
         sql<<"INSERT INTO app_world.accepted_skill_casts(world_id,char_id,server_id,owner_token,connection_id,session_key,authority_epoch,previous_cast_id,state_contract,skill_id,skill_rank,is_loop,request,acknowledgement,before_hp,after_hp,before_mp,after_mp,before_skills,after_skills,before_effects,after_effects,before_graph_hash,after_graph_hash,core_fingerprint,charge_action_id) "
              "VALUES(:w,:c,:s,:t,:g,:k,:e,:prev,:contract,:skill,:rank,:loop=1,decode(:req,'hex'),decode(:ack,'hex'),:bhp,:ahp,:bmp,:amp,CAST(:bs AS jsonb),CAST(:as AS jsonb),CAST(:be AS jsonb),CAST(:ae AS jsonb),NULLIF(:gb,''),NULLIF(:ga,''),:f,NULLIF(:charge,0)) RETURNING cast_id",
             soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
-            soci::use(generation,"g"),soci::use(session_key,"k"),soci::use(epoch,"e"),soci::use(previous,"prev"),
+            soci::use(generation,"g"),soci::use(wire_key,"k"),soci::use(epoch,"e"),soci::use(previous,"prev"),
             soci::use(contract,"contract"),soci::use(id,"skill"),soci::use(rank,"rank"),soci::use(is_loop,"loop"),
             soci::use(request_hex,"req"),soci::use(ack_hex,"ack"),soci::use(bhp,"bhp"),soci::use(ahp,"ahp"),soci::use(bmp,"bmp"),soci::use(amp,"amp"),
             soci::use(bs,"bs"),soci::use(as,"as"),soci::use(be,"be"),soci::use(ae,"ae"),
@@ -391,11 +394,11 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
 }
 SecureCodeState PostgreSQLMapService::ReadSecurity(soci::session& sql,const MapSessionClaim& c) {
     try {
-        const long long user=c.user_id,key=c.key;SecureCodeState s;s.hydrated=true;
+        const int user=SqlInt32Identity(c.user_id);const long long wire_key=c.key;SecureCodeState s;s.hydrated=true;
         std::string hex;int disabled=0,tries=0,unlocked=0;long long deadline=0,tick=0,revision=0;
         sql<<"SELECT encode(code,'hex'),disabled::integer,tries,deadline_ms,source_tick,revision,CASE WHEN unlocked_key=:k THEN 1 ELSE 0 END "
              "FROM app_global.secure_codes WHERE user_id=:u",
-            soci::use(key,"k"),soci::use(user,"u"),soci::into(hex),soci::into(disabled),soci::into(tries),
+            soci::use(wire_key,"k"),soci::use(user,"u"),soci::into(hex),soci::into(disabled),soci::into(tries),
             soci::into(deadline),soci::into(tick),soci::into(revision),soci::into(unlocked);
         if(!sql.got_data())return s;
         s.created=true;s.disabled=disabled;s.tries=tries;s.deadline_ms=deadline;s.source_tick=tick;s.revision=revision;s.unlocked=unlocked;
@@ -414,7 +417,8 @@ SecureCommit PostgreSQLMapService::UpdateSecureCode(const MapSessionClaim& c,std
         if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")throw std::runtime_error("Secure claim not ready");
         const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
         if(!receipt.found||!receipt.core_matches||receipt.outcome!="active")throw std::runtime_error("Secure receipt changed");
-        const long long user=c.user_id,key=c.key;int unlocked=0;
+        const int user=SqlInt32Identity(c.user_id),key=SqlInt32Identity(c.key);int unlocked=0;
+        const long long wire_key=c.key;
         sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
         if(!sql.got_data())throw std::runtime_error("Secure session revoked");
         ValidateInventoryState(sql,c,before,true);
@@ -426,17 +430,18 @@ SecureCommit PostgreSQLMapService::UpdateSecureCode(const MapSessionClaim& c,std
         if(!plan.packet)throw std::runtime_error("Secure mutation missing response");
         const auto hex=[](auto bytes){constexpr char d[]="0123456789abcdef";std::string out;
             for(auto byte:bytes){const auto b=static_cast<unsigned char>(byte);out+=d[b>>4];out+=d[b&15];}return out;};
-        const int world=c.group,character=c.char_id,server=m_config.server,request_id=opcode,response_id=plan.packet->first;
+        const int world=c.group,character=SqlInt32Identity(c.char_id),server=m_config.server,request_id=opcode,response_id=plan.packet->first;
         const long long previous=current.revision,generation=c.connection_id,epoch=c.authority_epoch;
         const auto response=hex(plan.packet->second);long long id=0;
         sql<<"INSERT INTO app_world.secure_code_operations(user_id,previous_revision,world_id,char_id,session_key,server_id,owner_token,connection_id,authority_epoch,request_opcode,response_opcode,response) "
              "VALUES(:u,:prev,:w,:c,:k,:s,:t,:g,:e,:request,:response,decode(:bytes,'hex')) RETURNING operation_id",
-            soci::use(user,"u"),soci::use(previous,"prev"),soci::use(world,"w"),soci::use(character,"c"),soci::use(key,"k"),
+            soci::use(user,"u"),soci::use(previous,"prev"),soci::use(world,"w"),soci::use(character,"c"),soci::use(wire_key,"k"),
             soci::use(server,"s"),soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(epoch,"e"),
             soci::use(request_id,"request"),soci::use(response_id,"response"),soci::use(response,"bytes"),soci::into(id);
         auto payload=std::make_shared<CharacterPayload>(*before.payload);payload->security=plan.state;payload->security.revision=id;
         const auto code=hex(payload->security.code);const int disabled=payload->security.disabled,tries=payload->security.tries;
-        const long long deadline=payload->security.deadline_ms,tick=payload->security.source_tick,unlock_key=payload->security.unlocked?key:0;
+        const long long deadline=payload->security.deadline_ms,tick=payload->security.source_tick;
+        const long long unlock_key=payload->security.unlocked?wire_key:0;
         sql<<"INSERT INTO app_global.secure_codes(user_id,code,disabled,tries,deadline_ms,source_tick,unlocked_key,revision) "
              "VALUES(:u,decode(:code,'hex'),CAST(:d AS integer)<>0,:tries,:deadline,:tick,:key,:revision) "
              "ON CONFLICT(user_id) DO UPDATE SET code=EXCLUDED.code,disabled=EXCLUDED.disabled,tries=EXCLUDED.tries,"
@@ -466,11 +471,12 @@ TitleChangeCommit PostgreSQLMapService::SelectTitle(const MapSessionClaim& c,std
     const bool graph=bool(before.payload->transfer_state);
     if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
         throw std::runtime_error("Title recovery receipt changed");
-    const long long key=c.key;int unlocked=0;
+    const int key=SqlInt32Identity(c.key);int unlocked=0;
+    const long long wire_key=c.key;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Title session was revoked");
     ValidateInventoryState(sql,c,before,true);
-    const int world=c.group,character=c.char_id;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);
     const auto old_titles=TitleJson(before.payload->titles);
     if(!graph) {
         std::vector<CharacterTitle> stored;
@@ -496,7 +502,7 @@ TitleChangeCommit PostgreSQLMapService::SelectTitle(const MapSessionClaim& c,std
     for(auto v:body){auto b=std::to_integer<unsigned>(v);request+=digits[b>>4];request+=digits[b&15];}
     sql<<"INSERT INTO app_world.title_selection_operations(world_id,char_id,previous_selection_id,session_key,server_id,owner_token,connection_id,authority_epoch,previous_title,selected_title,before_titles,after_titles,request) "
          "VALUES(:w,:c,:prev,:key,:s,:token,:g,:epoch,:old,:title,CAST(:before AS jsonb),CAST(:after AS jsonb),decode(:request,'hex')) RETURNING selection_id",
-        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"prev"),soci::use(key,"key"),soci::use(server,"s"),
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"prev"),soci::use(wire_key,"key"),soci::use(server,"s"),
         soci::use(m_config.owner_token,"token"),soci::use(generation,"g"),soci::use(epoch,"epoch"),soci::use(previous_title,"old"),
         soci::use(title,"title"),soci::use(old_titles,"before"),soci::use(new_titles,"after"),soci::use(request,"request"),soci::into(id);
     payload->last_title_selection_id=static_cast<std::uint64_t>(id);
@@ -575,7 +581,8 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     CheckCatalogs(sql);
     const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
     if(!receipt.found||!receipt.core_matches||receipt.outcome!="active")throw std::runtime_error("Quest checkpoint changed");
-    const long long key=c.key;int current=0;
+    const int key=SqlInt32Identity(c.key);int current=0;
+    const long long wire_key=c.key;
     sql << "SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(current);
     if(!sql.got_data())throw std::runtime_error("Quest session revoked");
     ValidateInventoryState(sql,c,before,true);
@@ -956,7 +963,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const long long previous=payload->last_quest_id,generation=c.connection_id,epoch=c.authority_epoch;long long operation=0;
     sql << "INSERT INTO app_world.quest_operations(world_id,char_id,previous_operation_id,session_key,server_id,owner_token,connection_id,authority_epoch,opcode,request,before_state,after_state,responses,world_event_context,before_pvp,after_pvp) "
         "VALUES(:w,:c,:previous,:key,:server,:token,:generation,:epoch,:op,decode(:request,'hex'),CAST(:before AS jsonb),CAST(:after AS jsonb),CAST(:packets AS jsonb),NULLIF(CAST(:events AS jsonb),'null'::jsonb),CAST(:before_pvp AS jsonb),CAST(:after_pvp AS jsonb)) RETURNING operation_id",
-        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"previous"),soci::use(key,"key"),soci::use(server,"server"),
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"previous"),soci::use(wire_key,"key"),soci::use(server,"server"),
         soci::use(m_config.owner_token,"token"),soci::use(generation,"generation"),soci::use(epoch,"epoch"),soci::use(op,"op"),
         soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::use(events,"events"),soci::use(before_pvp,"before_pvp"),soci::use(after_pvp,"after_pvp"),soci::into(operation);
     payload->last_quest_id=static_cast<std::uint64_t>(operation);
@@ -990,7 +997,8 @@ SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c
     const bool graph=bool(before.payload->transfer_state);
     if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
         throw std::runtime_error("Learning recovery receipt changed");
-    const long long key=c.key;int unlocked=0;
+    const int key=SqlInt32Identity(c.key);int unlocked=0;
+    const long long wire_key=c.key;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Learning session was revoked");
     std::string manifest;
@@ -1004,7 +1012,7 @@ SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c
         throw std::runtime_error("Tutorial does not permit learning");
     auto original=before;RefreshEquipment(sql,original,true);
     LearningCatalog catalog;
-    const int npc=req.npc,skill=req.skill,world=c.group,character=c.char_id;
+    const int npc=req.npc,skill=req.skill,world=c.group,character=SqlInt32Identity(c.char_id);
     {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"bType\",\"bCountryID\",\"wLocalID\",\"bCondition\",\"bDiscountRate\" FROM character_compat.\"TNPCCHART\" WHERE (\"wID\"::integer & 65535)=:id",soci::use(npc));
      for(const auto& r:rows) {
         if(catalog.npc_exists)throw std::runtime_error("Duplicate source NPC");
@@ -1069,7 +1077,7 @@ SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c
     const long long generation=c.connection_id,epoch=c.authority_epoch,previous=before.payload->last_purchase_id,spent=plan.spent;long long id=0;
     sql<<"INSERT INTO app_world.skill_purchase_operations(world_id,char_id,previous_purchase_id,session_key,server_id,owner_token,connection_id,authority_epoch,trainer_manifest,npc_id,skill_id,result,learned_rank,spent,request,acknowledgement,title_packets,before_titles,after_titles) "
          "VALUES(:w,:c,:prev,:key,:s,:token,:g,:epoch,:manifest,:npc,:skill,:result,:rank,:spent,decode(:request,'hex'),decode(:ack,'hex'),CAST(:packets AS jsonb),CAST(:before AS jsonb),CAST(:after AS jsonb)) RETURNING purchase_id",
-        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"prev"),soci::use(key,"key"),soci::use(server,"s"),soci::use(m_config.owner_token,"token"),
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"prev"),soci::use(wire_key,"key"),soci::use(server,"s"),soci::use(m_config.owner_token,"token"),
         soci::use(generation,"g"),soci::use(epoch,"epoch"),soci::use(manifest,"manifest"),soci::use(npc,"npc"),soci::use(skill,"skill"),soci::use(code,"result"),
         soci::use(rank,"rank"),soci::use(spent,"spent"),soci::use(request_hex,"request"),soci::use(ack_hex,"ack"),soci::use(title_packets,"packets"),soci::use(before_titles,"before"),soci::use(after_titles,"after"),soci::into(id);
     if (!plan.result) {
@@ -1105,7 +1113,8 @@ SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim&
     const bool graph=bool(before.payload->transfer_state);
     if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
         throw std::runtime_error("Action recovery receipt changed");
-    const long long key=c.key;int unlocked=0;
+    const int key=SqlInt32Identity(c.key);int unlocked=0;
+    const long long wire_key=c.key;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Action session was revoked");
     ValidateInventoryState(sql,c,before,true);
@@ -1134,11 +1143,11 @@ SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim&
     const auto hex=[](auto bytes){constexpr char digits[]="0123456789abcdef";std::string out;
         for(auto v:bytes){const auto b=std::to_integer<unsigned>(v);out+=digits[b>>4];out+=digits[b&15];}return out;};
     const auto request_hex=hex(body),ack_hex=hex(committed.acknowledgement),fingerprint=Fingerprint(c,after);
-    const int world=c.group,character=c.char_id,server=m_config.server,channel=c.channel,map=before.wMapID,skill=request.skill,code=result;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),server=m_config.server,channel=c.channel,map=before.wMapID,skill=request.skill,code=result;
     const long long generation=c.connection_id,epoch=c.authority_epoch,previous=before.payload->last_action_id,duration=charge;long long action=0;
     sql<<"INSERT INTO app_world.skill_action_operations(world_id,char_id,previous_action_id,session_key,server_id,owner_token,connection_id,authority_epoch,channel_id,map_id,skill_id,result,charge_ms,request,acknowledgement) "
          "VALUES(:w,:c,:previous,:k,:s,:t,:g,:e,:channel,:map,:skill,:result,:duration,decode(:request,'hex'),decode(:ack,'hex')) RETURNING action_id",
-        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"previous"),soci::use(key,"k"),soci::use(server,"s"),
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"previous"),soci::use(wire_key,"k"),soci::use(server,"s"),
         soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(epoch,"e"),soci::use(channel,"channel"),soci::use(map,"map"),
         soci::use(skill,"skill"),soci::use(code,"result"),soci::use(duration,"duration"),soci::use(request_hex,"request"),soci::use(ack_hex,"ack"),soci::into(action);
     auto payload=std::make_shared<CharacterPayload>(*after.payload);payload->last_action_id=static_cast<std::uint64_t>(action);after.payload=std::move(payload);
@@ -1161,7 +1170,8 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
     const bool graph=bool(before.payload->transfer_state);
     if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
         throw std::runtime_error("Finish recovery receipt changed");
-    const long long key=c.key;int unlocked=0;
+    const int key=SqlInt32Identity(c.key);int unlocked=0;
+    const long long wire_key=c.key;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Finish session was revoked");
     ValidateInventoryState(sql,c,before,true);
@@ -1173,7 +1183,7 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
        def->attack_profile->critical==255||(def->wMapID!=0xffff&&def->wMapID!=after.wMapID))
         throw std::runtime_error("FINISHSKILL effect contract is not implemented");
     const auto definition=*def;const auto power=*definition.attack_profile;
-    const int world=c.group,character=c.char_id,skill=request.skill;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),skill=request.skill;
     const auto unhex=[](const std::string& value){std::vector<std::byte> out;
         for(std::size_t i=0;i<value.size();i+=2)out.push_back(static_cast<std::byte>(std::stoul(value.substr(i,2),nullptr,16)));return out;};
     const auto hex=[](auto bytes){constexpr char digits[]="0123456789abcdef";std::string out;
@@ -1189,7 +1199,7 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
             "AND x.charge_ms>0 AND x.charge_ms<=EXTRACT(EPOCH FROM (clock_timestamp()-x.started_at))*1000) THEN 1 ELSE 0 END "
             "FROM app_world.accepted_skill_casts a WHERE world_id=:w AND char_id=:c AND session_key=:k AND skill_id=:skill "
             "AND NOT EXISTS(SELECT 1 FROM app_world.skill_finish_operations f WHERE f.accepted_cast_id=a.cast_id) ORDER BY cast_id",
-            soci::use(world,"w"),soci::use(character,"c"),soci::use(key,"k"),soci::use(skill,"skill"));
+            soci::use(world,"w"),soci::use(character,"c"),soci::use(wire_key,"k"),soci::use(skill,"skill"));
         for(const auto& row:casts) {
             if(definition.action_time&&row.get<int>(4)!=1)continue;
             const auto original=unhex(row.get<std::string>(2)),ack=unhex(row.get<std::string>(3));
@@ -1270,7 +1280,7 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
     sql<<"INSERT INTO app_world.skill_finish_operations(world_id,char_id,accepted_cast_id,previous_finish_id,server_id,owner_token,connection_id,session_key,authority_epoch,request,responses,before_hp,after_hp,before_mp,after_mp,core_fingerprint,before_effects,after_effects,response_audiences) "
          "VALUES(:w,:c,:cast,:previous,:s,:t,:g,:k,:e,decode(:request,'hex'),CAST(:responses AS jsonb),:bhp,:ahp,:bmp,:amp,:f,CAST(:be AS jsonb),CAST(:ae AS jsonb),CAST(:audiences AS jsonb)) RETURNING finish_id",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(accepted,"cast"),soci::use(previous,"previous"),soci::use(server,"s"),
-        soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(key,"k"),soci::use(epoch,"e"),
+        soci::use(m_config.owner_token,"t"),soci::use(generation,"g"),soci::use(wire_key,"k"),soci::use(epoch,"e"),
         soci::use(request_hex,"request"),soci::use(responses,"responses"),soci::use(bhp,"bhp"),soci::use(ahp,"ahp"),
         soci::use(bmp,"bmp"),soci::use(amp,"amp"),soci::use(fingerprint,"f"),soci::use(before_effects,"be"),soci::use(after_effects,"ae"),soci::use(audiences,"audiences"),soci::into(finish);
     auto payload=std::make_shared<CharacterPayload>(*after.payload);payload->last_finish_id=static_cast<std::uint64_t>(finish);after.payload=std::move(payload);
@@ -1290,7 +1300,7 @@ EffectEndCommit PostgreSQLMapService::EndMaintainedEffect(const MapSessionClaim&
     const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
     if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
         throw std::runtime_error("Effect recovery receipt changed");
-    const long long key=c.key;int unlocked=0;
+    const int key=SqlInt32Identity(c.key);int unlocked=0;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Effect session was revoked");
     const auto before_graph=ValidateInventoryState(sql,c,before,true);
@@ -1316,7 +1326,7 @@ EffectEndCommit PostgreSQLMapService::EndMaintainedEffect(const MapSessionClaim&
     const auto append=[&]<class T>(T v){for(std::size_t n=0;n<sizeof(T);++n){const auto b=v&255;wire+=digits[b>>4];wire+=digits[b&15];v>>=8;}};
     append(request.object);append(request.object_type);append(request.host);append(request.attacker);
     append(request.attack_type);append(request.skill);append(request.map);append(request.channel);
-    const int world=c.group,character=c.char_id,server=m_config.server,contract=graph?2:3;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),server=m_config.server,contract=graph?2:3;
     const long long generation=c.connection_id,epoch=c.authority_epoch;
     const auto before_effects=MaintainJson(before),after_effects=MaintainJson(after);
     sql<<"INSERT INTO app_world.maintained_effect_operations(world_id,char_id,server_id,owner_token,connection_id,authority_epoch,state_contract,request,removed,before_effects,after_effects,before_graph_hash,after_graph_hash,core_fingerprint) "
@@ -1339,7 +1349,7 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
     const auto receipt=ReadReceipt(sql,c,m_config.server,m_config.owner_token);
     if(!receipt.found||!receipt.core_matches||receipt.outcome!="active"||(graph?receipt.contract!=2:(receipt.contract!=3&&receipt.contract!=4)))
         throw std::runtime_error("Inventory recovery receipt changed");
-    const long long key=c.key;int unlocked=0;
+    const int key=SqlInt32Identity(c.key);int unlocked=0;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(unlocked);
     if(!sql.got_data())throw std::runtime_error("Inventory session was revoked");
     const auto plan=ValidateInventoryMove(sql,c,request,before,after);
@@ -1347,7 +1357,7 @@ InventoryMoveCommit PostgreSQLMapService::MoveInventoryItems(const MapSessionCla
     WriteCore(sql,c,plan.after,0);RecordCheckpoint(sql,c,receipt.revision,fingerprint,"active");StoreTransferCheckpoint(sql,c,plan.after);
     long long operation=0;
     sql<<"SELECT nextval('app_world.inventory_movements_movement_id_seq')",soci::into(operation);
-    const int world=c.group,character=c.char_id,server=m_config.server,contract=graph?2:3;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),server=m_config.server,contract=graph?2:3;
     const long long generation=c.connection_id,epoch=c.authority_epoch;
     if(plan.move.kind==InventoryMoveKind::Equipment) {
         constexpr char digits[]="0123456789abcdef";std::string wire;
@@ -1409,7 +1419,7 @@ void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClai
     const auto security=ReadSecurity(sql,c);
     auto expected=s.payload->security;expected.hydrated=true;
     if(expected!=security)throw std::runtime_error("Snapshot predates secure code state");
-    const int world=c.group,character=c.char_id;long long head=0;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);long long head=0;
     sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
     if(static_cast<std::uint64_t>(head)!=s.payload->last_cast_id)throw std::runtime_error("Snapshot predates accepted cast");
     sql<<"SELECT COALESCE(max(finish_id),0) FROM app_world.skill_finish_operations WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c"),soci::into(head);
@@ -1423,7 +1433,7 @@ void PostgreSQLMapService::CheckCastHead(soci::session& sql,const MapSessionClai
 }
 void PostgreSQLMapService::WriteCore(soci::session& sql,const MapSessionClaim& claim,const CharSnapshot& s,int logout) {
     CheckCastHead(sql,claim,s);
-    const int world=claim.group;const long long character=claim.char_id,user=claim.user_id;
+    const int world=claim.group,character=SqlInt32Identity(claim.char_id),user=SqlInt32Identity(claim.user_id);
     // Core snapshot only. Durable children are never deleted/recreated here.
     // Signed bindings reproduce SQL Server SMALLINT/INT storage of wire bits.
     const int bLevel=s.bLevel;

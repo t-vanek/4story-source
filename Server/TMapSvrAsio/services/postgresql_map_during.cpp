@@ -27,7 +27,7 @@ void PostgreSQLMapService::HydrateDuringItems(soci::session& sql,const MapSessio
     // TGetPcBangData is account-owned. Until premium effects, PCBang daily
     // state and their pet branches exist, do not admit them as an ordinary EXP
     // bonus. Their archived/native rows remain untouched by this repository.
-    const int user=c.user_id,world=c.group,character=c.char_id;int blocked=0;
+    const int user=SqlInt32Identity(c.user_id),world=c.group,character=SqlInt32Identity(c.char_id);int blocked=0;
     sql << "SELECT CASE WHEN EXISTS(SELECT 1 FROM app_global.during_items WHERE user_id=:u) OR "
         "EXISTS(SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwUserID\"=:u AND \"dwPcBangID\"<>0) THEN 1 ELSE 0 END",
         soci::use(user,"u"),soci::into(blocked);
@@ -49,7 +49,7 @@ void PostgreSQLMapService::HydrateDuringItems(soci::session& sql,const MapSessio
 void PostgreSQLMapService::CheckDuringItems(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     if(!s.payload||!s.payload->during)throw std::runtime_error("During items were not hydrated");
     if(s.payload->transfer_state)return; // exact graph/quest ledger fences are authoritative
-    const int world=c.group,character=c.char_id;int matches=0;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);int matches=0;
     sql << "SELECT CASE WHEN app_world.map_exp_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:state AS jsonb) THEN 1 ELSE 0 END",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(s.payload->during->durable_json,"state"),soci::into(matches);
     if(!matches)throw std::runtime_error("EXP entitlement changed since hydration");
@@ -59,7 +59,7 @@ void PostgreSQLMapService::WriteDuringItems(soci::session& sql,const MapSessionC
     auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
     const auto json=DuringJson(p->during->items);
     if(!p->transfer_state&&json!=p->during->durable_json) {
-        const int world=c.group,character=c.char_id;
+        const int world=c.group,character=SqlInt32Identity(c.char_id);
         sql << "DELETE FROM app_world.exp_entitlements WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c");
         sql << "INSERT INTO app_world.exp_entitlements(world_id,char_id,item_id,item_type,remaining,expires) "
             "SELECT :w,:c,(e->>0)::integer,(e->>1)::smallint,(e->>2)::bigint,(e->>3)::bigint FROM jsonb_array_elements(CAST(:state AS jsonb)) e",

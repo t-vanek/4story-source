@@ -15,7 +15,7 @@ bool PostgreSQLMapService::AuthorizeReplicas(const MapSessionClaim& c,std::uint1
     auto expected=NeighborServersLocked(sql,c,map,x,z);if(!expected)return false;
     std::vector<std::uint8_t> ids;for(const auto& r:routes)ids.push_back(r.server_id);
     std::sort(ids.begin(),ids.end());if(std::adjacent_find(ids.begin(),ids.end())!=ids.end()||!std::includes(expected->begin(),expected->end(),ids.begin(),ids.end()))return false;
-    const int world=c.group,character=c.char_id,primary=m_config.server,map_id=map;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),primary=m_config.server,map_id=map;
     const long long generation=c.connection_id,epoch=c.authority_epoch;const double px=x,pz=z;
     for(const auto& r:routes) {
         if(!r.server_id||!r.ip_addr||!r.port)return false;
@@ -58,7 +58,8 @@ bool PostgreSQLMapService::AuthorizeReplicas(const MapSessionClaim& c,std::uint1
 }
 std::optional<MapSessionInfo> PostgreSQLMapService::ClaimReplica(soci::session& sql,const MapSessionClaim& c) const {
     const int world=c.group,server=m_config.server,channel=c.channel,port=c.endpoint_port;
-    const long long user=c.user_id,key=c.key,character=c.char_id,generation=c.connection_id,ip=c.endpoint_ip;
+    const int user=SqlInt32Identity(c.user_id),key=SqlInt32Identity(c.key),character=SqlInt32Identity(c.char_id);
+    const long long generation=c.connection_id,ip=c.endpoint_ip;
     int n=0;
     sql<<R"SQL(UPDATE app_world.map_replicas r SET phase='claimed',connection_id=:g,updated_at=clock_timestamp()
       FROM app_world.map_sessions m,app_world.map_runtime_owner p
@@ -78,7 +79,8 @@ std::optional<MapSessionInfo> PostgreSQLMapService::ClaimReplica(soci::session& 
 bool PostgreSQLMapService::LockReplica(soci::session& sql,const MapSessionClaim& c,std::string& phase) const {
     if(c.role!=MapSessionRole::Replica)return false;
     const int world=c.group,server=m_config.server,channel=c.channel;
-    const long long user=c.user_id,key=c.key,character=c.char_id,generation=c.connection_id;
+    const int user=SqlInt32Identity(c.user_id),key=SqlInt32Identity(c.key),character=SqlInt32Identity(c.char_id);
+    const long long generation=c.connection_id;
     sql<<R"SQL(SELECT r.phase FROM app_world.map_replicas r JOIN app_world.map_sessions m ON m.world_id=r.world_id AND m.char_id=r.char_id
       JOIN app_world.map_runtime_owner p ON p.world_id=m.world_id AND p.server_id=m.server_id AND p.owner_token=m.owner_token
       JOIN app_global."TCURRENTUSER" u ON u."dwUserID"=m.user_id AND u."dwKEY"=m.session_key AND u."dwCharID"=m.char_id
@@ -97,7 +99,7 @@ bool PostgreSQLMapService::LoadReplica(const MapSessionClaim& c,std::uint16_t ma
     if(!std::isfinite(x)||!std::isfinite(z))return false;
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;if(!LockAccount(sql,c)||!LockReplica(sql,c,phase)||phase!="claimed")return false;
-    CheckCatalogs(sql);const int world=c.group,character=c.char_id,server=m_config.server,map_id=map;
+    CheckCatalogs(sql);const int world=c.group,character=SqlInt32Identity(c.char_id),server=m_config.server,map_id=map;
     const double px=x,pz=z;int n=0;
     sql<<"UPDATE app_world.map_replicas SET phase='loaded',updated_at=clock_timestamp() "
          "WHERE world_id=:w AND char_id=:c AND target_server=:s AND map_id=:m AND position_x=:x AND position_z=:z RETURNING 1",
@@ -107,14 +109,15 @@ bool PostgreSQLMapService::LoadReplica(const MapSessionClaim& c,std::uint16_t ma
 void PostgreSQLMapService::MarkReplicaReady(const MapSessionClaim& c) {
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;if(!LockAccount(sql,c)||!LockReplica(sql,c,phase)||phase!="loaded")throw std::runtime_error("Replica state not loaded");
-    CheckCatalogs(sql);const int world=c.group,character=c.char_id,server=m_config.server;
+    CheckCatalogs(sql);const int world=c.group,character=SqlInt32Identity(c.char_id),server=m_config.server;
     sql<<"UPDATE app_world.map_replicas SET phase='ready',updated_at=clock_timestamp() WHERE world_id=:w AND char_id=:c AND target_server=:s",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(server,"s");tx->commit();
 }
 void PostgreSQLMapService::ReleaseReplica(soci::session& sql,const MapSessionClaim& c) const {
     // Also used when claim commit raced client close before local role assignment.
     // No current-user, primary, checkpoint or core write is permitted here.
-    const int world=c.group,server=m_config.server;const long long character=c.char_id,generation=c.connection_id,user=c.user_id,key=c.key;
+    const int world=c.group,server=m_config.server,character=SqlInt32Identity(c.char_id),user=SqlInt32Identity(c.user_id),key=SqlInt32Identity(c.key);
+    const long long generation=c.connection_id;
     sql<<"UPDATE app_world.map_replicas r SET phase='retired',updated_at=clock_timestamp() FROM app_world.map_sessions m "
          "WHERE r.world_id=:w AND r.char_id=:c AND r.target_server=:s AND r.target_token=:t AND r.connection_id=:g "
          "AND m.world_id=r.world_id AND m.char_id=r.char_id AND m.user_id=:u AND m.session_key=:k",
@@ -125,7 +128,7 @@ bool PostgreSQLMapService::ConfirmReplicaLevel(const MapSessionClaim& c,std::uin
     auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;
     if(!LockAccount(sql,c)||!LockReplica(sql,c,phase)||phase!="ready")return false;
-    const int world=c.group,character=static_cast<std::int32_t>(c.char_id),expected=level;int current=0;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),expected=level;int current=0;
     sql << "SELECT 1 FROM app_world.\"TCHARTABLE\" t JOIN app_world.map_checkpoints p "
         "ON p.world_id=t.\"bWorldID\" AND p.char_id=t.\"dwCharID\" "
         "WHERE t.\"bWorldID\"=:w AND t.\"dwCharID\"=:c AND t.\"bLevel\"=:level "

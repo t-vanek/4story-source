@@ -1,5 +1,13 @@
 # TLoginSvrAsio — modernized 4Story login server
 
+Current local Phase A (2026-10-15), based on `199fa5e`: native authenticated
+create/delete and START preserve signed account/session INTEGER bits, allowing
+nonzero stored negative account IDs and high-bit DWORD keys. Character allocation
+remains positive-only under012. **INTEGRATED_UNVERIFIED**, static review only;
+no build/test/SQL/service/client/container run, new migration or push.
+[Storage contracts and deferred acceptance](../../_rewrite/docs/modernization/evidence/phase-a-native-identity-20261015/README.md).
+Historical verification below does not apply to this change.
+
 Incremental reimplementation of `Server/TLoginSvr/` in portable C++20 using
 Boost.Asio, SOCI/libpq, OpenSSL, libbcrypt, spdlog and toml++. PostgreSQL is the
 target database. Original-client packet definitions are preserved; an exact

@@ -137,13 +137,14 @@ bool PostgreSQLMapService::PollNativeMail(soci::session& sql,const MapSessionCla
     for(const auto& [notification,id]:pending) {
         const auto post=std::find_if(p->posts.begin(),p->posts.end(),[&](const auto& row){return row.id==id;});
         if(post==p->posts.end())throw std::runtime_error("Pending mail recipient changed");
-        const int server=m_config.server;const long long connection=c.connection_id,epoch=c.authority_epoch,key=c.key;
+        const int server=m_config.server;
+        const long long connection=c.connection_id,epoch=c.authority_epoch,wire_key=c.key;
         const int suppressed=s.bStartAct==1&&s.wMapID==2010;
         sql << "UPDATE app_world.mail_notifications SET status='committed',server_id=:server,owner_token=:token,"
             "connection_id=:connection,authority_epoch=:epoch,session_key=:key,committed_at=clock_timestamp() "
             ",tutorial_suppressed=CAST(:suppressed AS integer)<>0 "
             "WHERE notification_id=:id AND status='pending'",soci::use(server,"server"),soci::use(m_config.owner_token,"token"),
-            soci::use(connection,"connection"),soci::use(epoch,"epoch"),soci::use(key,"key"),soci::use(notification,"id"),soci::use(suppressed,"suppressed");
+            soci::use(connection,"connection"),soci::use(epoch,"epoch"),soci::use(wire_key,"key"),soci::use(notification,"id"),soci::use(suppressed,"suppressed");
         if(suppressed||static_cast<std::uint64_t>(notification)<=p->mail_notification_baseline)continue;
         std::vector<std::byte> ack;wire::WritePOD(ack,id);wire::WritePOD(ack,std::uint8_t{0});wire::WritePOD(ack,post->type);
         // Original World relay omits time. The receiving Map uses its live

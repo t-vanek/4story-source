@@ -2,7 +2,19 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Latest local Phase A work (2026-10-15), based on `b251cdf`, permits supported
+Latest local Phase A work (2026-10-15), based on `199fa5e`, repairs native
+Login/Map account and session identity binding. Source INTEGER columns preserve
+DWORD bits as signed32 values; operational BIGINT receipt/unlock keys retain
+positive wire values. Actual authenticated character lobby and START, Map claim,
+replica, load, checkpoint, transfer, mutation authority and release paths retain
+their existing ownership/atomicity fences. **INTEGRATED_UNVERIFIED**: static
+source/API/SQL-text/diff review only; no build/test/SQL/service/client/container
+run, new migration (next070), push or deployment. The positive-only character
+allocator is unchanged; full high-bit character allocation, original bootstrap,
+party/gameplay dependencies and client acceptance remain OPEN.
+[Exact storage domains and deferred acceptance](evidence/phase-a-native-identity-20261015/README.md).
+
+Previous code `199fa5e` (2026-10-15), based on `b251cdf`, permits supported
 native statistic/equipment transactions in a basic party using actual effect,
 guild/local, companion and recall capability checks. World retains only real
 party DEL events which never reached a send attempt, drains them after current

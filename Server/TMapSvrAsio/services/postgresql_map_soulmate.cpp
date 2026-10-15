@@ -12,7 +12,6 @@
 namespace tmapsvr {
 namespace {
 using tnetlib::protocol::MessageId;
-int Signed(std::uint32_t value){return std::bit_cast<std::int32_t>(value);}
 std::string Hex(std::span<const std::byte> bytes) {
     constexpr char digits[]="0123456789abcdef";std::string out;
     for(auto value:bytes){const auto b=std::to_integer<unsigned>(value);out+=digits[b>>4];out+=digits[b&15];}return out;
@@ -76,7 +75,7 @@ bool PostgreSQLMapService::ConfirmSoulmateState(const MapSessionClaim& c,std::ui
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token,false,true);
     std::string phase;
     if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||(phase!="loaded"&&phase!="ready"))return false;
-    const int world=c.group,character=Signed(c.char_id);soci::row row;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);soci::row row;
     sql<<"SELECT s.\"dwTarget\",s.\"dwTime\",t.\"szNAME\" FROM app_world.\"TSOULMATETABLE\" s "
          "JOIN app_world.\"TCHARTABLE\" t ON t.\"bWorldID\"=s.\"bWorldID\" AND t.\"dwCharID\"=s.\"dwTarget\" "
          "WHERE s.\"bWorldID\"=:w AND s.\"dwCharID\"=:c FOR SHARE OF s,t",
@@ -93,7 +92,7 @@ bool PostgreSQLMapService::ConfirmSoulmateState(const MapSessionClaim& c,std::ui
 }
 
 void PostgreSQLMapService::CheckNativeSoulmateDeadline(soci::session& sql,const MapSessionClaim& c) const {
-    const int world=c.group,character=Signed(c.char_id),key=Signed(c.key);const long long generation=c.connection_id,epoch=c.authority_epoch;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),key=SqlInt32Identity(c.key);const long long generation=c.connection_id,epoch=c.authority_epoch;
     int overdue=0;
     sql<<"SELECT count(*) FROM app_world.soulmate_offers WHERE world_id=:w AND char_id=:c AND session_key=:k "
          "AND source_server=:s AND map_owner_token=:t AND connection_id=:g AND authority_epoch=:e AND status IN ('pending','prepared') "
@@ -109,7 +108,7 @@ void PostgreSQLMapService::LockNativeSoulmateTarget(soci::session& sql,const Map
     const auto reply=ReadReply(opcode,body);
     if(reply.character!=c.char_id||reply.key!=c.key)throw std::runtime_error("Soulmate response claim mismatch");
     if(!IsSearch(opcode)&&!reply.reg)return; // REGREADY is a read-only World preview.
-    const int world=c.group,character=Signed(c.char_id),key=Signed(c.key),server=m_config.server,op=opcode;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),key=SqlInt32Identity(c.key),server=m_config.server,op=opcode;
     const long long generation=c.connection_id,epoch=c.authority_epoch;const auto bytes=Hex(body);soci::row offer;
     sql<<"SELECT f.target_id,f.target_server FROM app_world.soulmate_offers f JOIN app_world.world_runtime_owner o "
          "ON o.world_id=f.world_id AND o.owner_token=f.world_owner_token WHERE f.world_id=:w AND f.char_id=:c "
@@ -127,13 +126,13 @@ void PostgreSQLMapService::LockNativeSoulmateTarget(soci::session& sql,const Map
          "AND l.classid=CAST(877478224 AS oid) AND l.objid=CAST((o.world_id::integer<<8)|o.server_id::integer AS oid) "
          "AND l.objsubid=2 AND l.granted) FOR SHARE OF o",soci::use(world,"w"),soci::use(target_server,"s"),soci::into(live);
     if(!sql.got_data()||live!=1)throw std::runtime_error("Soulmate target Map ownership lost");
-    const int target=Signed(reply.target);int user=0;
+    const int target=SqlInt32Identity(reply.target);int user=0;
     sql<<"SELECT \"dwUserID\" FROM app_world.\"TCHARTABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c AND \"bDelete\"=0",
         soci::use(world,"w"),soci::use(target,"c"),soci::into(user);
     if(!sql.got_data())throw std::runtime_error("Soulmate target was deleted");
     std::set<std::uint32_t> users{c.user_id,static_cast<std::uint32_t>(user)};
     for(auto identity:users) {
-        const int account=Signed(identity);int found=0;
+        const int account=SqlInt32Identity(identity);int found=0;
         sql<<"SELECT 1 FROM app_global.\"TACCOUNT_PW\" WHERE \"dwUserID\"=:u FOR UPDATE",soci::use(account),soci::into(found);
         if(!sql.got_data()||found!=1)throw std::runtime_error("Soulmate account no longer exists");
     }
@@ -144,7 +143,7 @@ bool PostgreSQLMapService::ChangeNativeSoulmate(soci::session& sql,const MapSess
     std::optional<SoulmateOfferCommit>& consumed_offer) const {
     const bool response=IsResponse(opcode),search=IsSearch(opcode);
     const bool ready=opcode==static_cast<std::uint16_t>(MessageId::CS_SOULMATEREGREADY_REQ);
-    const int world=c.group,character=Signed(c.char_id),key=Signed(c.key),server=m_config.server;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),key=SqlInt32Identity(c.key),server=m_config.server;
     const long long generation=c.connection_id,epoch=c.authority_epoch;
     if(!response) {
         // Source REG prompts before decoding; its repository repeats the gate
@@ -239,7 +238,7 @@ bool PostgreSQLMapService::ChangeNativeSoulmate(soci::session& sql,const MapSess
         if(!reply.target||reply.target==c.char_id||offer.get_indicator(1)==soci::i_null||
            static_cast<std::uint32_t>(offer.get<int>(1))!=reply.target||native_wire_text::Unhex(offer.get<std::string>(2))!=reply.name||
            static_cast<std::uint32_t>(offer.get<long long>(3))!=reply.region)throw std::runtime_error("Soulmate descriptor changed");
-        const int target=Signed(reply.target),target_key=offer.get<int>(6),target_server=offer.get<int>(7);soci::row target_state;
+        const int target=SqlInt32Identity(reply.target),target_key=offer.get<int>(6),target_server=offer.get<int>(7);soci::row target_state;
         sql<<"SELECT c.\"szNAME\",c.\"bCountry\",c.\"bLevel\",c.\"bClass\" FROM app_world.map_sessions m "
              "JOIN app_world.map_runtime_owner o ON o.world_id=m.world_id AND o.server_id=m.server_id AND o.owner_token=m.owner_token "
              "JOIN app_global.\"TCURRENTUSER\" u ON u.\"dwKEY\"=m.session_key AND u.\"dwUserID\"=m.user_id AND u.\"dwCharID\"=m.char_id "

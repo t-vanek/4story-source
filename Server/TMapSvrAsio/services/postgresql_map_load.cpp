@@ -435,11 +435,11 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     if(!LockAccount(sql,claim)||!LockClaim(sql,claim,phase)||phase!="claimed")return {};
     CheckCatalogs(sql);
     if(auto restored=RestoreTransferCheckpoint(sql,claim)) {
-        const long long key=claim.key;
+        const int key=SqlInt32Identity(claim.key);
         sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
         tx->commit();return restored;
     }
-    const int world=claim.group;const long long character=claim.char_id,user=claim.user_id,key=claim.key;
+    const int world=claim.group,character=SqlInt32Identity(claim.char_id),user=SqlInt32Identity(claim.user_id),key=SqlInt32Identity(claim.key);
     soci::row row;
     sql<<"SELECT c.* FROM app_world.\"TCHARTABLE\" c JOIN app_global.\"TALLCHARTABLE\" d "
          "ON d.\"bWorldID\"=c.\"bWorldID\" AND d.\"dwCharID\"=c.\"dwCharID\" "
@@ -557,7 +557,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
         (i?p.next_exp:p.prev_exp)=static_cast<std::uint32_t>(experience);}
     ByteCount(p.bags.size());ByteCount(p.skills.size());ByteCount(p.hotkeys.size());
     for(const auto& bag:p.bags)ByteCount(bag.items.size());
-    {const int cast_world=claim.group,cast_character=s.dwCharID;long long head=0;
+    {const int cast_world=claim.group,cast_character=SqlInt32Identity(s.dwCharID);long long head=0;
      sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
      p.last_cast_id=static_cast<std::uint64_t>(head);
@@ -624,7 +624,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
         if(!sql.got_data())throw std::runtime_error("Transferred level has no source threshold");
         (i?p.next_exp:p.prev_exp)=static_cast<std::uint32_t>(experience);}
     ByteCount(p.bags.size());ByteCount(p.skills.size());ByteCount(p.hotkeys.size());for(const auto& b:p.bags)ByteCount(b.items.size());
-    {const int cast_world=m_config.world,cast_character=s.dwCharID;long long head=0;
+    {const int cast_world=m_config.world,cast_character=SqlInt32Identity(s.dwCharID);long long head=0;
      sql<<"SELECT COALESCE(max(cast_id),0) FROM app_world.accepted_skill_casts WHERE world_id=:w AND char_id=:c",
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
      p.last_cast_id=static_cast<std::uint64_t>(head);

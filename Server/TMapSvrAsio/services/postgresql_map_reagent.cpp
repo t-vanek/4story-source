@@ -37,7 +37,7 @@ PostgreSQLMapService::ConsumptionKind PostgreSQLMapService::ValidateSkillConsump
     if(graph) {
         for(const auto& learned:graph->skills)if(learned.wSkillID==skill)rank=learned.bLevel;
     }else {
-        const int world=c.group,character=c.char_id;
+        const int world=c.group,character=SqlInt32Identity(c.char_id);
         sql<<"SELECT \"bLevel\" FROM app_world.\"TSKILLTABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c AND \"wSkillID\"=:s FOR UPDATE",
             soci::use(world,"w"),soci::use(character,"c"),soci::use(sid,"s"),soci::into(rank);
         if(!sql.got_data())throw std::runtime_error("Consumption learned skill disappeared");
@@ -67,7 +67,7 @@ PostgreSQLMapService::ConsumptionKind PostgreSQLMapService::ValidateSkillConsump
             items.push_back({item.id,static_cast<int>(item.storage_id),item.slot,t[0],t[1],t[2],!item.durability_max||item.durability,{},item.item,item.count});
         }
     }else {
-        const int world=c.group,owner=c.char_id;
+        const int world=c.group,owner=SqlInt32Identity(c.char_id);
         // Lock the inventory used for the selection, including the equipped
         // weapon. Its loaded full-row hash also fences stale timing/equipment.
         soci::rowset<soci::row> rows=(sql.prepare<<
@@ -110,7 +110,7 @@ PostgreSQLMapService::ReagentGraphPlan PostgreSQLMapService::ValidateGraphReagen
     soci::session& sql,const MapSessionClaim& c,std::uint16_t skill,std::uint8_t hits,const std::vector<SkillItemDebit>& debits,const CharSnapshot& after) const {
     // The caller holds the exact primary claim and checkpoint row locks. Full
     // graph inventory is authoritative even when normalized item/skill rows lag.
-    const int world=c.group,character=c.char_id;std::string hex,core_hash;ReagentGraphPlan plan;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);std::string hex,core_hash;ReagentGraphPlan plan;
     sql<<"SELECT encode(transfer_body,'hex'),transfer_hash,fingerprint FROM app_world.map_checkpoints "
          "WHERE world_id=:w AND char_id=:c AND recovery_contract=2 AND character_manifest=:cm AND routing_manifest=:rm AND actor_manifest=:am",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(m_config.character_manifest,"cm"),

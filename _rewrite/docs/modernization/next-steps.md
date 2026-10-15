@@ -11,7 +11,19 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `b251cdf`, permits supported
+Latest local Phase A work (2026-10-15), based on `199fa5e`, repairs native
+Login/Map account and session identity binding. Source INTEGER columns preserve
+DWORD bits as signed32 values; operational BIGINT receipt/unlock keys retain
+positive wire values. Actual authenticated character lobby and START, Map claim,
+replica, load, checkpoint, transfer, mutation authority and release paths retain
+their existing ownership/atomicity fences. **INTEGRATED_UNVERIFIED**: static
+source/API/SQL-text/diff review only; no build/test/SQL/service/client/container
+run, new migration (next070), push or deployment. The positive-only character
+allocator is unchanged; full high-bit character allocation, original bootstrap,
+party/gameplay dependencies and client acceptance remain OPEN.
+[Exact storage domains and deferred acceptance](evidence/phase-a-native-identity-20261015/README.md).
+
+Previous code `199fa5e` (2026-10-15), based on `b251cdf`, permits supported
 native statistic/equipment transactions in a basic party using actual effect,
 guild/local, companion and recall capability checks. World retains only real
 party DEL events which never reached a send attempt, drains them after current
@@ -23,12 +35,13 @@ container run or new migration (next070). Full roster/bootstrap, high-bit identi
 party rewards/combat and other unported gameplay remain OPEN. Local Git only;
 no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
 
-Next dependencies include the separate source SoulHP/XP producers, full client
-roster and source Map admission/bootstrap, plus a coherent signed-DWORD native
-identity contract. Do not fix just one Map writer: account/key admission and
-replica/load/checkpoint/release bindings precede it, and the existing positive-only
-character allocator is an independent schema boundary. Known unsent DEL recovery
-does not authorize replay of attempted/unknown output or fake roster clearing.
+Next dependencies include separate source SoulHP/XP producers, complete client
+roster and source Map admission/bootstrap. Native stored account/session binding
+is now integrated, unverified; full high-bit character allocation still needs an
+explicit source/schema/sequence policy for the positive-only012 allocator. Keep
+source INTEGER key bits distinct from operational unsigned BIGINT receipt keys.
+Known unsent DEL recovery does not authorize replay of attempted/unknown output
+or fake roster clearing.
 
 Previous code `b251cdf` (2026-10-14), based on `622fb2e`, connects manual
 party chief/type changes and repairs post-ready attributes for both primary and

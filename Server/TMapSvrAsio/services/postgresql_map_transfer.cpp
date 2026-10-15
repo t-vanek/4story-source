@@ -23,7 +23,7 @@ std::string PostgreSQLMapService::TransferFingerprint(const MapSessionClaim& c,c
     return Hash(transfer::Encode(transfer::Capture(s,c.key,timers,0)));
 }
 void PostgreSQLMapService::StoreTransferCheckpoint(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) const {
-    const int world=c.group,character=c.char_id;
+    const int world=c.group,character=SqlInt32Identity(c.char_id);
     if(!s.payload)throw std::runtime_error("Checkpoint has no native mail baseline");
     const long long baseline=s.payload->mail_notification_baseline;
     sql << "UPDATE app_world.map_checkpoints SET mail_notification_baseline=:baseline WHERE world_id=:w AND char_id=:c",
@@ -40,7 +40,7 @@ void PostgreSQLMapService::StoreTransferCheckpoint(soci::session& sql,const MapS
         soci::use(m_config.actor_manifest,"am"),soci::use(world,"w"),soci::use(character,"c");
 }
 std::optional<CharSnapshot> PostgreSQLMapService::RestoreTransferCheckpoint(soci::session& sql,const MapSessionClaim& c) const {
-    const int world=c.group,character=c.char_id,user=c.user_id;std::string hex,cm,rm,am,fingerprint;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),user=SqlInt32Identity(c.user_id);std::string hex,cm,rm,am,fingerprint;
     int matches=0;
     sql<<"SELECT encode(transfer_body,'hex'),character_manifest,routing_manifest,actor_manifest,fingerprint,"
          "CASE WHEN app_world.map_checkpoint_matches(map_checkpoints) THEN 1 ELSE 0 END "
@@ -81,7 +81,7 @@ bool PostgreSQLMapService::PrepareTransfer(const MapSessionClaim& c,const CharSn
     CheckCatalogs(sql);
     const auto& s=state->character;const int target=CellOwner(sql,c,s.wMapID,s.fPosX,s.fPosZ);
     if(!target||target==m_config.server)return false;
-    const int world=c.group,character=c.char_id,user=c.user_id,key=c.key,channel=c.channel,source=m_config.server,port=c.endpoint_port;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),user=SqlInt32Identity(c.user_id),key=SqlInt32Identity(c.key),channel=c.channel,source=m_config.server,port=c.endpoint_port;
     const long long generation=c.connection_id,epoch=c.authority_epoch,ip=c.endpoint_ip;
     const auto hex=Hex(body),hash=Hash(body);int found=0;
     if(phase=="transferring") {
@@ -143,7 +143,7 @@ std::optional<TransferredCharacter> PostgreSQLMapService::AcceptTransferOrConfir
     if(c.role!=MapSessionRole::Replica||!state||state->db_load||state->character.dwCharID!=c.char_id||state->key!=c.key)return {};
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     if(!LockAccount(sql,c))return {};CheckCatalogs(sql);
-    const int world=c.group,character=c.char_id,user=c.user_id,key=c.key,channel=c.channel,target=m_config.server;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),user=SqlInt32Identity(c.user_id),key=SqlInt32Identity(c.key),channel=c.channel,target=m_config.server;
     const long long generation=c.connection_id;const auto hex=Hex(body);
     long long id=0,source_connection=0,source_epoch=0,target_epoch=0,source_ip=0;
     int source=0,source_port=0,unexpired=0;std::string source_token,phase,fingerprint;
@@ -227,7 +227,7 @@ std::optional<TransferredCharacter> PostgreSQLMapService::AcceptTransferOrConfir
 bool PostgreSQLMapService::OutgoingTransferCommitted(const MapSessionClaim& c) {
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     if(!LockAccount(sql,c))return false;
-    const int world=c.group,character=c.char_id,user=c.user_id,key=c.key;
+    const int world=c.group,character=SqlInt32Identity(c.char_id),user=SqlInt32Identity(c.user_id),key=SqlInt32Identity(c.key);
     const long long generation=c.connection_id,epoch=c.authority_epoch;int found=0;
     sql<<"SELECT 1 FROM app_world.map_transfers t JOIN app_world.map_sessions m ON m.world_id=t.world_id AND m.char_id=t.char_id "
          "AND m.server_id=t.target_server AND m.owner_token=t.target_token AND m.connection_id=t.target_connection AND m.authority_epoch=t.target_epoch "

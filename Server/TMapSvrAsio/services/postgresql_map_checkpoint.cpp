@@ -1232,9 +1232,12 @@ SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim&
 FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std::span<const std::byte> body,
     const CharSnapshot& before) {
     const auto request=DecodeFinishSkill(body);
+    // GOHOME produces source MISS before any guaranteed-hit rule. Empty
+    // ordinary/loop completion skips the hit test and still cleans equipment.
     if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain||
-       request.host!=c.char_id||request.attacker!=c.char_id||request.type!=1||request.linked||request.fake||request.party||
-       before.bDead||!before.dwHP||!SupportedPostures(*before.payload)||
+       request.host!=c.char_id||request.attacker!=c.char_id||request.type!=1||request.linked||request.fake||
+       !before.cluster.hydrated||
+       before.bDead||!before.dwHP||(before.cluster.mode==2&&!request.targets.empty())||!SupportedPostures(*before.payload)||
        std::any_of(request.targets.begin(),request.targets.end(),[&](const auto& t){return t.id!=c.char_id||t.type!=1;}))
         throw std::runtime_error("Unsupported native FINISHSKILL scope");
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
@@ -1307,6 +1310,9 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
         }
     }
     if(!accepted||!selected_definition)throw std::runtime_error("FINISHSKILL has no supported unconsumed accepted cast");
+    // Source parses the client's raw party WORD but uses it only inside
+    // OnDamage. Every admitted row here is a pure own-PC cure, so this field
+    // is inert metadata, never membership authority or a cluster update.
     const auto definition=*selected_definition;const auto power=*definition.attack_profile;
     FinishSkillCommit result;
     const auto emit=[&](std::uint16_t id,std::vector<std::byte> bytes,FinishAudience audience){

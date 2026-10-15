@@ -46,13 +46,23 @@ and first-eligible duplicate collapse remain **OPEN**. See the
 
 Native action items now connect original ITEMUSE initiation, ACTITEMSUSE
 acceptance/consumption and FINISHSKILL through durable receipts for a bounded
-own-PC, partyless, positive instant HP/MP cure. Actual pinned kind21 definitions
+own-PC positive instant HP/MP cure, including supported basic parties. Actual
+pinned kind21 definitions
 and guild-skill nonmembership are required; unsupported damage, maintained,
 linked, learned-trigger and special-mode branches stay unavailable. Migration071
 records request origin and actual ACT route; migration072 supplies the separately
 published skill context. Both are written, unexecuted prerequisites. This is
 **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 [action-item contract](../../_rewrite/docs/modernization/evidence/phase-a-native-actitems-20261015/map-actitems.md).
+
+Supported own-PC positive FINISHSKILL cures now accept the original client's raw
+party WORD for ordinary, loop and action-item receipts. That field is unused by
+this source effect and grants no membership or target authority. Current local
+party projections are checked around awaited ACTION/finish output; World still
+owns party membership and validates actual HP/MP fanout independently. This is
+**IMPLEMENTED / INTEGRATED_UNVERIFIED**; corps and other-target/group effects
+remain **OPEN**. See the
+[party self-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-party-self-cure-20261015/map-self-cure.md).
 
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum

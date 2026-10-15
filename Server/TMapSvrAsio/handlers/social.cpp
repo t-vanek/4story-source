@@ -9,6 +9,7 @@
 #include "services/world_client.h"
 #include "services/world_senders.h"
 #include "services/party_runtime.h"
+#include "services/native_projection.h"
 #include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
 #include "MessageId.h"
@@ -267,10 +268,12 @@ boost::asio::awaitable<void> PublishPartyVitals(const std::shared_ptr<tnetlib::A
     if(!s.cluster.hydrated||!Party(s)||s.persistence_uncertain)co_return;
     const auto id=ctx.session_reg->Identity(client.get());
     if(!id||id->role!=MapSessionRole::Primary||id->phase!=SessionPhase::Ready||id->char_id!=s.dwCharID||!Current(client,*id,ctx))co_return;
+    const auto live=ctx.char_state?ctx.char_state->Get(id->char_id):std::nullopt;
+    if(!live||live->persistence_uncertain||!SameNativePartyProjection(CaptureNativePartyProjection(s.cluster),live->cluster))co_return;
     wire::Reader r(hpmp.data(),hpmp.size());std::uint32_t object=0,max_hp=0,hp=0,max_mp=0,mp=0;std::uint8_t type=0;
     if(!r.Read(object)||!r.Read(type)||!r.Read(max_hp)||!r.Read(hp)||!r.Read(max_mp)||!r.Read(mp)||!r.Eof())throw std::runtime_error("Invalid native own HPMP for party");
-    if(object!=id->char_id)co_return;
-    std::vector<std::byte> request;wire::WritePOD(request,Party(s));wire::WritePOD(request,object);wire::WritePOD(request,type);wire::WritePOD(request,s.bLevel);
+    if(object!=id->char_id||type!=1)co_return;
+    std::vector<std::byte> request;wire::WritePOD(request,Party(*live));wire::WritePOD(request,object);wire::WritePOD(request,type);wire::WritePOD(request,s.bLevel);
     wire::WritePOD(request,max_hp);wire::WritePOD(request,hp);wire::WritePOD(request,max_mp);wire::WritePOD(request,mp);
     co_await Relay(client,MessageId::MW_PARTYMANSTAT_ACK,std::move(request),ctx);
 }

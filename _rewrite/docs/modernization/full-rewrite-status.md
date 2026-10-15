@@ -12,7 +12,14 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
-Latest local increment is based on `a3fa3ef`: original action-item initiation,
+Latest local increment is based on `42451e1`: basic-party own positive cures,
+source-unused finish party metadata including SOLO client raw-ID behavior,
+current local party context for output/MANSTAT and ordinary ACTION current
+actor/recipient grid guards. No new migration; next073. World membership stays
+independent of supplied finish metadata. Other-target/group/corps/guild/mode
+healing, general combat and original-client acceptance remain OPEN. No build,
+test, SQL, import, service, client, container execution or push.
+Previous code `42451e1`, based on `a3fa3ef`: original action-item initiation,
 ACT consumption and source positive own-PC cure completion; strict local item
 reuse, truthful late failures, distinct accepted origins and actual route proof.
 Written071 adds origin columns; written072 and an offline publisher bind complete
@@ -83,9 +90,28 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native basic-party self cure — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `42451e1`, permits the
+already admitted positive own-PC HP/MP cure in a basic native party, including
+SOLO. FINISHSKILL retains the supplied party WORD as source-unused metadata for
+this pure CURE profile; it cannot change membership or choose recipients.
+ACT initiation/consumption no longer requires party0. Actual local party context
+and current actor/recipient authority are rechecked across publication awaits;
+World still derives MANSTAT recipients from its own current membership and SQL
+peer authority. Ordinary ACTION replies use the same current grid/nearby guard.
+Shared finish refuses source GOHOME2 hits while retaining empty ordinary/loop
+completion and cleanup.
+**INTEGRATED_UNVERIFIED**, static source/API/SQL-text/packet/diff review only; no
+build/test/SQL/import/service/client/container execution, push or deployment.
+No new migration: written044–072 remain unapplied; next073. Other-target/group
+healing, full corps/guild/special-mode effects, combat and original-client
+acceptance remain OPEN.
+[Party self-cure contract and deferred acceptance](evidence/phase-a-party-self-cure-20261015/README.md).
+
 ## Native action items — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `a3fa3ef`, connects
+Previous code `42451e1` (2026-10-15), based on `a3fa3ef`, connects
 original ITEMUSE action initiation, ACTITEMSUSE item consumption and FINISHSKILL
 completion for an actual partyless own-PC positive instant HP/MP cure. The
 initializer does not debit or arm reuse; ACT preserves source activity/erase,

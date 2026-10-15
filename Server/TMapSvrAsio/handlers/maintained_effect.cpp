@@ -68,6 +68,7 @@ boost::asio::awaitable<void> OnNativeAction(std::shared_ptr<tnetlib::AsioSession
         ctx.char_state->Store(cid,uncertain);sess->Close();throw;
     }
     const auto& after=*committed.snapshot;
+    const auto party=CaptureNativePartyProjection(after.cluster);
     std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{sess};
     const auto cell=[](float value)->int{return std::isfinite(value)&&value>=0&&value<65536?static_cast<std::uint16_t>(value)/64:-10000;};
     if(ctx.presence)ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto client){
@@ -90,7 +91,9 @@ boost::asio::awaitable<void> OnNativeAction(std::shared_ptr<tnetlib::AsioSession
         co_await DeliverNativeGridProjection(sess,*identity,sess,
             static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_CHARSTATINFO_ACK),stats,ctx);
     }
-    for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ACTION_ACK),committed.acknowledgement);
+    const bool nearby=request.skill!=0;
+    for(auto& client:neighbors)co_await DeliverNativeGridProjection(sess,*identity,client,
+        static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ACTION_ACK),committed.acknowledgement,ctx,nearby,&party);
 }
 boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body,const HandlerContext& ctx) {
@@ -119,6 +122,7 @@ boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession>
     // EraseMaintainSkill uses neighboring cells and private statistics; Defend
     // uses nearby players. Preserve both recipient scope and packet order.
     const auto& after=*committed.snapshot;
+    const auto party=CaptureNativePartyProjection(after.cluster);
     std::vector<std::shared_ptr<tnetlib::AsioSession>> owner{sess},neighbors{sess},nearby{sess};
     const auto cell=[](float v)->int{return std::isfinite(v)&&v>=0&&v<65536?static_cast<std::uint16_t>(v)/64:-10000;};
     if(ctx.presence)ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto client){
@@ -134,7 +138,7 @@ boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession>
         const auto& clients=audience==FinishAudience::Owner?owner:audience==FinishAudience::Neighbors?neighbors:nearby;
         const auto& [id,packet]=committed.packets[i];
         for(auto& client:clients) {
-            const bool sent=co_await DeliverNativeGridProjection(sess,*identity,client,id,packet,ctx,audience==FinishAudience::Nearby);
+            const bool sent=co_await DeliverNativeGridProjection(sess,*identity,client,id,packet,ctx,audience==FinishAudience::Nearby,&party);
             if(sent&&client.get()==sess.get()&&id==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_HPMP_ACK))
                 co_await PublishPartyVitals(sess,after,packet,ctx);
         }

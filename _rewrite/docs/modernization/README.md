@@ -1,6 +1,23 @@
 # Modern server implementation status
 
-Latest local Phase A work (2026-10-15), based on `a3fa3ef`, connects
+Latest local Phase A work (2026-10-15), based on `42451e1`, permits the
+already admitted positive own-PC HP/MP cure in a basic native party, including
+SOLO. FINISHSKILL retains the supplied party WORD as source-unused metadata for
+this pure CURE profile; it cannot change membership or choose recipients.
+ACT initiation/consumption no longer requires party0. Actual local party context
+and current actor/recipient authority are rechecked across publication awaits;
+World still derives MANSTAT recipients from its own current membership and SQL
+peer authority. Ordinary ACTION replies use the same current grid/nearby guard.
+Shared finish refuses source GOHOME2 hits while retaining empty ordinary/loop
+completion and cleanup.
+**INTEGRATED_UNVERIFIED**, static source/API/SQL-text/packet/diff review only; no
+build/test/SQL/import/service/client/container execution, push or deployment.
+No new migration: written044–072 remain unapplied; next073. Other-target/group
+healing, full corps/guild/special-mode effects, combat and original-client
+acceptance remain OPEN.
+[Party self-cure contract and deferred acceptance](evidence/phase-a-party-self-cure-20261015/README.md).
+
+Previous code `42451e1` (2026-10-15), based on `a3fa3ef`, connects
 original ITEMUSE action initiation, ACTITEMSUSE item consumption and FINISHSKILL
 completion for an actual partyless own-PC positive instant HP/MP cure. The
 initializer does not debit or arm reuse; ACT preserves source activity/erase,

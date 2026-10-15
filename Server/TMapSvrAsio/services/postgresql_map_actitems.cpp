@@ -28,7 +28,7 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
     // zero), unlike the fixed rank1 ACT acknowledgement. Bound this branch to
     // no learned trigger and flat, positive instant cures; no invented rank.
     if(skill==128||skill==229||skill==3604||!s.payload||!s.payload->statistics||!s.recovery||!s.payload->item_cooldowns||!SupportedPostures(*s.payload)||s.bDead||!s.dwHP||s.cluster.mode==2||
-       s.cluster.party||s.cluster.guild||s.cluster.tactics||s.cluster.riding||s.payload->arena_id||s.payload->tournament_player||
+       !s.cluster.hydrated||s.cluster.guild||s.cluster.tactics||s.cluster.riding||s.payload->arena_id||s.payload->tournament_player||
        !s.payload->recalls.empty()||(s.wMapID>=500&&s.wMapID<533)||
        (s.payload->transfer_state&&(!s.payload->transfer_state->companions.empty()||!s.payload->transfer_state->companion_items.empty()||
         !s.payload->transfer_state->recalls.empty()||!s.payload->transfer_state->recall_buffs.empty()||s.payload->transfer_state->local_id))||

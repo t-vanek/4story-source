@@ -13,7 +13,14 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current action-item increment, based on `a3fa3ef`, requires written071 and072.
+The current basic-party self-cure increment, based on `42451e1`, adds no schema,
+publisher or grant change. It retains071/072 and the explicit verified skill
+context publication required below. Source-unused FINISHSKILL party metadata
+never creates native World membership. Only static review was performed; no
+command in this document was run for it. Written044–072 remain unapplied; next073.
+[Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-party-self-cure-20261015/README.md).
+
+Previous code `42451e1`, based on `a3fa3ef`, requires written071 and072.
 Migration071 adds accepted-cast origin and actual ACT route; all new ordinary,
 loop and action-item writers require its columns. Existing table-level Map
 INSERT/SELECT grants cover these columns. Migration072 adds the separately

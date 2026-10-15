@@ -13,7 +13,15 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current CURE DWORD/default increment, based on `cde2ded`, changes no schema,
+The current signed living-CURE increment, based on `e2e4784`, changes no schema,
+publisher or grant. Actual row values and existing source maximum statistics feed
+the shared symmetric signed bound and signed variance; DWORD resource storage,
+receipts and checkpoints retain their current widths. Final-HP0 Defend death is
+still unavailable. Existing071/072 publication remains required; written044–072
+remain unapplied; next073. No command here was run.
+[Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-cure-signed-20261015/README.md).
+
+Previous code `e2e4784`, based on `cde2ded`, changes no schema,
 publisher or grant. It interprets actual published BYTE calculation/combine
 modes and source Win32 arithmetic within existing native Map transactions.
 Living resource wrap uses existing DWORD storage/checkpoints; final HP0 remains

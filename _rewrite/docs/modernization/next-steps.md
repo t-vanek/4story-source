@@ -11,7 +11,25 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `cde2ded`, implements actual
+Latest local Phase A work (2026-10-15), based on `e2e4784`, admits signed
+numeric HP/MP deltas for the existing odd-positive-template own-PC pure CURE.
+The shared Delta helper accepts ±143165576 after the actual combine; FINISH
+computes signed variance with division toward zero, converts the completed
+sample to DWORD and preserves resource addition modulo2^32 before the final
+per-target cap. Negative numeric values do not change template classification
+or introduce damage/aggro/battle-mode behavior. Final HP must remain>0.
+Init/ACT preflight and normal ordinary/loop/ACT FINISH share current-rank/maxima
+calculation. MISS/empty skip numeric work; real zero/default rows retain RNG.
+Existing item accounting, atomic receipts/checkpoints and current party/recipient
+authority remain in force. No new wire field, schema, publication or grant.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+Written044–072 remain unapplied; next073. Final-HP0 Defend death, negative-template
+combat, unsafe signed operations, hardcoded effects, foreign targets and actual
+original-client/CRT acceptance remain OPEN.
+[Signed numeric CURE and deferred acceptance](evidence/phase-a-cure-signed-20261015/README.md).
+
+Previous code `e2e4784` (2026-10-15), based on `cde2ded`, implements actual
 Win32 DWORD modulo product/subtraction and living HP/MP resource addition.
 Combine bits are projected to signed INT before the final positive variance
 bound; percent divides the reduced DWORD product. Resource additions wrap per
@@ -203,19 +221,29 @@ container run or new migration (next070). Full roster/bootstrap, high-bit identi
 party rewards/combat and other unported gameplay remain OPEN. Local Git only;
 no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
 
-Action-item cures now preserve actual DWORD product/subtraction modulo and
-Win32 INT projection for the five known combines, plus both source BYTE-mode
-default branches. Final nonnegative deltas remain inside the signed variance
-domain; living resource additions wrap per row before the target's final clamp.
-Final HP0 needs the source LASTHIT/HPMP/death graph; negative final deltas also
-retain their own damage dependencies. DIVIDE still clamps nonpositive divisors to1 before its actual
-unsigned quotient/subtraction. Do not replace the newly admitted high-bit
-positive results or default branches with guessed zero outcomes.
-Continue hardcoded128/229/3604 erase/rank behavior and final negative effects
-without borrowing ACT wire rank1. Actual CRT/libm truncation boundaries need
-executable acceptance. Current rank/maxima changes between acceptance and
-FINISH use current source projection and authority; do not refund/replay a
-now-unsupported finish.
+Action-item and admitted ordinary/loop cures now preserve actual DWORD
+product/subtraction modulo, Win32 INT projection and both source BYTE defaults.
+Signed final deltas inside ±INTMAX/15 use truncation toward zero for variance,
+then DWORD addition modulo2^32 and one target-level cap. A negative numeric CURE
+on an odd-positive template does not itself require general damage semantics.
+Final HP must still remain>0. DIVIDE retains its nonpositive-divisor clamp to1.
+Do not replace signed results, underflow or actual defaults with guessed zero
+or saturation. Current rank/maxima remain current at FINISH; unsupported
+post-acceptance completion does not authorize a refund or replay.
+
+The next final-HP0 slice needs source Defend ordering: LASTHIT DEFEND, conditional
+HPMP with both wire bars0, then DuelLose/OnDie. Establish actual active-duel,
+Angel/companion, GodBall/local/arena/tournament and death-context authority before
+sharing ordinary-death internals. Historical duel rows are not active-duel proof.
+Do not call the DROP adapter: its DROP ACK and recovery+5000 clocks are specific
+to that producer, whereas pure CURE Defend updates last-attack only. Silent
+nonstatic effect release, retained static effects, DIE and subsequent target
+occurrences need the source dead-state contract. This remains unimplemented;
+see [source dependencies](evidence/phase-a-cure-signed-20261015/analysis.md).
+
+Continue hardcoded128/229/3604 erase/rank behavior and actual negative-template
+or foreign-target effects without borrowing ACT wire rank1. CRT/libm truncation
+boundaries and signed-resource/client behavior require later executable acceptance.
 
 The admitted own positive-cure MISS path now uses actual source802 metadata.
 Continue richer802 data/status/ability and BLOCK801 rather than guessing a marker

@@ -9,7 +9,7 @@
 namespace tmapsvr::native_cure {
 // GetValue is signed independently of the combine: DECREASE can turn a
 // negative value into a positive cure. Keep the generic skill engine intact.
-// Call only when PerformSkill runs; MISS/empty must not evaluate magnitude/pow.
+// Call only when PerformSkill runs; MISS/empty must not evaluate delta/pow.
 inline std::int32_t SignedValue(const SkillDataRow& row,const SkillTemplate& skill,std::uint8_t rank) {
     std::int32_t value;
     if(row.bCalc==2) {
@@ -26,7 +26,7 @@ inline std::int32_t SignedValue(const SkillDataRow& row,const SkillTemplate& ski
     else value=0; // source GetValue's default for an actual unknown BYTE mode
     return value;
 }
-inline std::int32_t Magnitude(const SkillDataRow& row,const SkillTemplate& skill,std::uint8_t rank,std::uint32_t base) {
+inline std::int32_t Delta(const SkillDataRow& row,const SkillTemplate& skill,std::uint8_t rank,std::uint32_t base) {
     const auto value=SignedValue(row,skill,rank);
     // Source Win32 DWORD product/subtraction are modulo2^32. Project those
     // bits back to the Windows signed INT result explicitly, as skill_targets
@@ -59,8 +59,9 @@ inline std::int32_t Magnitude(const SkillDataRow& row,const SkillTemplate& skill
     default:result=0;break; // Calculate calls GetValue first, then keeps nValue0
     }
     // Source variance multiplies the FINAL signed INT delta by rand()%16.
-    if(result<0||result>std::numeric_limits<std::int32_t>::max()/15)
-        throw std::runtime_error("Cure magnitude outside supported positive source variance domain");
+    constexpr std::int64_t limit=std::numeric_limits<std::int32_t>::max()/15;
+    if(result<-limit||result>limit)
+        throw std::runtime_error("Cure delta outside supported signed source variance domain");
     return static_cast<std::int32_t>(result);
 }
 }

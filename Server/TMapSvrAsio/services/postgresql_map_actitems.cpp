@@ -28,7 +28,7 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
     const auto u16=[&](const char* column){return static_cast<std::uint16_t>(row.get<int>(column));};
     // Kind21's source finish uses its trigger's current learned rank (possibly
     // zero), unlike the fixed rank1 ACT acknowledgement. Only the outgoing
-    // positive cure is applied; the trigger is not an ordinary cast.
+    // positive-template CURE is applied; the trigger is not an ordinary cast.
     if(skill==128||skill==229||skill==3604||!s.payload||!s.payload->statistics||!s.recovery||!s.payload->item_cooldowns||!SupportedPostures(*s.payload)||s.bDead||!s.dwHP||
        !s.cluster.hydrated||s.cluster.guild||s.cluster.tactics||s.cluster.riding||s.payload->arena_id||s.payload->tournament_player||
        !s.payload->recalls.empty()||(s.wMapID>=500&&s.wMapID<533)||
@@ -98,12 +98,12 @@ void PostgreSQLMapService::PreflightActItemCure(const CharSnapshot& s,const Skil
     if(s.cluster.mode==2||power.critical==255) {
         if(s.payload->avoid_effect_exists&&!s.payload->avoid_effect_supported)
             throw std::runtime_error("Action item MISS requires unsupported actual avoid802 effects");
-        return; // source MISS skips Calculate; no negative-cure gate here
+        return; // source MISS skips GetValue/combine evaluation
     }
     // Validate the current-rank cure before hooks/debit, including checked
     // exponential conversion and the original signed-INT variance product.
     for(const auto& row:definition.instant_cure)
-        (void)native_cure::Magnitude(row,definition,power.rank,row.bExec==SCT_HP?s.dwMaxHP:s.dwMaxMP);
+        (void)native_cure::Delta(row,definition,power.rank,row.bExec==SCT_HP?s.dwMaxHP:s.dwMaxMP);
 }
 bool PostgreSQLMapService::UseNativeActItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::span<const std::byte> body,QuestPackets& packets,std::vector<std::byte>& accepted) const {

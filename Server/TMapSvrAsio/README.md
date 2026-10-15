@@ -75,7 +75,7 @@ Action-item cure completion now also supports an actual learned trigger. Its
 current rank and baseline critical selected by the trigger's attack type are
 derived again at FINISH; the outgoing cure still supplies its own powers and
 attack level. Actual Calc0/1/3 rows retain their constant, linear or falling
-rank-dependent values; negative final cure deltas are refused before item use.
+rank-dependent values.
 The original ACT acknowledgement remains rank1 with zero powers
 and critical0. Missing trigger retains rank0/critical0; missing metadata for a
 present trigger is unavailable. This is **IMPLEMENTED /
@@ -89,20 +89,27 @@ range before item preflight and real FINISH application; MISS and empty FINISH
 skip the calculation. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 [exponential-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-actitem-exponential-20261015/map-exponential.md).
 
-Positive own-PC cures now apply actual SVI1..5 combine modes against current
+Positive-template own-PC cures apply actual SVI1..5 combine modes against current
 maximum HP/MP after signed Calc0..3 evaluation. ACT preflight and every native
 FINISH cure share checked source arithmetic; DWORD product/subtraction modulo,
-nonnegative final deltas and signed variance limits define the
+signed final deltas and signed variance limits define the
 supported boundary. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
-[cure-combine contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-dword-20261015/map-dword.md).
+[cure-combine contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-signed-20261015/map-signed.md).
 
 Source DWORD32 product/subtraction now retain their exact low32 bits and
 Windows signed-INT projection. Actual unknown Calc returns signed0 before its
 combine; unknown combine returns final0 after GetValue on nonempty CURE rows.
 Resource addition also preserves DWORD modulo when final post-row HP remains
-positive. Negative final deltas and final-death completion remain unavailable.
+positive. Final-death completion remains unavailable.
 This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 [DWORD/default-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-dword-20261015/map-dword.md).
+
+Odd-positive-template own-PC CURE rows also preserve negative numeric deltas.
+Signed variance truncates toward zero before DWORD resource addition; the actor
+must remain alive after each target's complete rows and cap. Template damage
+classification, general combat and death behavior are unchanged. This is
+**IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
+[signed living-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-signed-20261015/map-signed.md).
 
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum

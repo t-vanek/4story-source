@@ -12,7 +12,17 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
-Latest local increment is based on `cde2ded`: actual CURE DWORD product/
+Latest local increment is based on `e2e4784`: signed numeric deltas for the
+existing positive-template living own-PC CURE, with symmetric ±INTMAX/15 bounds,
+signed variance truncation toward zero and DWORD resource addition modulo2^32.
+Both item producer preflights and every normal native FINISH use Delta; MISS/
+empty skip calculation and real zero/default rows retain RNG. FinalHP0 remains
+unavailable pending the source Defend death graph; a negative numeric value
+alone does not enter negative-template combat. No schema change; next073.
+Static review only; no builds/tests/SQL/import/services/client/container or push.
+Full original-client parity, negative-template/foreign combat and other listed
+unported behavior remain OPEN; the Phase A completion gate remains unmet.
+Previous code `e2e4784`, based on `cde2ded`: actual CURE DWORD product/
 subtraction modulo and Win32 signed-bit projection, plus the distinct source
 GetValue and Calculate default branches for actual BYTE modes. Living resource
 addition now wraps per row before the final target clamp/HP0 death guard.
@@ -131,7 +141,25 @@ historical evidence retain their original scope.
 
 ## Native CURE DWORD arithmetic and defaults — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `cde2ded`, implements actual
+Latest local Phase A work (2026-10-15), based on `e2e4784`, admits signed
+numeric HP/MP deltas for the existing odd-positive-template own-PC pure CURE.
+The shared Delta helper accepts ±143165576 after the actual combine; FINISH
+computes signed variance with division toward zero, converts the completed
+sample to DWORD and preserves resource addition modulo2^32 before the final
+per-target cap. Negative numeric values do not change template classification
+or introduce damage/aggro/battle-mode behavior. Final HP must remain>0.
+Init/ACT preflight and normal ordinary/loop/ACT FINISH share current-rank/maxima
+calculation. MISS/empty skip numeric work; real zero/default rows retain RNG.
+Existing item accounting, atomic receipts/checkpoints and current party/recipient
+authority remain in force. No new wire field, schema, publication or grant.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+Written044–072 remain unapplied; next073. Final-HP0 Defend death, negative-template
+combat, unsafe signed operations, hardcoded effects, foreign targets and actual
+original-client/CRT acceptance remain OPEN.
+[Signed numeric CURE and deferred acceptance](evidence/phase-a-cure-signed-20261015/README.md).
+
+Previous code `e2e4784` (2026-10-15), based on `cde2ded`, implements actual
 Win32 DWORD modulo product/subtraction and living HP/MP resource addition.
 Combine bits are projected to signed INT before the final positive variance
 bound; percent divides the reduced DWORD product. Resource additions wrap per

@@ -28,7 +28,25 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Latest local Phase A work (2026-10-15), based on `cde2ded`, implements actual
+Latest local Phase A work (2026-10-15), based on `e2e4784`, admits signed
+numeric HP/MP deltas for the existing odd-positive-template own-PC pure CURE.
+The shared Delta helper accepts ±143165576 after the actual combine; FINISH
+computes signed variance with division toward zero, converts the completed
+sample to DWORD and preserves resource addition modulo2^32 before the final
+per-target cap. Negative numeric values do not change template classification
+or introduce damage/aggro/battle-mode behavior. Final HP must remain>0.
+Init/ACT preflight and normal ordinary/loop/ACT FINISH share current-rank/maxima
+calculation. MISS/empty skip numeric work; real zero/default rows retain RNG.
+Existing item accounting, atomic receipts/checkpoints and current party/recipient
+authority remain in force. No new wire field, schema, publication or grant.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+Written044–072 remain unapplied; next073. Final-HP0 Defend death, negative-template
+combat, unsafe signed operations, hardcoded effects, foreign targets and actual
+original-client/CRT acceptance remain OPEN.
+[Signed numeric CURE and deferred acceptance](_rewrite/docs/modernization/evidence/phase-a-cure-signed-20261015/README.md).
+
+Previous code `e2e4784` (2026-10-15), based on `cde2ded`, implements actual
 Win32 DWORD modulo product/subtraction and living HP/MP resource addition.
 Combine bits are projected to signed INT before the final positive variance
 bound; percent divides the reduced DWORD product. Resource additions wrap per

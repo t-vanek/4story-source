@@ -68,8 +68,7 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
         const auto attr=static_cast<std::uint8_t>(d.get<int>("bAttr"));
         const auto calc=static_cast<std::uint8_t>(d.get<int>("bCalc"));
         const auto inc=static_cast<std::uint8_t>(d.get<int>("bInc"));
-        if(d.get<int>("bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP)||
-           calc>3||inc<SVI_INCREASE||inc>SVI_PRECENT)
+        if(d.get<int>("bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP))
             throw std::runtime_error("Action item effects require unsupported Defend behavior");
         out.instant_cure.push_back({SA_ONCE,type,attr,exec,inc,static_cast<std::uint16_t>(d.get<int>("wValue")),
             static_cast<std::uint16_t>(d.get<int>("wValueInc")),calc});

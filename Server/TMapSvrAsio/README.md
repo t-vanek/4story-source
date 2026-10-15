@@ -75,7 +75,7 @@ Action-item cure completion now also supports an actual learned trigger. Its
 current rank and baseline critical selected by the trigger's attack type are
 derived again at FINISH; the outgoing cure still supplies its own powers and
 attack level. Actual Calc0/1/3 rows retain their constant, linear or falling
-rank-dependent values; negative normal results are refused before item use.
+rank-dependent values; negative final cure deltas are refused before item use.
 The original ACT acknowledgement remains rank1 with zero powers
 and critical0. Missing trigger retains rank0/critical0; missing metadata for a
 present trigger is unavailable. This is **IMPLEMENTED /
@@ -91,10 +91,18 @@ skip the calculation. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 
 Positive own-PC cures now apply actual SVI1..5 combine modes against current
 maximum HP/MP after signed Calc0..3 evaluation. ACT preflight and every native
-FINISH cure share checked source arithmetic; nonwrapping DWORD products and
-subtractions, nonnegative final deltas and signed variance limits define the
+FINISH cure share checked source arithmetic; DWORD product/subtraction modulo,
+nonnegative final deltas and signed variance limits define the
 supported boundary. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
-[cure-combine contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-combine-20261015/map-combine.md).
+[cure-combine contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-dword-20261015/map-dword.md).
+
+Source DWORD32 product/subtraction now retain their exact low32 bits and
+Windows signed-INT projection. Actual unknown Calc returns signed0 before its
+combine; unknown combine returns final0 after GetValue on nonempty CURE rows.
+Resource addition also preserves DWORD modulo when final post-row HP remains
+positive. Negative final deltas and final-death completion remain unavailable.
+This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
+[DWORD/default-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-dword-20261015/map-dword.md).
 
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum

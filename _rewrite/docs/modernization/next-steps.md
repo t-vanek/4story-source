@@ -11,7 +11,24 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `09317c7`, adds the known
+Latest local Phase A work (2026-10-15), based on `cde2ded`, implements actual
+Win32 DWORD modulo product/subtraction and living HP/MP resource addition.
+Combine bits are projected to signed INT before the final positive variance
+bound; percent divides the reduced DWORD product. Resource additions wrap per
+row, then clamp once per Defend target. Final HP0 is refused before cleanup,
+output or writes; intermediate row HP0 may be restored by a later row.
+Actual unrecognized Calc uses source GetValue0 before its selected combine;
+unrecognized combine retains Calculate0 only after GetValue. Real rows keep
+RNG, Defend, cleanup and one-use receipts. Init/ACT and normal native FINISH
+share current-rank/maxima calculation; MISS/empty skip numeric evaluation.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No schema/publisher/grant change: written044–072 remain unapplied; next073.
+Negative final deltas, final-HP0 death, unsafe INT operations, hardcoded effects,
+general combat, other targets, CRT/libm and original-client acceptance remain OPEN.
+[Source DWORD arithmetic and actual default branches](evidence/phase-a-cure-dword-20261015/README.md).
+
+Previous code `cde2ded` (2026-10-15), based on `09317c7`, adds the known
 CURE combine modes to the bounded own-PC action-item path. Checked signed
 Calc0..3 values feed actual source INCREASE, DECREASE, MULTIPLY, DIVIDE and
 PRECENT rules against current maximum HP/MP. DWORD factor conversion and
@@ -186,16 +203,19 @@ container run or new migration (next070). Full roster/bootstrap, high-bit identi
 party rewards/combat and other unported gameplay remain OPEN. Local Git only;
 no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
 
-Action-item cures now use actual learned-trigger rank and baseline critical,
-including rank0, with Calc0..3 and combine1..5 inside the nonwrapping positive
-final-delta and source variance domain. Continue the original DWORD product/
-subtraction-wrap and final negative damage/death dependencies, plus the
-hardcoded128/229/3604 erase/rank branches without borrowing ACT wire rank1.
-DIVIDE's zero result follows the actual nonpositive-divisor clamp or zero base;
-negative division deltas still require the damage branch. Actual CRT/libm
-truncation boundaries need executable acceptance. Current rank/maxima changes
-between acceptance and FINISH use current source projection and authority;
-do not refund/replay a now-unsupported finish.
+Action-item cures now preserve actual DWORD product/subtraction modulo and
+Win32 INT projection for the five known combines, plus both source BYTE-mode
+default branches. Final nonnegative deltas remain inside the signed variance
+domain; living resource additions wrap per row before the target's final clamp.
+Final HP0 needs the source LASTHIT/HPMP/death graph; negative final deltas also
+retain their own damage dependencies. DIVIDE still clamps nonpositive divisors to1 before its actual
+unsigned quotient/subtraction. Do not replace the newly admitted high-bit
+positive results or default branches with guessed zero outcomes.
+Continue hardcoded128/229/3604 erase/rank behavior and final negative effects
+without borrowing ACT wire rank1. Actual CRT/libm truncation boundaries need
+executable acceptance. Current rank/maxima changes between acceptance and
+FINISH use current source projection and authority; do not refund/replay a
+now-unsupported finish.
 
 The admitted own positive-cure MISS path now uses actual source802 metadata.
 Continue richer802 data/status/ability and BLOCK801 rather than guessing a marker

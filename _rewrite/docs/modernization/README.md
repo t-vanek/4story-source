@@ -1,6 +1,23 @@
 # Modern server implementation status
 
-Latest local Phase A work (2026-10-15), based on `09317c7`, adds the known
+Latest local Phase A work (2026-10-15), based on `cde2ded`, implements actual
+Win32 DWORD modulo product/subtraction and living HP/MP resource addition.
+Combine bits are projected to signed INT before the final positive variance
+bound; percent divides the reduced DWORD product. Resource additions wrap per
+row, then clamp once per Defend target. Final HP0 is refused before cleanup,
+output or writes; intermediate row HP0 may be restored by a later row.
+Actual unrecognized Calc uses source GetValue0 before its selected combine;
+unrecognized combine retains Calculate0 only after GetValue. Real rows keep
+RNG, Defend, cleanup and one-use receipts. Init/ACT and normal native FINISH
+share current-rank/maxima calculation; MISS/empty skip numeric evaluation.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No schema/publisher/grant change: written044–072 remain unapplied; next073.
+Negative final deltas, final-HP0 death, unsafe INT operations, hardcoded effects,
+general combat, other targets, CRT/libm and original-client acceptance remain OPEN.
+[Source DWORD arithmetic and actual default branches](evidence/phase-a-cure-dword-20261015/README.md).
+
+Previous code `cde2ded` (2026-10-15), based on `09317c7`, adds the known
 CURE combine modes to the bounded own-PC action-item path. Checked signed
 Calc0..3 values feed actual source INCREASE, DECREASE, MULTIPLY, DIVIDE and
 PRECENT rules against current maximum HP/MP. DWORD factor conversion and

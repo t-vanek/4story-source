@@ -1,5 +1,6 @@
 #pragma once
 #include "services/skill_effect.h"
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -22,22 +23,20 @@ inline std::int32_t SignedValue(const SkillDataRow& row,const SkillTemplate& ski
             throw std::runtime_error("Cure growth result outside source INT domain");
         value=static_cast<std::int32_t>(scaled); // source truncation, including negative fractions to0
     }else if(row.bCalc==0||row.bCalc==1||row.bCalc==3)value=skill_effect::GetValue(row,skill,rank);
-    else throw std::runtime_error("Unsupported source cure calculation mode");
+    else value=0; // source GetValue's default for an actual unknown BYTE mode
     return value;
 }
 inline std::int32_t Magnitude(const SkillDataRow& row,const SkillTemplate& skill,std::uint8_t rank,std::uint32_t base) {
     const auto value=SignedValue(row,skill,rank);
-    // Source converts the signed factor to DWORD for these operations. Bound
-    // product/subtraction to nonwrapping values before performing either one.
+    // Source Win32 DWORD product/subtraction are modulo2^32. Project those
+    // bits back to the Windows signed INT result explicitly, as skill_targets
+    // already does, rather than using implementation-defined unsigned->INT.
     const auto product=[&] {
         const auto wide=static_cast<std::uint64_t>(base)*static_cast<std::uint32_t>(value);
-        if(wide>std::numeric_limits<std::uint32_t>::max())
-            throw std::runtime_error("Cure product outside nonwrapping source DWORD domain");
         return static_cast<std::uint32_t>(wide);
     };
     const auto difference=[&](std::uint32_t projected) {
-        if(projected<base)throw std::runtime_error("Cure subtraction requires unsupported wrapped DWORD arithmetic");
-        return static_cast<std::int64_t>(projected)-base;
+        return std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(projected-base));
     };
     std::int64_t result;
     switch(row.bInc) {
@@ -57,7 +56,7 @@ inline std::int32_t Magnitude(const SkillDataRow& row,const SkillTemplate& skill
             throw std::runtime_error("Cure percentage outside source INT domain");
         result=difference(static_cast<std::uint32_t>(static_cast<std::int32_t>(scaled)));break;
     }
-    default:throw std::runtime_error("Unsupported source cure combine mode");
+    default:result=0;break; // Calculate calls GetValue first, then keeps nValue0
     }
     // Source variance multiplies the FINAL signed INT delta by rand()%16.
     if(result<0||result>std::numeric_limits<std::int32_t>::max()/15)

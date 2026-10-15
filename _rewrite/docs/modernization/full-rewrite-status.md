@@ -12,7 +12,16 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
-Latest local increment is based on `09317c7`: checked actual CURE combine1..5
+Latest local increment is based on `cde2ded`: actual CURE DWORD product/
+subtraction modulo and Win32 signed-bit projection, plus the distinct source
+GetValue and Calculate default branches for actual BYTE modes. Living resource
+addition now wraps per row before the final target clamp/HP0 death guard.
+Normal preflight/FINISH retains positive variance bounds and actual row behavior;
+MISS/empty skip numeric evaluation. No schema change; next073. Negative final
+deltas, final-HP0 death, undefined signed operations, hardcoded effects, general
+combat and original-client/CRT acceptance remain OPEN. Static review only;
+no builds/tests/SQL/import/services/client/container execution or push.
+Previous code `cde2ded`, based on `09317c7`: checked actual CURE combine1..5
 against current maximum HP/MP; signed value separated from final positive delta,
 source DWORD factor/product and percent-delta semantics, nonwrapping domain.
 All normal FINISH origins share the checked calculation; MISS/empty skip it.
@@ -120,9 +129,28 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native CURE DWORD arithmetic and defaults — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `cde2ded`, implements actual
+Win32 DWORD modulo product/subtraction and living HP/MP resource addition.
+Combine bits are projected to signed INT before the final positive variance
+bound; percent divides the reduced DWORD product. Resource additions wrap per
+row, then clamp once per Defend target. Final HP0 is refused before cleanup,
+output or writes; intermediate row HP0 may be restored by a later row.
+Actual unrecognized Calc uses source GetValue0 before its selected combine;
+unrecognized combine retains Calculate0 only after GetValue. Real rows keep
+RNG, Defend, cleanup and one-use receipts. Init/ACT and normal native FINISH
+share current-rank/maxima calculation; MISS/empty skip numeric evaluation.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No schema/publisher/grant change: written044–072 remain unapplied; next073.
+Negative final deltas, final-HP0 death, unsafe INT operations, hardcoded effects,
+general combat, other targets, CRT/libm and original-client acceptance remain OPEN.
+[Source DWORD arithmetic and actual default branches](evidence/phase-a-cure-dword-20261015/README.md).
+
 ## Native positive cure combine modes — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `09317c7`, adds the known
+Previous code `cde2ded` (2026-10-15), based on `09317c7`, adds the known
 CURE combine modes to the bounded own-PC action-item path. Checked signed
 Calc0..3 values feed actual source INCREASE, DECREASE, MULTIPLY, DIVIDE and
 PRECENT rules against current maximum HP/MP. DWORD factor conversion and

@@ -1344,11 +1344,12 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
             unsigned char random{};if(RAND_bytes(&random,1)!=1)throw std::runtime_error("Cure randomness unavailable");
             const auto delta=static_cast<std::uint64_t>(value)+static_cast<std::uint64_t>(value)*(random&15)/100;
             auto& resource=row.bExec==SCT_HP?after.dwHP:after.dwMP;
-            // DWORD source arithmetic, clamped after all rows by Defend.
-            if(delta+resource>0xffffffffULL)throw std::runtime_error("Cure would overflow original DWORD");
-            resource+=static_cast<std::uint32_t>(delta);
+            // Source DWORD addition is modulo2^32. A later HP row may restore
+            // intermediate0; Defend clamps and checks death only after all rows.
+            resource=static_cast<std::uint32_t>(static_cast<std::uint64_t>(resource)+delta);
         }
         after.dwHP=std::min(after.dwHP,after.dwMaxHP);after.dwMP=std::min(after.dwMP,after.dwMaxMP);
+        if(!after.dwHP)throw std::runtime_error("Cure final death requires unsupported source Defend death lifecycle");
         // Defend calls CheckEternalBuff after applying the effect, before its
         // DEFEND/HPMP reply. Use catalog bIsuse/dwDuration, including a timed
         // ForceMaintain override such as Soul Lottery820.

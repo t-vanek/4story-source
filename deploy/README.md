@@ -13,7 +13,16 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current positive-cure combine increment, based on `09317c7`, changes no
+The current CURE DWORD/default increment, based on `cde2ded`, changes no schema,
+publisher or grant. It interprets actual published BYTE calculation/combine
+modes and source Win32 arithmetic within existing native Map transactions.
+Living resource wrap uses existing DWORD storage/checkpoints; final HP0 remains
+unavailable until the source Defend death producer is integrated.
+No row, coefficient or successful outcome is seeded. Existing071/072 remain
+prerequisites; written044–072 are unapplied; next073. No command here was run.
+[Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-cure-dword-20261015/README.md).
+
+Previous code `cde2ded`, based on `09317c7`, changes no
 schema, publisher or grant. Signed Calc0..3 values, actual combine modes and
 current effective maxima feed checked source arithmetic inside existing Map
 transactions. No dataset values or successful outcomes are seeded. Existing

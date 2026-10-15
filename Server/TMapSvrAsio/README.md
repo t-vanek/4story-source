@@ -82,6 +82,13 @@ present trigger is unavailable. This is **IMPLEMENTED /
 INTEGRATED_UNVERIFIED**; see the
 [learned-trigger contract](../../_rewrite/docs/modernization/evidence/phase-a-actitem-trigger-20261015/map-trigger.md).
 
+Action-item positive cures also support actual Calc2 exponential values from
+the pinned FTYPE_1ST formula and outgoing skill growth fields. A shared native
+cure helper checks floating-point conversion and the source signed variance
+range before item preflight and real FINISH application; MISS and empty FINISH
+skip the calculation. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
+[exponential-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-actitem-exponential-20261015/map-exponential.md).
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

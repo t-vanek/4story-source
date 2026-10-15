@@ -4,7 +4,23 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Latest local Phase A work (2026-10-15), based on `5da1bf0`, admits action-item
+Latest local Phase A work (2026-10-15), based on `8ed424c`, adds bounded
+exponential Calc2 values to actual own-PC action-item cures. It reads the
+outgoing skill's start/next levels and actual formula34 coefficient, preserving
+the source FLOAT conversion and rank0 exponent0. The preceding stat refresh's
+formula reader also checks FLOAT range before narrowing X/Y rates. A checked cure path
+rejects nonfinite/unrepresentable conversion, negative integer magnitude and
+values above the source all-roll INT variance bound before hooks/debit or
+normal FINISH arithmetic. MISS and empty FINISH skip that evaluation. Existing
+ordinary INCREASE cures use the same bound; other combine modes are unchanged.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No new schema/publisher/grant: written044–072 remain unapplied; next073.
+Other combines, negative/wrapped effects, hardcoded128/229/3604, general combat,
+other targets, CRT/libm boundary parity and original-client acceptance remain OPEN.
+[Actual exponential metadata and checked cure arithmetic](evidence/phase-a-actitem-exponential-20261015/README.md).
+
+Previous code `8ed424c` (2026-10-15), based on `5da1bf0`, admits action-item
 cures with an actual learned trigger, including a present rank0 object. FINISH
 reads its current rank and baseline critical selected by the trigger's type;
 it keeps the outgoing cure's own powers/type/attack level. ACT acknowledgement

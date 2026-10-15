@@ -48,7 +48,13 @@ struct Formula {std::uint32_t initial{};float rate{},rate_y{};};
 Formula ReadFormula(soci::session& sql,int id){
     soci::row r;sql<<"SELECT * FROM character_compat.\"TFORMULACHART\" WHERE \"bID\"=:id",soci::use(id),soci::into(r);
     if(!sql.got_data())throw std::runtime_error("Required character formula is missing");
-    return {U32(r,"dwinit"),static_cast<float>(r.get<double>("fRateX")),static_cast<float>(r.get<double>("fRateY"))};
+    const auto rate=[&](const char* column) {
+        const double value=r.get<double>(column);
+        if(!std::isfinite(value)||value<std::numeric_limits<float>::lowest()||value>std::numeric_limits<float>::max())
+            throw std::runtime_error("Character formula rate outside source FLOAT domain");
+        return static_cast<float>(value);
+    };
+    return {U32(r,"dwinit"),rate("fRateX"),rate("fRateY")};
 }
 using Passive=AbilityEffect;
 AbilityEffect ReadAbility(const soci::row& data,const SkillTemplate& skill,std::uint8_t rank) {

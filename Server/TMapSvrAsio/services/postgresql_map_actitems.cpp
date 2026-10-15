@@ -3,11 +3,12 @@
 #include "services/posture_effects.h"
 #include "services/maintained_effects.h"
 #include "services/skill_cooldown.h"
-#include "services/skill_effect.h"
+#include "services/native_cure.h"
 #include "MessageId.h"
 #include <soci/soci.h>
 #include <bit>
 #include <cmath>
+#include <limits>
 
 namespace tmapsvr {
 void PostgreSQLMapService::RequireSkillContext(soci::session& sql,std::uint16_t skill) const {
@@ -67,7 +68,7 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
         const auto attr=static_cast<std::uint8_t>(d.get<int>("bAttr"));
         const auto calc=static_cast<std::uint8_t>(d.get<int>("bCalc"));
         if(d.get<int>("bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP)||
-           (calc!=0&&calc!=1&&calc!=3)||d.get<int>("bInc")!=SVI_INCREASE)
+           calc>3||d.get<int>("bInc")!=SVI_INCREASE)
             throw std::runtime_error("Action item effects require unsupported Defend behavior");
         out.instant_cure.push_back({SA_ONCE,type,attr,exec,SVI_INCREASE,static_cast<std::uint16_t>(d.get<int>("wValue")),
             static_cast<std::uint16_t>(d.get<int>("wValueInc")),calc});
@@ -78,6 +79,17 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
         }
     }
     if(out.instant_cure.empty())throw std::runtime_error("Action item has no supported actual effect");
+    if(std::any_of(out.instant_cure.begin(),out.instant_cure.end(),[](const auto& d){return d.bCalc==2;})) {
+        // FTYPE_1ST34 is SQL FLOAT53; the original loader stores it in FLOAT.
+        soci::row formula;
+        sql<<"SELECT \"fRateX\" FROM character_compat.\"TFORMULACHART\" WHERE \"bID\"=34",soci::into(formula);
+        if(!sql.got_data())throw std::runtime_error("Action item requires pinned FTYPE_1ST formula");
+        const double growth=formula.get<double>(0);
+        if(!std::isfinite(growth)||growth<std::numeric_limits<float>::lowest()||growth>std::numeric_limits<float>::max())
+            throw std::runtime_error("Action item growth coefficient outside source FLOAT domain");
+        out.f1stRateX=static_cast<float>(growth);
+        out.bStartLevel=u8("bLevel");out.bNextLevel=u8("bNextLevel");
+    }
     out.attack_profile=power;return out;
 }
 void PostgreSQLMapService::PreflightActItemCure(const CharSnapshot& s,const SkillTemplate& definition) {
@@ -88,12 +100,10 @@ void PostgreSQLMapService::PreflightActItemCure(const CharSnapshot& s,const Skil
             throw std::runtime_error("Action item MISS requires unsupported actual avoid802 effects");
         return; // source MISS skips Calculate; no negative-cure gate here
     }
-    // Source WORD values and BYTE rank make Calc0/1/3 representable INTs.
-    // Refuse negative results before the item hooks/debit rather than clamping
-    // them or borrowing the acknowledgement's presentation rank1.
+    // Validate the current-rank cure before hooks/debit, including checked
+    // exponential conversion and the original signed-INT variance product.
     for(const auto& row:definition.instant_cure)
-        if(skill_effect::GetValue(row,definition,power.rank)<0)
-            throw std::runtime_error("Action item cure magnitude outside supported positive source domain");
+        (void)native_cure::Magnitude(row,definition,power.rank);
 }
 bool PostgreSQLMapService::UseNativeActItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::span<const std::byte> body,QuestPackets& packets,std::vector<std::byte>& accepted) const {

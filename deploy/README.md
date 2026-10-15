@@ -13,7 +13,17 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current ACT trigger/rank increment, based on `5da1bf0`, adds no schema,
+The current ACT exponential-cure increment, based on `8ed424c`, adds no schema,
+publisher or grant. The actual formula34 `fRateX` comes from the already pinned
+character catalog; outgoing skill start/next and cure data use that same
+publication. The existing stat formula reader checks finite FLOAT X/Y range
+before narrowing, including the refresh preceding ACT. Checked arithmetic does
+not seed a coefficient or a success. No
+command here was run. Existing071/072 remain prerequisites; written044–072
+remain unapplied; next073. Source FLOAT and CRT/libm boundary acceptance remain
+unverified. [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-actitem-exponential-20261015/README.md).
+
+Previous code `8ed424c`, based on `5da1bf0`, adds no schema,
 publisher or grant change. Actual trigger rows/types and Calc0/1/3 coefficients
 come from the existing native skills and pinned character publication; current
 baseline statistics select critical. No rank, coefficient or success is seeded.

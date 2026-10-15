@@ -12,7 +12,15 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
-Latest local increment is based on `5da1bf0`: actual learned-trigger ACT cure
+Latest local increment is based on `8ed424c`: bounded actual ACT Calc2 using
+outgoing start/next and formula34 source-FLOAT metadata, with checked INT
+conversion and source variance multiplication bounds. Upstream formula X/Y
+FLOAT conversion is checked before stat refresh can narrow invalid metadata.
+Shared normal INCREASE cure arithmetic is guarded; MISS/empty do not evaluate. No schema change; next073.
+Other combines, wrapped/negative values, hardcoded effects, general combat,
+CRT/libm boundary parity and original-client acceptance remain OPEN. Static
+review only; no builds/tests/SQL/import/services/client/container or push.
+Previous code `8ed424c`, based on `5da1bf0`: actual learned-trigger ACT cure
 rank and baseline critical, distinct outgoing cure powers and source flat/
 linear/falling values. Present rank0 differs from missing trigger; preflight
 handles normal negative magnitude and anticipated actual802 MISS without fake
@@ -105,9 +113,27 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native ACT exponential cure values — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `8ed424c`, adds bounded
+exponential Calc2 values to actual own-PC action-item cures. It reads the
+outgoing skill's start/next levels and actual formula34 coefficient, preserving
+the source FLOAT conversion and rank0 exponent0. The preceding stat refresh's
+formula reader also checks FLOAT range before narrowing X/Y rates. A checked cure path
+rejects nonfinite/unrepresentable conversion, negative integer magnitude and
+values above the source all-roll INT variance bound before hooks/debit or
+normal FINISH arithmetic. MISS and empty FINISH skip that evaluation. Existing
+ordinary INCREASE cures use the same bound; other combine modes are unchanged.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No new schema/publisher/grant: written044–072 remain unapplied; next073.
+Other combines, negative/wrapped effects, hardcoded128/229/3604, general combat,
+other targets, CRT/libm boundary parity and original-client acceptance remain OPEN.
+[Actual exponential metadata and checked cure arithmetic](evidence/phase-a-actitem-exponential-20261015/README.md).
+
 ## Native ACT learned trigger and rank values — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `5da1bf0`, admits action-item
+Previous code `8ed424c` (2026-10-15), based on `5da1bf0`, admits action-item
 cures with an actual learned trigger, including a present rank0 object. FINISH
 reads its current rank and baseline critical selected by the trigger's type;
 it keeps the outgoing cure's own powers/type/attack level. ACT acknowledgement

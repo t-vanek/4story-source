@@ -13,7 +13,15 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current own-cure MISS increment, based on `391f499`, adds no schema,
+The current ACT trigger/rank increment, based on `5da1bf0`, adds no schema,
+publisher or grant change. Actual trigger rows/types and Calc0/1/3 coefficients
+come from the existing native skills and pinned character publication; current
+baseline statistics select critical. No rank, coefficient or success is seeded.
+Existing071/072 publication prerequisites remain required. No command in this
+document was run for it. Written044–072 remain unapplied; next073.
+[Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-actitem-trigger-20261015/README.md).
+
+Previous code `5da1bf0`, based on `391f499`, adds no schema,
 publisher or grant change. Actual802 comes from the existing pinned character
 catalog; missing and unsupported definitions remain distinct. Supported802
 uses existing maintained/checkpoint/transfer storage, without a seeded row or

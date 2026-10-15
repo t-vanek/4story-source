@@ -3,6 +3,7 @@
 #include "services/posture_effects.h"
 #include "services/maintained_effects.h"
 #include "services/skill_cooldown.h"
+#include "services/skill_effect.h"
 #include "MessageId.h"
 #include <soci/soci.h>
 #include <bit>
@@ -24,9 +25,9 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
     RequireSkillContext(sql,skill);
     const auto u8=[&](const char* column){return static_cast<std::uint8_t>(row.get<int>(column));};
     const auto u16=[&](const char* column){return static_cast<std::uint16_t>(row.get<int>(column));};
-    // Kind21's source finish uses its trigger's actual learned rank (possibly
-    // zero), unlike the fixed rank1 ACT acknowledgement. Bound this branch to
-    // no learned trigger and flat, positive instant cures; no invented rank.
+    // Kind21's source finish uses its trigger's current learned rank (possibly
+    // zero), unlike the fixed rank1 ACT acknowledgement. Only the outgoing
+    // positive cure is applied; the trigger is not an ordinary cast.
     if(skill==128||skill==229||skill==3604||!s.payload||!s.payload->statistics||!s.recovery||!s.payload->item_cooldowns||!SupportedPostures(*s.payload)||s.bDead||!s.dwHP||
        !s.cluster.hydrated||s.cluster.guild||s.cluster.tactics||s.cluster.riding||s.payload->arena_id||s.payload->tournament_player||
        !s.payload->recalls.empty()||(s.wMapID>=500&&s.wMapID<533)||
@@ -35,13 +36,26 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
        u8("bKind")!=21||u8("bPositive")%2!=1||u8("bRunFromServer")||u8("bCheckAttacker")==3||
        (u8("bTarget")!=1&&u8("bTarget")!=3)||u8("bHitTest")!=1||u8("bHitInit")!=100||u8("bHitInc")||
        row.get<int>("dwDuration")||row.get<int>("dwActionTime")||u16("wTargetActiveID")||u16("wPosture")||
-       u8("bTargetRange")||u8("bIsDismount")||row.get_indicator("bRepeatCount")==soci::i_null||u8("bRepeatCount")||
-       std::any_of(s.payload->skills.begin(),s.payload->skills.end(),[&](const auto& v){return v.wSkillID==u16("wTriggerID");}))
+       u8("bTargetRange")||u8("bIsDismount")||row.get_indicator("bRepeatCount")==soci::i_null||u8("bRepeatCount"))
         throw std::runtime_error("Action item requires unsupported source skill/actor semantics");
     SkillTemplate out;out.wID=skill;out.wUseItem=u16("wItemID");out.wMapID=u16("wMapID");
     out.wPrevActiveID=u16("wPrevActiveID");out.bKind=21;
     SkillAttackProfile power;const auto& stats=*s.payload->statistics;
     power.level=s.bLevel;power.aftermath=s.bAftermath;power.rank=0;power.critical=0;
+    const auto trigger=u16("wTriggerID");
+    const auto learned=std::find_if(s.payload->skills.begin(),s.payload->skills.end(),[&](const auto& v){return v.wSkillID==trigger;});
+    if(learned!=s.payload->skills.end()) {
+        const auto metadata=std::find_if(s.payload->skill_templates.begin(),s.payload->skill_templates.end(),[&](const auto& v){return v.wID==trigger;});
+        if(metadata==s.payload->skill_templates.end()||!metadata->attack_profile||
+           metadata->attack_profile->rank!=learned->bLevel||metadata->attack_profile->level!=s.bLevel||
+           metadata->attack_profile->aftermath!=s.bAftermath)
+            throw std::runtime_error("Learned action-item trigger lacks current source attack metadata");
+        power.rank=learned->bLevel;
+        // GetCritical runs before kind21 installs any instance skill. Select
+        // baseline stats by the TRIGGER's type; its instance-adjusted critical
+        // and abilities must not modify this outgoing cure's attack profile.
+        power.critical=metadata->attack_profile->attack_type==3?stats.magic_critical:stats.physical_critical;
+    }
     power.physical_level=stats.attack_level;power.magic_level=stats.magic_attack_level;
     power.physical_min=stats.min_physical;power.physical_max=stats.max_physical;
     power.magic_min=stats.min_magic;power.magic_max=stats.max_magic;
@@ -51,10 +65,12 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
     for(const auto& d:data) {
         const auto type=static_cast<std::uint8_t>(d.get<int>("bType")),exec=static_cast<std::uint8_t>(d.get<int>("bExec"));
         const auto attr=static_cast<std::uint8_t>(d.get<int>("bAttr"));
-        if(d.get<int>("bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP)||d.get<int>("bCalc")||d.get<int>("bInc")!=SVI_INCREASE)
+        const auto calc=static_cast<std::uint8_t>(d.get<int>("bCalc"));
+        if(d.get<int>("bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP)||
+           (calc!=0&&calc!=1&&calc!=3)||d.get<int>("bInc")!=SVI_INCREASE)
             throw std::runtime_error("Action item effects require unsupported Defend behavior");
         out.instant_cure.push_back({SA_ONCE,type,attr,exec,SVI_INCREASE,static_cast<std::uint16_t>(d.get<int>("wValue")),
-            static_cast<std::uint16_t>(d.get<int>("wValueInc")),0});
+            static_cast<std::uint16_t>(d.get<int>("wValueInc")),calc});
         if(!final_type) {
             if(attr==1||attr==2){power.attack_type=1;final_type=true;}
             else if(attr==3){power.attack_type=3;final_type=true;}
@@ -63,6 +79,21 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
     }
     if(out.instant_cure.empty())throw std::runtime_error("Action item has no supported actual effect");
     out.attack_profile=power;return out;
+}
+void PostgreSQLMapService::PreflightActItemCure(const CharSnapshot& s,const SkillTemplate& definition) {
+    if(!s.payload||!definition.attack_profile)throw std::runtime_error("Action item preflight lacks current source profile");
+    const auto& power=*definition.attack_profile;
+    if(s.cluster.mode==2||power.critical==255) {
+        if(s.payload->avoid_effect_exists&&!s.payload->avoid_effect_supported)
+            throw std::runtime_error("Action item MISS requires unsupported actual avoid802 effects");
+        return; // source MISS skips Calculate; no negative-cure gate here
+    }
+    // Source WORD values and BYTE rank make Calc0/1/3 representable INTs.
+    // Refuse negative results before the item hooks/debit rather than clamping
+    // them or borrowing the acknowledgement's presentation rank1.
+    for(const auto& row:definition.instant_cure)
+        if(skill_effect::GetValue(row,definition,power.rank)<0)
+            throw std::runtime_error("Action item cure magnitude outside supported positive source domain");
 }
 bool PostgreSQLMapService::UseNativeActItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::span<const std::byte> body,QuestPackets& packets,std::vector<std::byte>& accepted) const {
@@ -83,8 +114,7 @@ bool PostgreSQLMapService::UseNativeActItems(soci::session& sql,const MapSession
     if(s.dwHP!=hp||s.dwMP!=mp)throw std::runtime_error("Action item resources exceed actual source maxima");
     const auto definition=ReadActItemSkill(sql,s,ack.skill_id);
     if(!definition){reply(SKILL_NOTFOUND);return false;}
-    if(s.cluster.mode==2&&s.payload->avoid_effect_exists&&!s.payload->avoid_effect_supported)
-        throw std::runtime_error("Action item acceptance MISS requires unsupported actual avoid802 effects");
+    PreflightActItemCure(s,*definition);
     if(definition->wMapID!=0xffff&&definition->wMapID!=s.wMapID){reply(SKILL_WRONGREGION);return false;}
     if(definition->wPrevActiveID&&std::none_of(s.payload->effects->begin(),s.payload->effects->end(),[&](const auto& e){return e.skill==definition->wPrevActiveID;})) {
         reply(SKILL_NEEDPREVACT);return false;

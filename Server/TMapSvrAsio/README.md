@@ -49,7 +49,7 @@ acceptance/consumption and FINISHSKILL through durable receipts for a bounded
 own-PC positive instant HP/MP cure, including supported basic parties. Actual
 pinned kind21 definitions
 and guild-skill nonmembership are required; unsupported damage, maintained,
-linked, learned-trigger and special-mode branches stay unavailable. Migration071
+linked and special-mode branches stay unavailable. Migration071
 records request origin and actual ACT route; migration072 supplies the separately
 published skill context. Both are written, unexecuted prerequisites. This is
 **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
@@ -70,6 +70,17 @@ marker when present. Its independent timer, cleanup, cancellation and ordered
 checkpoint/transfer rows use the existing native effect authority. Richer802
 definitions stay unavailable. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**;
 see the [self-MISS contract](../../_rewrite/docs/modernization/evidence/phase-a-native-self-miss-20261015/map-self-miss.md).
+
+Action-item cure completion now also supports an actual learned trigger. Its
+current rank and baseline critical selected by the trigger's attack type are
+derived again at FINISH; the outgoing cure still supplies its own powers and
+attack level. Actual Calc0/1/3 rows retain their constant, linear or falling
+rank-dependent values; negative normal results are refused before item use.
+The original ACT acknowledgement remains rank1 with zero powers
+and critical0. Missing trigger retains rank0/critical0; missing metadata for a
+present trigger is unavailable. This is **IMPLEMENTED /
+INTEGRATED_UNVERIFIED**; see the
+[learned-trigger contract](../../_rewrite/docs/modernization/evidence/phase-a-actitem-trigger-20261015/map-trigger.md).
 
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum

@@ -1,6 +1,24 @@
 # Modern server implementation status
 
-Latest local Phase A work (2026-10-15), based on `391f499`, implements the
+Latest local Phase A work (2026-10-15), based on `5da1bf0`, admits action-item
+cures with an actual learned trigger, including a present rank0 object. FINISH
+reads its current rank and baseline critical selected by the trigger's type;
+it keeps the outgoing cure's own powers/type/attack level. ACT acknowledgement
+rank1, zero powers and critical0 remain distinct, with no ordinary trigger
+cost, reuse or charge. Missing trigger remains rank0/critical0; missing metadata
+for a present trigger is unavailable.
+Actual Calc0/1/3 INCREASE rows retain flat, linear or falling source values at
+that rank. Initiation/ACT preflight normal negative magnitudes before hooks or
+debit; MISS and empty completion do not calculate a cure. Both actual mode2 and
+trigger critical255 retain the existing actual802 capability checks.
+**INTEGRATED_UNVERIFIED**, static source/API/SQL-text/packet/diff review only; no
+build/test/SQL/import/service/client/container execution, push or deployment.
+No new migration: written044–072 remain unapplied; next073. Exponential Calc2,
+other combine modes, wrapped/negative effects, hardcoded128/229/3604, general
+combat, other targets and actual original-client acceptance remain OPEN.
+[Actual trigger rank, critical and cure values](evidence/phase-a-actitem-trigger-20261015/README.md).
+
+Previous code `5da1bf0` (2026-10-15), based on `391f499`, implements the
 source MISS branch of the admitted own-PC positive cure. Actual GOHOME2 or
 critical255 now consumes its accepted finish, emits the original MISS DEFEND
 without cure arithmetic/randomness, and invokes actual ForceMaintain802 after

@@ -12,7 +12,14 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
-Latest local increment is based on `8ed424c`: bounded actual ACT Calc2 using
+Latest local increment is based on `09317c7`: checked actual CURE combine1..5
+against current maximum HP/MP; signed value separated from final positive delta,
+source DWORD factor/product and percent-delta semantics, nonwrapping domain.
+All normal FINISH origins share the checked calculation; MISS/empty skip it.
+No schema change; next073. Wrapped/negative effects, hardcoded branches,
+general combat, CRT/libm and original-client acceptance remain OPEN. Static
+review only; no builds/tests/SQL/import/services/client/container or push.
+Previous code `09317c7`, based on `8ed424c`: bounded actual ACT Calc2 using
 outgoing start/next and formula34 source-FLOAT metadata, with checked INT
 conversion and source variance multiplication bounds. Upstream formula X/Y
 FLOAT conversion is checked before stat refresh can narrow invalid metadata.
@@ -113,9 +120,27 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native positive cure combine modes — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `09317c7`, adds the known
+CURE combine modes to the bounded own-PC action-item path. Checked signed
+Calc0..3 values feed actual source INCREASE, DECREASE, MULTIPLY, DIVIDE and
+PRECENT rules against current maximum HP/MP. DWORD factor conversion and
+integer-product-before-percentage order are preserved; product/subtraction
+wrap and negative final deltas remain unavailable. Final nonnegative deltas
+retain the source all-roll variance bound. Init/ACT preflight and every normal
+FINISH origin use the same checked calculation; the unsafe ordinary fallback
+is removed. MISS and empty FINISH skip cure arithmetic and randomness.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No schema/publisher/grant change: written044–072 remain unapplied; next073.
+Wrapped/negative effects, hardcoded128/229/3604, general combat, other targets,
+CRT/libm boundary parity and original-client acceptance remain OPEN.
+[Actual cure combine semantics and checked completion](evidence/phase-a-cure-combine-20261015/README.md).
+
 ## Native ACT exponential cure values — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `8ed424c`, adds bounded
+Previous code `09317c7` (2026-10-15), based on `8ed424c`, adds bounded
 exponential Calc2 values to actual own-PC action-item cures. It reads the
 outgoing skill's start/next levels and actual formula34 coefficient, preserving
 the source FLOAT conversion and rank0 exponent0. The preceding stat refresh's

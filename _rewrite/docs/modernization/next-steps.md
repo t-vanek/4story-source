@@ -11,7 +11,23 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `8ed424c`, adds bounded
+Latest local Phase A work (2026-10-15), based on `09317c7`, adds the known
+CURE combine modes to the bounded own-PC action-item path. Checked signed
+Calc0..3 values feed actual source INCREASE, DECREASE, MULTIPLY, DIVIDE and
+PRECENT rules against current maximum HP/MP. DWORD factor conversion and
+integer-product-before-percentage order are preserved; product/subtraction
+wrap and negative final deltas remain unavailable. Final nonnegative deltas
+retain the source all-roll variance bound. Init/ACT preflight and every normal
+FINISH origin use the same checked calculation; the unsafe ordinary fallback
+is removed. MISS and empty FINISH skip cure arithmetic and randomness.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No schema/publisher/grant change: written044–072 remain unapplied; next073.
+Wrapped/negative effects, hardcoded128/229/3604, general combat, other targets,
+CRT/libm boundary parity and original-client acceptance remain OPEN.
+[Actual cure combine semantics and checked completion](evidence/phase-a-cure-combine-20261015/README.md).
+
+Previous code `09317c7` (2026-10-15), based on `8ed424c`, adds bounded
 exponential Calc2 values to actual own-PC action-item cures. It reads the
 outgoing skill's start/next levels and actual formula34 coefficient, preserving
 the source FLOAT conversion and rank0 exponent0. The preceding stat refresh's
@@ -171,12 +187,15 @@ party rewards/combat and other unported gameplay remain OPEN. Local Git only;
 no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
 
 Action-item cures now use actual learned-trigger rank and baseline critical,
-including rank0, with Calc0/1/2/3 INCREASE values inside the checked positive
-integer and source variance domain. Continue other combine modes and the
+including rank0, with Calc0..3 and combine1..5 inside the nonwrapping positive
+final-delta and source variance domain. Continue the original DWORD product/
+subtraction-wrap and final negative damage/death dependencies, plus the
 hardcoded128/229/3604 erase/rank branches without borrowing ACT wire rank1.
-Actual CRT/libm truncation boundaries need executable acceptance. Current
-trigger changes between acceptance and FINISH must keep source projection and
-existing authority; do not refund/replay a now-unsupported finish.
+DIVIDE's zero result follows the actual nonpositive-divisor clamp or zero base;
+negative division deltas still require the damage branch. Actual CRT/libm
+truncation boundaries need executable acceptance. Current rank/maxima changes
+between acceptance and FINISH use current source projection and authority;
+do not refund/replay a now-unsupported finish.
 
 The admitted own positive-cure MISS path now uses actual source802 metadata.
 Continue richer802 data/status/ability and BLOCK801 rather than guessing a marker

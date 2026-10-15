@@ -67,10 +67,11 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
         const auto type=static_cast<std::uint8_t>(d.get<int>("bType")),exec=static_cast<std::uint8_t>(d.get<int>("bExec"));
         const auto attr=static_cast<std::uint8_t>(d.get<int>("bAttr"));
         const auto calc=static_cast<std::uint8_t>(d.get<int>("bCalc"));
+        const auto inc=static_cast<std::uint8_t>(d.get<int>("bInc"));
         if(d.get<int>("bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP)||
-           calc>3||d.get<int>("bInc")!=SVI_INCREASE)
+           calc>3||inc<SVI_INCREASE||inc>SVI_PRECENT)
             throw std::runtime_error("Action item effects require unsupported Defend behavior");
-        out.instant_cure.push_back({SA_ONCE,type,attr,exec,SVI_INCREASE,static_cast<std::uint16_t>(d.get<int>("wValue")),
+        out.instant_cure.push_back({SA_ONCE,type,attr,exec,inc,static_cast<std::uint16_t>(d.get<int>("wValue")),
             static_cast<std::uint16_t>(d.get<int>("wValueInc")),calc});
         if(!final_type) {
             if(attr==1||attr==2){power.attack_type=1;final_type=true;}
@@ -103,7 +104,7 @@ void PostgreSQLMapService::PreflightActItemCure(const CharSnapshot& s,const Skil
     // Validate the current-rank cure before hooks/debit, including checked
     // exponential conversion and the original signed-INT variance product.
     for(const auto& row:definition.instant_cure)
-        (void)native_cure::Magnitude(row,definition,power.rank);
+        (void)native_cure::Magnitude(row,definition,power.rank,row.bExec==SCT_HP?s.dwMaxHP:s.dwMaxMP);
 }
 bool PostgreSQLMapService::UseNativeActItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::span<const std::byte> body,QuestPackets& packets,std::vector<std::byte>& accepted) const {

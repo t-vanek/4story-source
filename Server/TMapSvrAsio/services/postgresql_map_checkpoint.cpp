@@ -1340,9 +1340,7 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
         auto timed=std::make_shared<CharacterPayload>(*after.payload);timed->last_attack_ms=timed->event_ms=defend_now;after.payload=std::move(timed);
         // PerformSkill rolls each ordered row separately, not their sum.
         if(!miss)for(const auto& row:definition.instant_cure) {
-            const auto value=row.bInc==SVI_INCREASE?native_cure::Magnitude(row,definition,power.rank):
-                skill_effect::Calculate(row,definition,power.rank,row.bExec==SCT_HP?after.dwMaxHP:after.dwMaxMP);
-            if(value<0)throw std::runtime_error("Cure magnitude outside supported positive source domain");
+            const auto value=native_cure::Magnitude(row,definition,power.rank,row.bExec==SCT_HP?after.dwMaxHP:after.dwMaxMP);
             unsigned char random{};if(RAND_bytes(&random,1)!=1)throw std::runtime_error("Cure randomness unavailable");
             const auto delta=static_cast<std::uint64_t>(value)+static_cast<std::uint64_t>(value)*(random&15)/100;
             auto& resource=row.bExec==SCT_HP?after.dwHP:after.dwMP;

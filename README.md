@@ -28,7 +28,23 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Latest local Phase A work (2026-10-15), based on `8ed424c`, adds bounded
+Latest local Phase A work (2026-10-15), based on `09317c7`, adds the known
+CURE combine modes to the bounded own-PC action-item path. Checked signed
+Calc0..3 values feed actual source INCREASE, DECREASE, MULTIPLY, DIVIDE and
+PRECENT rules against current maximum HP/MP. DWORD factor conversion and
+integer-product-before-percentage order are preserved; product/subtraction
+wrap and negative final deltas remain unavailable. Final nonnegative deltas
+retain the source all-roll variance bound. Init/ACT preflight and every normal
+FINISH origin use the same checked calculation; the unsafe ordinary fallback
+is removed. MISS and empty FINISH skip cure arithmetic and randomness.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No schema/publisher/grant change: written044–072 remain unapplied; next073.
+Wrapped/negative effects, hardcoded128/229/3604, general combat, other targets,
+CRT/libm boundary parity and original-client acceptance remain OPEN.
+[Actual cure combine semantics and checked completion](_rewrite/docs/modernization/evidence/phase-a-cure-combine-20261015/README.md).
+
+Previous code `09317c7` (2026-10-15), based on `8ed424c`, adds bounded
 exponential Calc2 values to actual own-PC action-item cures. It reads the
 outgoing skill's start/next levels and actual formula34 coefficient, preserving
 the source FLOAT conversion and rank0 exponent0. The preceding stat refresh's

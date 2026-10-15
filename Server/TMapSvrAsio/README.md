@@ -89,6 +89,13 @@ range before item preflight and real FINISH application; MISS and empty FINISH
 skip the calculation. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 [exponential-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-actitem-exponential-20261015/map-exponential.md).
 
+Positive own-PC cures now apply actual SVI1..5 combine modes against current
+maximum HP/MP after signed Calc0..3 evaluation. ACT preflight and every native
+FINISH cure share checked source arithmetic; nonwrapping DWORD products and
+subtractions, nonnegative final deltas and signed variance limits define the
+supported boundary. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
+[cure-combine contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-combine-20261015/map-combine.md).
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

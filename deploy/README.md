@@ -13,7 +13,14 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current ACT exponential-cure increment, based on `8ed424c`, adds no schema,
+The current positive-cure combine increment, based on `09317c7`, changes no
+schema, publisher or grant. Signed Calc0..3 values, actual combine modes and
+current effective maxima feed checked source arithmetic inside existing Map
+transactions. No dataset values or successful outcomes are seeded. Existing
+071/072 prerequisites remain; written044–072 are unapplied; next073. No command
+here was run. [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-cure-combine-20261015/README.md).
+
+Previous code `09317c7`, based on `8ed424c`, adds no schema,
 publisher or grant. The actual formula34 `fRateX` comes from the already pinned
 character catalog; outgoing skill start/next and cure data use that same
 publication. The existing stat formula reader checks finite FLOAT X/Y range

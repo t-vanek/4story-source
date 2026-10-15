@@ -48,7 +48,7 @@ void PostgreSQLMapService::DebitNativeItem(soci::session& sql,const MapSessionCl
     }
 }
 bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
-    std::span<const std::byte> body,const QuestEvent& event,QuestPackets& packets) {
+    std::span<const std::byte> body,const QuestEvent& event,QuestPackets& packets,bool ordinary_actitems) const {
     using tnetlib::protocol::MessageId;
     // CSHandler::OnCS_ITEMUSE_REQ and Client/CSSenderAll, not the obsolete
     // CSProtocol.h comment (which incorrectly describes a BYTE delay group).
@@ -72,6 +72,8 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
         wire::WritePOD(ack,kind);wire::WritePOD(ack,delay);
         packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_ITEMUSE_ACK),std::move(ack));
     };
+    if(s.payload->deal_status>=2){reply(5);return false;}
+    if(s.payload->personal_store||s.payload->arena_id){reply(1);return false;}
     const int request_id=std::bit_cast<std::int16_t>(requested);int present=0;
     sql << "SELECT 1 FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",soci::use(request_id),soci::into(present);
     if(!sql.got_data()){reply(1);return false;} // IU_NOTFOUND, kind still zero
@@ -89,7 +91,8 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
     kind=static_cast<std::uint8_t>(chart.get<int>(0));
     // NetCode.h TITEM_KIND: HP26, MP27, AP28, MAXHP42, MAXMP43, MONEY51,
     // SKILL33 (pinned pure item-probability skills), EXPBONUS56, GAINEXP81, SPECIALBOX115.
-    if((kind!=26&&kind!=27&&kind!=28&&kind!=33&&kind!=42&&kind!=43&&kind!=51&&kind!=56&&kind!=81&&kind!=115)||chart.get<int>(1)!=7)
+    const bool act_item=chart.get<int>(1)==25;
+    if(!act_item&&((kind!=26&&kind!=27&&kind!=28&&kind!=33&&kind!=42&&kind!=43&&kind!=51&&kind!=56&&kind!=81&&kind!=115)||chart.get<int>(1)!=7))
         throw std::runtime_error("ITEMUSE kind requires its remaining native gameplay contract");
     if(s.cluster.riding){reply(6);return false;} // none of these is IK_WHIP
     if(static_cast<std::uint16_t>(chart.get<int>(2))!=delay_group){reply(1);return false;}
@@ -108,6 +111,22 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
     const auto used=std::find_if(p->item_cooldowns->timers.begin(),p->item_cooldowns->timers.end(),
         [&](const auto& row){return row.group==delay_group;});
     if(delay&&used!=p->item_cooldowns->timers.end()&&used->remaining){reply(1);return false;}
+    if(act_item) {
+        if(!ordinary_actitems)throw std::runtime_error("Action item initiation requires ordinary native runtime");
+        if(CellOwner(sql,c,s.wMapID,s.fPosX,s.fPosZ)!=m_config.server)
+            throw std::runtime_error("Action item initiation is outside its physical Map owner");
+        const auto skill=static_cast<std::uint16_t>(chart.get<int>(8));
+        if(!skill)return false; // source zero wUseValue: no response or debit
+        const auto hp=s.dwHP,mp=s.dwMP;
+        RefreshEquipment(sql,s,true);
+        if(s.dwHP!=hp||s.dwMP!=mp)throw std::runtime_error("Action item initiation resources exceed source maxima");
+        // Original IT_ACTITEMS is outside IT_USE's common bUsed block. It
+        // initiates an action only; ACTITEMSUSE later arms reuse and consumes.
+        if(!ReadActItemSkill(sql,s,skill))throw std::runtime_error("Action item has no pinned skill definition");
+        packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_ACTION_ACK),
+            EncodeActionAck(0,c.char_id,1,255,0xffffffffU,0xffffffffU,skill),QuestAudience::Nearby);
+        return false;
+    }
     if(!s.payload->during||s.payload->during->pending_entry)throw std::runtime_error("ITEMUSE precedes native EnterMAP");
     const auto use=static_cast<std::uint8_t>(chart.get<int>(5));
     if(kind!=56&&(use&0x40))throw std::runtime_error("Item kind requires additional during-item semantics");
@@ -205,6 +224,7 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
         auto& rows=p->item_cooldowns->timers;
         auto timer=std::find_if(rows.begin(),rows.end(),[&](const auto& row){return row.group==delay_group;});
         if(timer==rows.end())rows.push_back({delay_group,delay});else timer->remaining=delay;
+        p->item_cooldowns->deadlines[delay_group]=p->event_ms+delay;
         OrderItemCooldowns(rows);
         if(rows.size()>255)throw std::runtime_error("Item delay groups exceed original CHARINFO count");
     }

@@ -11,8 +11,16 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–070 are **written, not applied**; next071.
-Latest local increment is based on `d5377dd`: actual positive maintained-status
+evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
+Latest local increment is based on `a3fa3ef`: original action-item initiation,
+ACT consumption and source positive own-PC cure completion; strict local item
+reuse, truthful late failures, distinct accepted origins and actual route proof.
+Written071 adds origin columns; written072 and an offline publisher bind complete
+guild-skill membership to current character/routing releases. Both are unapplied;
+ordinary FINISHSKILL also requires this publication. Next073. Full action-item
+combat, party/learned-trigger/richer effects, DWORD wrap and client acceptance
+remain OPEN. No build/test/SQL/import/service/client/container run or push.
+Previous code `a3fa3ef`, based on `d5377dd`: actual positive maintained-status
 collision semantics, STATUS_NONE800 append during ordinary revival, independent
 duplicate clocks, per-row ACTION/cast erasure events and native cancellation
 publication fences. No migration; next071. Exact native checkpoint/transfer state
@@ -75,9 +83,29 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native action items — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `a3fa3ef`, connects
+original ITEMUSE action initiation, ACTITEMSUSE item consumption and FINISHSKILL
+completion for an actual partyless own-PC positive instant HP/MP cure. The
+initializer does not debit or arm reuse; ACT preserves source activity/erase,
+strict cooldown and late NEEDITEM ordering. Source wire rank1 remains distinct
+from the actual unlearned-trigger effect rank0. Successful consumption and a
+one-use accepted cast commit with the existing native authority/checkpoint path;
+nearby output rechecks current actor/recipient authority after awaits.
+Written071 records cast origin and actual ACT route; written072 and a separate
+offline publisher require complete verified guild-skill nonmembership, including
+for ordinary FINISHSKILL. Both migrations are **not applied**; next073.
+Gameplay is **INTEGRATED_UNVERIFIED**, publication tools/SQL are
+**IMPLEMENTED_UNVERIFIED**. Static source/API/SQL-text/diff review only; no
+build/test/SQL/import/service/client/container execution, push or deployment.
+Full action-item combat, party/learned-trigger/richer effects, source DWORD wrap,
+bootstrap and actual original-client acceptance remain OPEN.
+[Action-item source contract, publication and deferred acceptance](evidence/phase-a-native-actitems-20261015/README.md).
+
 ## Native maintained-status collisions and retained800 — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `d5377dd`, integrates
+Previous code `a3fa3ef` (2026-10-15), based on `d5377dd`, integrates
 source positive maintained-status collisions and permits ordinary native revival
 with retained static800. Actual STATUS_NONE0 does not collide: another800 is
 appended with its own clock, without invented END/STAT or resetting older rows.

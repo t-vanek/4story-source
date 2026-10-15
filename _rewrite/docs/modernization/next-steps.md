@@ -11,7 +11,25 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `d5377dd`, integrates
+Latest local Phase A work (2026-10-15), based on `a3fa3ef`, connects
+original ITEMUSE action initiation, ACTITEMSUSE item consumption and FINISHSKILL
+completion for an actual partyless own-PC positive instant HP/MP cure. The
+initializer does not debit or arm reuse; ACT preserves source activity/erase,
+strict cooldown and late NEEDITEM ordering. Source wire rank1 remains distinct
+from the actual unlearned-trigger effect rank0. Successful consumption and a
+one-use accepted cast commit with the existing native authority/checkpoint path;
+nearby output rechecks current actor/recipient authority after awaits.
+Written071 records cast origin and actual ACT route; written072 and a separate
+offline publisher require complete verified guild-skill nonmembership, including
+for ordinary FINISHSKILL. Both migrations are **not applied**; next073.
+Gameplay is **INTEGRATED_UNVERIFIED**, publication tools/SQL are
+**IMPLEMENTED_UNVERIFIED**. Static source/API/SQL-text/diff review only; no
+build/test/SQL/import/service/client/container execution, push or deployment.
+Full action-item combat, party/learned-trigger/richer effects, source DWORD wrap,
+bootstrap and actual original-client acceptance remain OPEN.
+[Action-item source contract, publication and deferred acceptance](evidence/phase-a-native-actitems-20261015/README.md).
+
+Previous code `a3fa3ef` (2026-10-15), based on `d5377dd`, integrates
 source positive maintained-status collisions and permits ordinary native revival
 with retained static800. Actual STATUS_NONE0 does not collide: another800 is
 appended with its own clock, without invented END/STAT or resetting older rows.
@@ -101,8 +119,13 @@ writes or fake roster clearing.
 
 Ordinary native recovery and manual/battle mode now have a concrete production
 path; full STOPRECOVER and other effect graphs, companion/guild/local rate
-dependencies, source wrapped numeric branches and ACTITEMSUSE/nonself damage
-activity producers remain separate implementation work. Retain the original
+dependencies, source wrapped numeric branches and broader ACTITEMSUSE/nonself
+damage activity producers remain separate implementation work. The positive
+partyless own-PC action-item producer is now integrated; continue actual negative,
+learned-trigger, party, other-target and richer source effects without granting
+accepted finishes for failed consumption. Source failed-ACT used-record behavior
+and permissive repeated finishes are distinct from the native one-use policy.
+Retain the original
 target-local mode/recovery clocks at existing-replica handoff; do not append
 unbacked clocks to the transfer wire or add a guessed sit-down healing bonus.
 
@@ -200,7 +223,7 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–070; the next free number is071.
+immutable. Phase A has added unapplied migrations044–072; the next free number is073.
 
 Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,
@@ -453,8 +476,9 @@ called inside original `CTObjBase::Defend` (TObjBase.cpp:1102), ordinary
 `OnCS_SKILLUSE_REQ` (CSHandler.cpp:2972, after resource deduction, instance-power
 calculation and `EraseBuffByAttack`) and `OnCS_ACTITEMSUSE_REQ` (CSHandler.cpp:20070).
 The previous Defend-only conclusion was incomplete. LOOPSKILL and `OnTimer` do not
-call it. The modern Defend prototype still lacks complete accepted-cast authority
-and durable effects. Preserve ordinary cast powers before any effect removal,
+call it. Native bounded own-PC cures now use accepted-cast authority and durable
+effects, including the action-item path; general negative Defend/combat remains
+OPEN. Preserve ordinary cast powers before any effect removal,
 and retain the atomic costs/zero-MP removal now integrated by 035. Continue with timer expiry,
 death/static rules, dependent `wPosture` skills and complete collisions/attack effects. Preserve permanent remaining=0 and the
 source whole-two-hand/empty-slot pointer-lifetime quirk.

@@ -126,6 +126,9 @@ CharSnapshot PostgreSQLMapService::ValidateSkillCast(soci::session& sql,const Ma
     auto timed=std::make_shared<CharacterPayload>(*expected.payload);
     const auto quest_origin=timed->quest_sample_ms;
     const auto item_origin=timed->item_cooldowns?timed->item_cooldowns->sampled_ms:0;
+    // Seed absolute local observations before the relative validator rebases
+    // sampled_ms to zero. Private deadlines must remain on the real clock.
+    if(timed->item_cooldowns)SampleItemCooldowns(*timed->item_cooldowns,item_origin);
     const auto advance=[&](std::uint64_t origin) {
         if(request.elapsed_ms>std::numeric_limits<std::uint64_t>::max()-origin)
             throw std::runtime_error("Cast timer sample overflow");

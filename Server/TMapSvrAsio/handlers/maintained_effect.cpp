@@ -134,8 +134,8 @@ boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession>
         const auto& clients=audience==FinishAudience::Owner?owner:audience==FinishAudience::Neighbors?neighbors:nearby;
         const auto& [id,packet]=committed.packets[i];
         for(auto& client:clients) {
-            co_await client->SendPacket(id,packet);
-            if(client.get()==sess.get()&&id==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_HPMP_ACK))
+            const bool sent=co_await DeliverNativeGridProjection(sess,*identity,client,id,packet,ctx,audience==FinishAudience::Nearby);
+            if(sent&&client.get()==sess.get()&&id==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_HPMP_ACK))
                 co_await PublishPartyVitals(sess,after,packet,ctx);
         }
     }

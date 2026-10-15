@@ -44,6 +44,16 @@ Native ordered checkpoints preserve duplicates; original DB-only save filters
 and first-eligible duplicate collapse remain **OPEN**. See the
 [maintained-status contract](../../_rewrite/docs/modernization/evidence/phase-a-revival-replacement-20261015/map-replacement.md).
 
+Native action items now connect original ITEMUSE initiation, ACTITEMSUSE
+acceptance/consumption and FINISHSKILL through durable receipts for a bounded
+own-PC, partyless, positive instant HP/MP cure. Actual pinned kind21 definitions
+and guild-skill nonmembership are required; unsupported damage, maintained,
+linked, learned-trigger and special-mode branches stay unavailable. Migration071
+records request origin and actual ACT route; migration072 supplies the separately
+published skill context. Both are written, unexecuted prerequisites. This is
+**IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
+[action-item contract](../../_rewrite/docs/modernization/evidence/phase-a-native-actitems-20261015/map-actitems.md).
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

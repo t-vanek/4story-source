@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <map>
 
 namespace tmapsvr {
 // TITEMUSEDTABLE / RELEASEMAIN: WORD group, DWORD remaining milliseconds.
@@ -17,6 +18,9 @@ struct ItemCooldownState {
     std::vector<ItemCooldown> timers;
     std::vector<ItemCooldown> ignored_on_load;
     std::uint64_t sampled_ms{};
+    // Local absolute observations preserve ACTITEMSUSE's strict deadline < now
+    // after relative remaining reaches zero. Never encoded or persisted.
+    std::map<std::uint16_t,std::uint64_t> deadlines;
 };
 inline void OrderItemCooldowns(std::vector<ItemCooldown>& rows) {
     std::sort(rows.begin(),rows.end(),[](const auto& a,const auto& b){return a.group<b.group;});
@@ -28,8 +32,10 @@ inline void SampleItemCooldowns(ItemCooldownState& state,std::uint64_t now) {
     // another observation while hashing it. Backward clocks never bypass reuse.
     if(!now||now<state.sampled_ms)return;
     const auto elapsed=now-state.sampled_ms;
-    for(auto& row:state.timers)
+    for(auto& row:state.timers) {
+        state.deadlines.try_emplace(row.group,state.sampled_ms+row.remaining);
         row.remaining=elapsed>=row.remaining?0:row.remaining-static_cast<std::uint32_t>(elapsed);
+    }
     state.sampled_ms=now;
 }
 inline std::vector<ItemCooldown> ActiveItemCooldowns(const ItemCooldownState& state) {

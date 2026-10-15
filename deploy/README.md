@@ -13,7 +13,28 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current local collision/retained800 increment, based on `d5377dd`, adds no
+The current action-item increment, based on `a3fa3ef`, requires written071 and072.
+Migration071 adds accepted-cast origin and actual ACT route; all new ordinary,
+loop and action-item writers require its columns. Existing table-level Map
+INSERT/SELECT grants cover these columns. Migration072 adds the separately
+published complete `skill_context_compat` registry; its read-only Map grant is
+`deploy/sql/skill-context-runtime-grants.sql`. Apply the existing prerequisite
+chain first. Written044–072 remain **unapplied**; next073.
+
+The offline `tools/database/activate_skill_context.py --manifest ...` publisher
+requires the complete pinned historical manifest, its verified import, current
+verified character/routing releases with identical metadata/backups and stopped
+Map/World owners. It verifies actual guild-chart values and optional text bytes,
+then atomically records the release and history. Runtime views check metadata,
+checkpoints, actual count and non-NULL source keys. The actual skill must be
+absent from this complete registry; actor guild0 alone is insufficient. Missing
+or stale publication disables the affected initiation/ACT/FINISHSKILL path,
+including ordinary FINISHSKILL. Runtime receives SELECT views only, without raw
+or publication-control write access. These are later Phase B prerequisites;
+no migration, publisher, grant, build, test, SQL or runtime was executed here.
+[Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-native-actitems-20261015/README.md).
+
+Previous code `a3fa3ef`, based on `d5377dd`, adds no
 migration or grant. Its native source effect rows still come from the existing
 pinned character publication; richer800 data remains unavailable. Existing070
 requirements below still apply to lethal environmental self-damage. This slice
@@ -29,8 +50,8 @@ and atomically records publication/history; runtime views retain metadata,
 checkpoint and actual row-count guards. Missing publication is unavailable rather
 than proof of an empty chart. Existing role grants remain prerequisites; this
 separate grant adds read access to three death-context views only. These are
-**later Phase B instructions**, not executed commands. Written044–070 are
-unapplied; next071. [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-native-death-20261015/README.md).
+**later Phase B instructions**, not executed commands. At that revision, written044–070
+were unapplied; the next number was071. [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-native-death-20261015/README.md).
 
 Code `d3904c5` additionally requires unapplied060 and refreshed Map grants for
 returns/payment and the mailbox notification poll. Historical mailbox import

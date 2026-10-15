@@ -113,7 +113,10 @@ private:
     bool ReviveNative(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&) const;
     bool DropNativeDamage(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&) const;
     static void EraseRevivalByAction(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,bool,QuestPackets&,std::vector<EquipmentEffectEvent>* = nullptr);
-    static bool UseNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
+    bool UseNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&,bool) const;
+    void RequireSkillContext(soci::session&,std::uint16_t) const;
+    std::optional<SkillTemplate> ReadActItemSkill(soci::session&,const CharSnapshot&,std::uint16_t) const;
+    bool UseNativeActItems(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,QuestPackets&,std::vector<std::byte>&) const;
     static void EarnNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,QuestPackets&);
     static bool UseNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,bool,QuestPackets&);
     static bool ChangeSoulLottery(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,QuestPackets&);

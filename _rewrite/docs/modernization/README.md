@@ -1,6 +1,24 @@
 # Modern server implementation status
 
-Latest local Phase A work (2026-10-15), based on `d5377dd`, integrates
+Latest local Phase A work (2026-10-15), based on `a3fa3ef`, connects
+original ITEMUSE action initiation, ACTITEMSUSE item consumption and FINISHSKILL
+completion for an actual partyless own-PC positive instant HP/MP cure. The
+initializer does not debit or arm reuse; ACT preserves source activity/erase,
+strict cooldown and late NEEDITEM ordering. Source wire rank1 remains distinct
+from the actual unlearned-trigger effect rank0. Successful consumption and a
+one-use accepted cast commit with the existing native authority/checkpoint path;
+nearby output rechecks current actor/recipient authority after awaits.
+Written071 records cast origin and actual ACT route; written072 and a separate
+offline publisher require complete verified guild-skill nonmembership, including
+for ordinary FINISHSKILL. Both migrations are **not applied**; next073.
+Gameplay is **INTEGRATED_UNVERIFIED**, publication tools/SQL are
+**IMPLEMENTED_UNVERIFIED**. Static source/API/SQL-text/diff review only; no
+build/test/SQL/import/service/client/container execution, push or deployment.
+Full action-item combat, party/learned-trigger/richer effects, source DWORD wrap,
+bootstrap and actual original-client acceptance remain OPEN.
+[Action-item source contract, publication and deferred acceptance](evidence/phase-a-native-actitems-20261015/README.md).
+
+Previous code `a3fa3ef` (2026-10-15), based on `d5377dd`, integrates
 source positive maintained-status collisions and permits ordinary native revival
 with retained static800. Actual STATUS_NONE0 does not collide: another800 is
 appended with its own clock, without invented END/STAT or resetting older rows.

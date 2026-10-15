@@ -25,6 +25,7 @@ void PostgreSQLMapService::HydrateItemCooldowns(soci::session& sql,const MapSess
         if((s.bStartAct==1&&s.wMapID==2010)||row.remaining>=3600000)state.ignored_on_load.push_back(row);
         else state.timers.push_back(row);
     if(state.timers.size()>255)throw std::runtime_error("Loaded item timers exceed original CHARINFO count");
+    for(const auto& row:state.timers)state.deadlines.emplace(row.group,state.sampled_ms+row.remaining);
     p.item_cooldowns=std::move(state);
 }
 void PostgreSQLMapService::CheckItemCooldowns(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {

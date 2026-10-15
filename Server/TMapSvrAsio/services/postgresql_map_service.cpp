@@ -29,6 +29,8 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
         *lease<<"SELECT count(*) FROM (SELECT world_id,name_bytes,ends_at FROM app_world.chat_bans WHERE false) required",soci::into(columns);
         *lease<<"SELECT count(*) FROM (SELECT world_id,owner_token,issuer_id,session_key,source_server,name_bytes,ends_at,"
             "source_map_token,source_connection_id,source_authority_epoch FROM app_world.chat_ban_mutations WHERE false) required",soci::into(columns);
+        // Migration071 is required by every new cast writer, not just ACT.
+        *lease<<"SELECT count(*) FROM (SELECT request_opcode,actual_channel,actual_map FROM app_world.accepted_skill_casts WHERE false) required",soci::into(columns);
         tx.commit();}
     catch(...){throw std::runtime_error("Native Map schema/catalog validation failed");}
 }

@@ -18,7 +18,7 @@
 #include <stdexcept>
 
 namespace tmapsvr {
-enum class QuestAudience : std::uint8_t { Owner, Neighbors, World };
+enum class QuestAudience : std::uint8_t { Owner, Neighbors, World, Nearby };
 struct QuestPacket {
     std::uint16_t opcode;
     std::vector<std::byte> body;
@@ -32,6 +32,7 @@ struct QuestMapFacts {
     std::uint8_t channel{};
     bool world_registered{};
     bool ordinary_recovery{}; // configured native ordinary runtime, never a wire field
+    bool ordinary_actitems{}; // same configured runtime proof for item-action initiation/acceptance
     std::uint64_t sample_ms{}; // local scheduler observation, never a client field
     std::vector<std::pair<std::uint32_t,std::uint16_t>> monsters;
     std::optional<WorldEventSnapshot> world_events;

@@ -17,7 +17,7 @@ inline bool SameNativeIdentity(const SessionIdentity& a,const SessionIdentity& b
 inline boost::asio::awaitable<bool> DeliverNativeGridProjection(
     const std::shared_ptr<tnetlib::AsioSession>& actor,const SessionIdentity& expected,
     const std::shared_ptr<tnetlib::AsioSession>& recipient,std::uint16_t opcode,
-    const std::vector<std::byte>& body,const HandlerContext& ctx) {
+    const std::vector<std::byte>& body,const HandlerContext& ctx,bool nearby=false) {
     if(!ctx.session_reg||!ctx.char_state||!ctx.presence||!ctx.player_service)co_return false;
     const auto source=ctx.session_reg->Identity(actor.get()),id=ctx.session_reg->Identity(recipient.get());
     if(!actor->IsOpen()||!source||!SameNativeIdentity(expected,*source)||!recipient->IsOpen()||!id||id->phase!=SessionPhase::Ready)co_return false;
@@ -40,6 +40,7 @@ inline boost::asio::awaitable<bool> DeliverNativeGridProjection(
        !position||!neighbor||position->session.lock().get()!=actor.get()||neighbor->session.lock().get()!=recipient.get()||
        position->channel!=expected.channel||neighbor->channel!=expected.channel||id->channel!=expected.channel||position->map_id!=neighbor->map_id||
        std::abs(cell(position->pos.x)-cell(neighbor->pos.x))>1||std::abs(cell(position->pos.z)-cell(neighbor->pos.z))>1)co_return false;
+    if(nearby&&std::hypot(position->pos.x-neighbor->pos.x,position->pos.z-neighbor->pos.z)>64.f)co_return false;
     co_await recipient->SendPacket(opcode,body);co_return true; // queue attempt, never an application ACK
 }
 }

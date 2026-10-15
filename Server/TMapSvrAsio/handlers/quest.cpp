@@ -69,9 +69,11 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const bool revival=message==tnetlib::protocol::MessageId::CS_REVIVAL_REQ;
     const bool change_mode=message==tnetlib::protocol::MessageId::CS_CHGMODE_REQ;
     const bool drop_damage=message==tnetlib::protocol::MessageId::CS_DROPDAMAGE_REQ;
+    const bool act_items=message==tnetlib::protocol::MessageId::CS_ACTITEMSUSE_REQ;
+    const bool item_use=message==tnetlib::protocol::MessageId::CS_ITEMUSE_REQ;
     const bool recovery_tick=opcode==0&&ctx.mode==Mode::PvE;
-    const bool source_projection=revival||change_mode||drop_damage||recovery_tick;
-    if(revival||change_mode||drop_damage)if(ctx.mode!=Mode::PvE)co_return;
+    const bool source_projection=revival||change_mode||drop_damage||recovery_tick||act_items||item_use;
+    if(revival||change_mode||drop_damage||act_items)if(ctx.mode!=Mode::PvE)co_return;
     if(source_projection) {
         const auto state=ctx.char_state?ctx.char_state->Get(identity->char_id):std::nullopt;
         const auto entry=ctx.presence?ctx.presence->FindEntry(identity->char_id):std::nullopt;
@@ -140,6 +142,7 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const auto required=opcode<=2||lottery?0U:
         change_mode?1U:
         drop_damage?12U:
+        act_items?36U:
         message==tnetlib::protocol::MessageId::CS_POSTRETURN_REQ||message==tnetlib::protocol::MessageId::CS_PROTECTEDOPTION_REQ?5U:
         message==tnetlib::protocol::MessageId::CS_REVIVAL_REQ?13U:
         message==tnetlib::protocol::MessageId::CS_ITEMBUY_REQ?11U:
@@ -172,6 +175,7 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         const auto before=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,SkillClockMs());
         QuestMapFacts facts;facts.map=before.wMapID;facts.channel=identity->channel;
         facts.ordinary_recovery=recovery_tick;
+        facts.ordinary_actitems=ctx.mode==Mode::PvE;
         facts.sample_ms=SkillClockMs();
         facts.world_registered=ctx.world_client&&ctx.world_client->IsRegistered();
         if(ctx.world_client)facts.world_events=ctx.world_client->EventSnapshot();
@@ -263,6 +267,7 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         const auto location=ctx.presence->FindEntry(id->char_id);
         if(!location||location->session.lock().get()!=recipient.get()||location->channel!=identity->channel||id->channel!=identity->channel||location->map_id!=after.wMapID||
            std::abs(cell(location->pos.x)-cell(actor_location->pos.x))>1||std::abs(cell(location->pos.z)-cell(actor_location->pos.z))>1)co_return false;
+        if(packet.audience==QuestAudience::Nearby&&std::hypot(location->pos.x-actor_location->pos.x,location->pos.z-actor_location->pos.z)>64.f)co_return false;
         co_await recipient->SendPacket(packet.opcode,packet.body);co_return true;
     };
     auto party_display=after;
@@ -279,7 +284,7 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
                 // continue with a stale cluster projection after an unknown send.
                 client->Close();co_return;
             }
-        } else if(packet.audience==QuestAudience::Neighbors) {
+        } else if(packet.audience==QuestAudience::Neighbors||packet.audience==QuestAudience::Nearby) {
             for(auto& session:neighbors) {
                 const bool sent=co_await deliver(session,packet);
                 if(sent&&session.get()==client.get()&&packet.opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_HPMP_ACK))

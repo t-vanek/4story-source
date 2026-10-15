@@ -11,8 +11,21 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
-Latest local increment is based on `5f81b9f`: dispatch rechecks Ready/open
+evidence remain unchanged. New migrations044–073 are **written, not applied**; next074.
+
+Latest local Phase A work (2026-10-15), based on `7a8dfee`, implements the
+source3604 whole-handler return when current learned3603 is absent. ITEMUSE/ACT
+retain initiation, activity, reuse and debit; eligible FINISH records an explicit
+terminal no-effect receipt, without Defend, MISS802 or CheckEquipSkill. A present
+rank0 remains distinct. Already-dead own-PC pure HP/MP FINISH now skips targets
+and runs its actual equipment epilogue for accepted ordinary/loop/ACT origins.
+**INTEGRATED_UNVERIFIED**; written073 adds nullable terminal disposition with
+no historical backfill. Written044–073 are unapplied; next074. No build, test,
+SQL, import, service, client, container, push or deployment ran. Full Phase A,
+secondary vitals, source admission/native World bootstrap and general combat
+remain OPEN. [Source contract and deferred acceptance](evidence/phase-a-finish-terminal-20261015/README.md).
+
+Previous code `7a8dfee`, based on `5f81b9f`: dispatch rechecks Ready/open
 session identity, role and epoch after gameplay-lease waits, retaining the
 existing replica opcode filter. Current pure-CURE 128/229 requires actual
 partner-effect absence; 3604 resolves actual learned3603 effect rank separately

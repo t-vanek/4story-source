@@ -127,6 +127,15 @@ powers. Empty FINISH retains its original cleanup path. This is **IMPLEMENTED /
 INTEGRATED_UNVERIFIED**; see the
 [cast-authority and cure-exception contract](../../_rewrite/docs/modernization/evidence/phase-a-native-cast-authority-20261015/map-casts.md).
 
+Native pure HP/MP FINISH also preserves the source3604 missing3603 return:
+no Defend or terminal equipment cleanup, no substitute client success, and an
+explicit one-use terminal receipt. ITEMUSE/ACT keep their preceding reuse/debit;
+present learned rank0 still executes normally. A cast accepted before ordinary
+death can finish: dead targets skip before exception/cure/MISS work and retain
+the equipment epilogue. New ACT initiation still requires a living actor.
+**INTEGRATED_UNVERIFIED**; migration073 is written, not applied, next074. See the
+[terminal contract and acceptance scenarios](../../_rewrite/docs/modernization/evidence/phase-a-finish-terminal-20261015/README.md).
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

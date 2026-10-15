@@ -115,11 +115,20 @@ boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession>
         });
         if(!committed.snapshot||committed.packets.size()!=committed.audiences.size())
             throw std::runtime_error("Missing finished skill state or audiences");
+        if(committed.disposition!=FinishDisposition::Completed&&
+           committed.disposition!=FinishDisposition::SourceMissing3603)
+            throw std::runtime_error("Invalid finished skill disposition");
+        if(committed.disposition==FinishDisposition::SourceMissing3603&&
+           (request.skill!=3604||request.targets.empty()||!committed.packets.empty()))
+            throw std::runtime_error("Invalid source missing3603 return");
         ctx.char_state->Store(cid,*committed.snapshot);
     }catch(...) {
         auto uncertain=*original;uncertain.persistence_uncertain=true;
         ctx.char_state->Store(cid,uncertain);sess->Close();throw;
     }
+    // The original handler returned before all Defend/equipment output. Its
+    // durable terminal receipt is already stored; emit no substitute success.
+    if(committed.disposition==FinishDisposition::SourceMissing3603)co_return;
     // EraseMaintainSkill uses neighboring cells and private statistics; Defend
     // uses nearby players. Preserve both recipient scope and packet order.
     const auto& after=*committed.snapshot;

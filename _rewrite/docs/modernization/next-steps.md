@@ -11,7 +11,19 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `5f81b9f`, rechecks the full
+Latest local Phase A work (2026-10-15), based on `7a8dfee`, implements the
+source3604 whole-handler return when current learned3603 is absent. ITEMUSE/ACT
+retain initiation, activity, reuse and debit; eligible FINISH records an explicit
+terminal no-effect receipt, without Defend, MISS802 or CheckEquipSkill. A present
+rank0 remains distinct. Already-dead own-PC pure HP/MP FINISH now skips targets
+and runs its actual equipment epilogue for accepted ordinary/loop/ACT origins.
+**INTEGRATED_UNVERIFIED**; written073 adds nullable terminal disposition with
+no historical backfill. Written044–073 are unapplied; next074. No build, test,
+SQL, import, service, client, container, push or deployment ran. Full Phase A,
+secondary vitals, source admission/native World bootstrap and general combat
+remain OPEN. [Source contract and deferred acceptance](evidence/phase-a-finish-terminal-20261015/README.md).
+
+Previous code `7a8dfee` (2026-10-15), based on `5f81b9f`, rechecks the full
 Ready session identity/role/epoch after checkpoint waits and gameplay-lease
 acquisition, so a request cannot continue under a different ownership tenure.
 The initial replica opcode filter remains. Native CURE exceptions now admit
@@ -280,11 +292,14 @@ See [source and implementation evidence](evidence/phase-a-cure-death-20261015/RE
 The current pure-CURE path handles128/229 with proven actual129/230 absence
 and3604 with current learned3603 effect rank. Continue actual129/230 notifying
 erasure and richer target effects only with their complete stat/effect contract.
-Missing3603 on a nonempty target remains refused; do not manufacture a rank,
-consume a fake successful finish, run terminal equipment cleanup as a substitute
-for source early return, or refund/replay an earlier ACT. Empty/dead filtered
-targets do not need this override. Keep trigger critical/outgoing powers and
-3603 calculation/DEFEND rank distinct, including actual rank0.
+Missing3603 on a living nonempty target now follows the source whole-handler
+return with an explicit terminal no-effect073 receipt. Do not add Defend,
+equipment cleanup, refund or replay of an earlier ACT to that branch. Empty
+and already-dead targets skip the override and retain terminal equipment cleanup;
+already-dead ordinary/loop/ACT FINISH is now admitted with the existing accepted
+receipt and current owner/graph fences. Dead ACT initiation remains unported.
+Keep trigger critical/outgoing powers and3603 calculation/DEFEND rank distinct,
+including actual rank0. See [terminal contract](evidence/phase-a-finish-terminal-20261015/README.md).
 
 The existing dispatcher already filters secondary opcodes; the new post-wait
 identity/role/epoch fence prevents a waiting request from crossing ownership
@@ -427,7 +442,7 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–072; the next free number is073.
+immutable. Phase A has added unapplied migrations044–073; the next free number is074.
 
 Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,
@@ -449,8 +464,19 @@ incomplete. [Contracts, differences and compilation evidence](evidence/phase-a-q
 
 Active next source paths after this increment:
 
-Complete original Map MW_CONNECT_ACK admission and the full source World/Map
-bootstrap as the first dependency: source sends no registration ACK, whereas the
+Next implementation unit: original Map MW_CONNECT_ACK admission and native
+World bootstrap. Start with Server/TMapSvr/{TMapSvr.cpp::LoadData/InitNetwork;
+SSSender.cpp::SendMW_CONNECT_ACK;DBAccess.h channel queries} and
+Server/TWorldSvr/SSHandler.cpp::OnMW_CONNECT_ACK, then existing AsioWorldClient,
+World OnRelaysvrReq/peer registry/main/schema_validator and Map bootstrap consumers.
+Use the actual pinned TCHANNELCHART/TSVRCHART/TMAPCHART projection to resolve
+MAKELONG map/channel keys versus BYTE serialized keys/counts, and the exact active
+build flags. No invented channel list or registration acknowledgement. The
+source and preserved publication tools exist; a complete fingerprinted data
+release and topology are required to close any data-dependent ambiguity. Keep
+unavailable procedure bodies as specific blockers and implement independent
+bootstrap parts. Full source World/Map
+bootstrap remains the first dependency: source sends no registration ACK, whereas the
 current native RW-as-Map exchange remains a documented extension. Resolve source
 channel key/count casts using exact data/topology proof; do not infer a channel
 list or synthesize acknowledgement. Plain16 transport is now integrated on these

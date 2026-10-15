@@ -119,7 +119,8 @@ private:
     bool UseNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&,bool) const;
     void RequireSkillContext(soci::session&,std::uint16_t) const;
     std::optional<SkillTemplate> ReadActItemSkill(soci::session&,const CharSnapshot&,std::uint16_t) const;
-    static std::uint8_t ResolveNativeCureEffectRank(const CharSnapshot&,std::uint16_t,std::uint8_t);
+    // nullopt is the source3604 early return, not a missing rank to default.
+    static std::optional<std::uint8_t> ResolveNativeCureEffectRank(const CharSnapshot&,std::uint16_t,std::uint8_t);
     static void PreflightActItemCure(const CharSnapshot&,const SkillTemplate&);
     bool UseNativeActItems(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,QuestPackets&,std::vector<std::byte>&) const;
     static void EarnNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,QuestPackets&);

@@ -2,7 +2,19 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Latest local Phase A work (2026-10-15), based on `5f81b9f`, rechecks the full
+Latest local Phase A work (2026-10-15), based on `7a8dfee`, implements the
+source3604 whole-handler return when current learned3603 is absent. ITEMUSE/ACT
+retain initiation, activity, reuse and debit; eligible FINISH records an explicit
+terminal no-effect receipt, without Defend, MISS802 or CheckEquipSkill. A present
+rank0 remains distinct. Already-dead own-PC pure HP/MP FINISH now skips targets
+and runs its actual equipment epilogue for accepted ordinary/loop/ACT origins.
+**INTEGRATED_UNVERIFIED**; written073 adds nullable terminal disposition with
+no historical backfill. Written044–073 are unapplied; next074. No build, test,
+SQL, import, service, client, container, push or deployment ran. Full Phase A,
+secondary vitals, source admission/native World bootstrap and general combat
+remain OPEN. [Source contract and deferred acceptance](evidence/phase-a-finish-terminal-20261015/README.md).
+
+Previous code `7a8dfee` (2026-10-15), based on `5f81b9f`, rechecks the full
 Ready session identity/role/epoch after checkpoint waits and gameplay-lease
 acquisition, so a request cannot continue under a different ownership tenure.
 The initial replica opcode filter remains. Native CURE exceptions now admit

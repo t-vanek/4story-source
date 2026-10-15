@@ -13,7 +13,15 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current cast-authority/exception increment, based on `5f81b9f`, adds no
+The current terminal-FINISH increment, based on `7a8dfee`, writes073 for an
+explicit no-effect receipt disposition. Old receipts keep NULL; no grant,
+publication, importer or client field is added. Written044–073 are unapplied;
+next074. During later Phase B, stop old Map writers and use the existing
+checksummed migration workflow on an isolated copy before running the new Map.
+No command here was run; Phase C remains deferred.
+[Scope and acceptance](../_rewrite/docs/modernization/evidence/phase-a-finish-terminal-20261015/README.md).
+
+Previous code `7a8dfee`, based on `5f81b9f`, adds no
 schema, publication, grant or wire field. Current native skills/effects and the
 actual learned3603 row supply exception rank/context; no template, partner
 effect, learned rank or successful outcome is seeded. Existing070 remains

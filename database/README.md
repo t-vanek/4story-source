@@ -5,7 +5,17 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, based on `0b97c18`:** direct source Plain16 Control–Map
+**Current Phase A, based on `7a8dfee`:** written073 adds only nullable
+terminal FINISHSKILL disposition to the existing native receipt. Missing3603
+requires unchanged bars/effects and zero output for a nonempty3604 request;
+historical receipts retain NULL. The production Map writer records it inside
+the existing accepted-cast/core/checkpoint/fullgraph transaction. No import,
+publication, grant or archival change. Written044–073 are unapplied; next074.
+No build, test, SQL, migration, import, service or container ran. Full native
+World bootstrap and PostgreSQL-only runtime remain incomplete.
+[Source scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-finish-terminal-20261015/README.md).
+
+**Previous Phase A, based on `0b97c18`:** direct source Plain16 Control–Map
 transport uses existing native Map ownership/claim/current-user/character schema.
 Owner and kick reads prove the actual live Map advisory lease through pooled
 queries; ordinary save/release remains the only ownership writer. Counters are

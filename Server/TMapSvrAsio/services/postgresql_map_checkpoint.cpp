@@ -330,7 +330,7 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
             }
         }
         QuestPackets erased;const auto old_effects=after.payload->effects->size();
-        if(!cast->loop)EraseRevivalByAction(sql,c,after,skill,false,erased,&cast_result->ended);
+        if(!cast->loop)EraseNativeActionEffects(sql,c,after,skill,false,erased,&cast_result->ended);
         if(after.payload->effects->size()!=old_effects) {
             if(!graph)WriteMaintainedEffects(sql,c,after);
         }
@@ -1209,7 +1209,7 @@ SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim&
     SkillActionCommit committed;
     if(result==SKILL_SUCCESS&&request.skill) {
         QuestPackets erased;const auto old_effects=after.payload->effects->size();
-        EraseRevivalByAction(sql,c,after,request.skill,false,erased,&committed.ended);
+        EraseNativeActionEffects(sql,c,after,request.skill,false,erased,&committed.ended);
         if(after.payload->effects->size()!=old_effects) {
             if(!graph)WriteMaintainedEffects(sql,c,after);
         }
@@ -1232,12 +1232,10 @@ SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim&
 FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std::span<const std::byte> body,
     const CharSnapshot& before) {
     const auto request=DecodeFinishSkill(body);
-    // GOHOME produces source MISS before any guaranteed-hit rule. Empty
-    // ordinary/loop completion skips the hit test and still cleans equipment.
     if(c.role!=MapSessionRole::Primary||!before.payload||before.dwCharID!=c.char_id||before.persistence_uncertain||
        request.host!=c.char_id||request.attacker!=c.char_id||request.type!=1||request.linked||request.fake||
        !before.cluster.hydrated||
-       before.bDead||!before.dwHP||(before.cluster.mode==2&&!request.targets.empty())||!SupportedPostures(*before.payload)||
+       before.bDead||!before.dwHP||!SupportedPostures(*before.payload)||
        std::any_of(request.targets.begin(),request.targets.end(),[&](const auto& t){return t.id!=c.char_id||t.type!=1;}))
         throw std::runtime_error("Unsupported native FINISHSKILL scope");
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
@@ -1286,7 +1284,7 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
             else if(origin==tnetlib::protocol::MessageId::CS_SKILLUSE_REQ||origin==tnetlib::protocol::MessageId::CS_LOOPSKILL_REQ) {
                 if(def!=after.payload->skill_templates.end())candidate=*def;
             }else throw std::runtime_error("Unknown accepted skill origin");
-            if(!candidate||candidate->instant_cure.empty()||!candidate->attack_profile||candidate->attack_profile->critical==255||
+            if(!candidate||candidate->instant_cure.empty()||!candidate->attack_profile||
                (candidate->wMapID!=0xffff&&candidate->wMapID!=after.wMapID))continue;
             if(candidate->action_time&&row.get<int>(4)!=1)continue;
             const auto original=unhex(row.get<std::string>(2)),ack=unhex(row.get<std::string>(3));
@@ -1314,6 +1312,9 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
     // OnDamage. Every admitted row here is a pure own-PC cure, so this field
     // is inert metadata, never membership authority or a cluster update.
     const auto definition=*selected_definition;const auto power=*definition.attack_profile;
+    const bool miss=power.critical==255||after.cluster.mode==2;
+    if(miss&&!request.targets.empty()&&after.payload->avoid_effect_exists&&!after.payload->avoid_effect_supported)
+        throw std::runtime_error("Self MISS requires unsupported actual avoid802 effects");
     FinishSkillCommit result;
     const auto emit=[&](std::uint16_t id,std::vector<std::byte> bytes,FinishAudience audience){
         result.packets.emplace_back(id,std::move(bytes));result.audiences.push_back(audience);
@@ -1335,9 +1336,9 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
         (void)target;const auto hp=after.dwHP,mp=after.dwMP;
         if(!after.recovery)throw std::runtime_error("Self cure defend requires local ENTERCHAR clocks");
         after.recovery->last_attack_tick=static_cast<std::uint32_t>(defend_now);
-        auto timed=std::make_shared<CharacterPayload>(*after.payload);timed->last_attack_ms=defend_now;after.payload=std::move(timed);
+        auto timed=std::make_shared<CharacterPayload>(*after.payload);timed->last_attack_ms=timed->event_ms=defend_now;after.payload=std::move(timed);
         // PerformSkill rolls each ordered row separately, not their sum.
-        for(const auto& row:definition.instant_cure) {
+        if(!miss)for(const auto& row:definition.instant_cure) {
             const auto value=skill_effect::Calculate(row,definition,power.rank,row.bExec==SCT_HP?after.dwMaxHP:after.dwMaxMP);
             if(value<0)throw std::runtime_error("Cure magnitude outside supported positive source domain");
             unsigned char random{};if(RAND_bytes(&random,1)!=1)throw std::runtime_error("Cure randomness unavailable");
@@ -1353,9 +1354,25 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
         // ForceMaintain override such as Soul Lottery820.
         if(!after.dwMP)for(std::size_t i=0;i<after.payload->effects->size();)
             if(ErasesAtZeroMp(*after.payload,after.payload->effects->at(i).skill))erase(i);else ++i;
-        emit(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,power),FinishAudience::Nearby);
-        if(after.dwHP!=hp||after.dwMP!=mp)emit(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
+        emit(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,power,miss),FinishAudience::Nearby);
+        if(!miss&&(after.dwHP!=hp||after.dwMP!=mp))emit(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
             EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP),FinishAudience::Nearby);
+        if(miss) {
+            const auto old_count=after.payload->effects->size();
+            const auto max_hp=after.dwMaxHP,max_mp=after.dwMaxMP;
+            QuestPackets forced;ForceProgressEffect(sql,c,after,802,0,forced);
+            if(after.payload->effects->size()!=old_count) {
+                const auto hp=after.dwHP,mp=after.dwMP;
+                RefreshEquipment(sql,after,true);
+                if(!after.payload->statistics||after.dwHP!=hp||after.dwMP!=mp||after.dwMaxHP!=max_hp||after.dwMaxMP!=max_mp)
+                    throw std::runtime_error("Forced avoid802 changed pure-marker resource statistics");
+            }
+            for(auto& packet:forced) {
+                if(packet.audience!=QuestAudience::Owner&&packet.audience!=QuestAudience::Neighbors)
+                    throw std::runtime_error("Unexpected avoid802 force audience");
+                emit(packet.opcode,std::move(packet.body),packet.audience==QuestAudience::Neighbors?FinishAudience::Neighbors:FinishAudience::Owner);
+            }
+        }
     }
     // FINISHSKILL ends with CheckEquipSkill even for an empty filtered target
     // list. IsEquipSkillItem deliberately includes broken weapons.

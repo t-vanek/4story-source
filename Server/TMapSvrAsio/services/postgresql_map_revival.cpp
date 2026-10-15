@@ -85,19 +85,23 @@ bool PostgreSQLMapService::ReviveNative(soci::session& sql,const MapSessionClaim
     packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),EncodeHpMpAck(c.char_id,1,s.dwMaxHP,s.dwHP,s.dwMaxMP,s.dwMP),QuestAudience::Neighbors);
     ForceProgressEffect(sql,c,s,800,0,packets);return true;
 }
-void PostgreSQLMapService::EraseRevivalByAction(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
+void PostgreSQLMapService::EraseNativeActionEffects(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::uint16_t skill,bool defend,QuestPackets& packets,std::vector<EquipmentEffectEvent>* ended) {
     if(!skill||IsNativePosture(skill))return;
-    const int id=static_cast<std::int16_t>(skill);int posture=0;
-    sql<<"SELECT count(*) FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=6 AND \"bExec\" IN (7,26,27)",
-        soci::use(id),soci::into(posture);
-    if(posture)return;
-    const auto definition=std::find_if(s.payload->progress_effect_templates.begin(),s.payload->progress_effect_templates.end(),[](const auto& d){return d.skill==800;});
-    if(definition==s.payload->progress_effect_templates.end()||!(definition->erase_act&(defend?2:1)))return;
-    for(std::size_t i=0;i<s.payload->effects->size();)
-        if(s.payload->effects->at(i).skill==800) {
+    const int id=static_cast<std::int16_t>(skill),attack=defend?0:1;int exempt=0;
+    // Source IsRecall excludes SER_SKILL12. Only attack erasure has this
+    // recall exception; both attack and defend skip actual posture skills.
+    sql<<"SELECT count(*) FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND "
+         "((\"bType\"=6 AND \"bExec\" IN (7,26,27)) OR (:attack=1 AND \"bType\"=2 AND \"bExec\"<>12))",
+        soci::use(id,"id"),soci::use(attack,"attack"),soci::into(exempt);
+    if(exempt)return;
+    for(std::size_t i=0;i<s.payload->effects->size();) {
+        const auto effect=s.payload->effects->at(i).skill;
+        const auto definition=std::find_if(s.payload->progress_effect_templates.begin(),s.payload->progress_effect_templates.end(),[&](const auto& d){return d.skill==effect;});
+        if((effect==800||effect==802)&&definition!=s.payload->progress_effect_templates.end()&&(definition->erase_act&(defend?2:1))) {
             EraseProgressEffect(sql,c,s,i,packets);
-            if(ended)ended->push_back({false,800,std::make_shared<const CharSnapshot>(s)});
+            if(ended)ended->push_back({false,effect,std::make_shared<const CharSnapshot>(s)});
         }else ++i;
+    }
 }
 }

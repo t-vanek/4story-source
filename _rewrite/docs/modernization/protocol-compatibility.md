@@ -4,7 +4,24 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Latest local Phase A work (2026-10-15), based on `42451e1`, permits the
+Latest local Phase A work (2026-10-15), based on `391f499`, implements the
+source MISS branch of the admitted own-PC positive cure. Actual GOHOME2 or
+critical255 now consumes its accepted finish, emits the original MISS DEFEND
+without cure arithmetic/randomness, and invokes actual ForceMaintain802 after
+zero-MP cleanup. Missing802 follows the source no-effect branch; an existing
+richer802 definition remains unavailable instead of becoming an inert marker.
+The supported actual positive STATUS_NONE802 retains duration/static/erase flags,
+independent duplicate clocks, expiry, cancellation, death and native persistence.
+ACTION/ordinary cast/ACT erase actual flagged800/802 rows; LOOP keeps its source
+exception. Empty target lists perform no hit, cure or802 force for every origin.
+**INTEGRATED_UNVERIFIED**, static source/API/SQL-text/packet/diff review only; no
+build/test/SQL/import/service/client/container execution, push or deployment.
+No new migration: written044–072 remain unapplied; next073. Richer802/status
+semantics, general damage/BLOCK/aggro/SoulHP, other targets, bootstrap and actual
+original-client acceptance remain OPEN.
+[Source MISS, actual802 lifecycle and deferred acceptance](evidence/phase-a-native-self-miss-20261015/README.md).
+
+Previous code `391f499` (2026-10-15), based on `42451e1`, permits the
 already admitted positive own-PC HP/MP cure in a basic native party, including
 SOLO. FINISHSKILL retains the supplied party WORD as source-unused metadata for
 this pure CURE profile; it cannot change membership or choose recipients.

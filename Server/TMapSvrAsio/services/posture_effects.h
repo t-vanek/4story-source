@@ -16,12 +16,12 @@ inline bool ErasesAtZeroMp(const CharacterPayload& p,std::uint16_t skill) {
 inline bool SupportedPostures(const CharacterPayload& p) {
     return p.effects&&std::all_of(p.effects->begin(),p.effects->end(),[&](const auto& e){
         if(IsNativePosture(e.skill))return e.level==1&&!e.remaining;
-        // Pinned statuses have no stat/equipment/attack-erase side effects.
-        // Soul Lottery820 does have CheckEternalBuff's zero-MP removal even
-        // with a forced duration. Accepting arbitrary IDs would hide effects.
+        // Pinned statuses have no stat/equipment modifiers. Forced markers
+        // use explicit action/death/zero-MP metadata; Soul Lottery820 also has
+        // zero-MP removal with a forced duration. Arbitrary IDs stay unavailable.
         return e.level==1&&std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
             [&](const auto& def){return def.skill==e.skill&&(e.remaining||
-                ((e.skill==800||e.skill==903||IsNativeItemProbabilitySkill(e.skill))&&!def.duration));});
+                ((e.skill==800||e.skill==802||e.skill==903||IsNativeItemProbabilitySkill(e.skill))&&!def.duration));});
     });
 }
 // ForceMaintain -> UpdateBuffSkill -> ChangeEquipItem -> CheckEquipSkill.

@@ -27,7 +27,7 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
     // Kind21's source finish uses its trigger's actual learned rank (possibly
     // zero), unlike the fixed rank1 ACT acknowledgement. Bound this branch to
     // no learned trigger and flat, positive instant cures; no invented rank.
-    if(skill==128||skill==229||skill==3604||!s.payload||!s.payload->statistics||!s.recovery||!s.payload->item_cooldowns||!SupportedPostures(*s.payload)||s.bDead||!s.dwHP||s.cluster.mode==2||
+    if(skill==128||skill==229||skill==3604||!s.payload||!s.payload->statistics||!s.recovery||!s.payload->item_cooldowns||!SupportedPostures(*s.payload)||s.bDead||!s.dwHP||
        !s.cluster.hydrated||s.cluster.guild||s.cluster.tactics||s.cluster.riding||s.payload->arena_id||s.payload->tournament_player||
        !s.payload->recalls.empty()||(s.wMapID>=500&&s.wMapID<533)||
        (s.payload->transfer_state&&(!s.payload->transfer_state->companions.empty()||!s.payload->transfer_state->companion_items.empty()||
@@ -83,6 +83,8 @@ bool PostgreSQLMapService::UseNativeActItems(soci::session& sql,const MapSession
     if(s.dwHP!=hp||s.dwMP!=mp)throw std::runtime_error("Action item resources exceed actual source maxima");
     const auto definition=ReadActItemSkill(sql,s,ack.skill_id);
     if(!definition){reply(SKILL_NOTFOUND);return false;}
+    if(s.cluster.mode==2&&s.payload->avoid_effect_exists&&!s.payload->avoid_effect_supported)
+        throw std::runtime_error("Action item acceptance MISS requires unsupported actual avoid802 effects");
     if(definition->wMapID!=0xffff&&definition->wMapID!=s.wMapID){reply(SKILL_WRONGREGION);return false;}
     if(definition->wPrevActiveID&&std::none_of(s.payload->effects->begin(),s.payload->effects->end(),[&](const auto& e){return e.skill==definition->wPrevActiveID;})) {
         reply(SKILL_NEEDPREVACT);return false;
@@ -90,7 +92,7 @@ bool PostgreSQLMapService::UseNativeActItems(soci::session& sql,const MapSession
     if(!s.recovery||!s.payload->item_cooldowns||!s.payload->event_ms)throw std::runtime_error("ACTITEMSUSE requires actual entry clocks");
     auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
     p->last_attack_ms=p->event_ms;s.recovery->last_attack_tick=static_cast<std::uint32_t>(p->event_ms);
-    EraseRevivalByAction(sql,c,s,ack.skill_id,false,packets);
+    EraseNativeActionEffects(sql,c,s,ack.skill_id,false,packets);
     if(!s.dwMP)for(std::size_t i=0;i<s.payload->effects->size();)
         if(ErasesAtZeroMp(*s.payload,s.payload->effects->at(i).skill))EraseProgressEffect(sql,c,s,i,packets);else ++i;
     const int item_id=std::bit_cast<std::int16_t>(definition->wUseItem);soci::row item;

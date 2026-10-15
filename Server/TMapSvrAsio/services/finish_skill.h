@@ -44,18 +44,18 @@ struct FinishSkillCommit {
     std::vector<FinishAudience> audiences;
 };
 inline std::vector<std::byte> EncodeCureDefend(const CharSnapshot& s,const FinishSkillRequest& r,
-    const SkillAttackProfile& p) {
+    const SkillAttackProfile& p,bool miss=false) {
     std::vector<std::byte> b;
     const auto add=[&](auto v){wire::WritePOD(b,v);};
     add(s.dwCharID);add(s.dwCharID);add(std::uint8_t{1});add(std::uint8_t{1});
     add(s.dwCharID);add(std::uint8_t{1}); // original FINISHSKILL supplies own PC host
     add(std::uint32_t{0});add(std::uint32_t{0}); // no client action/animation fields
     add(std::uint8_t{0});add(std::uint32_t{0}); // not a maintained effect
-    add(p.critical);add(std::uint8_t{1}); // guaranteed HT_NORMAL source cure
+    add(p.critical);add(static_cast<std::uint8_t>(miss?0:1)); // HT_MISS / HT_NORMAL
     add(p.attack_type==1?p.physical_level:p.magic_level);add(s.bLevel);
     add(p.physical_min);add(p.physical_max);add(p.magic_min);add(p.magic_max);
     add(std::uint8_t{1});add(std::uint8_t{0});add(s.bCountry);add(s.payload->aid_country);
-    add(r.skill);add(p.rank);add(std::uint16_t{0});add(std::uint8_t{1});
+    add(r.skill);add(p.rank);add(std::uint16_t{0});add(static_cast<std::uint8_t>(miss?0:1));
     add(r.x);add(r.y);add(r.z);add(s.fPosX);add(s.fPosY);add(s.fPosZ);
     add(std::uint8_t{0});return b; // no damage entries for cure
 }

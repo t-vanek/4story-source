@@ -12,7 +12,14 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
-Latest local increment is based on `42451e1`: basic-party own positive cures,
+Latest local increment is based on `391f499`: actual own positive-cure MISS,
+source DEFEND hit/action flags, no cure arithmetic, source-ordered zero-MP cleanup
+and actual802 force; supported marker duration/static/erase flags and ordinal
+lifecycle. Missing and unsupported802 remain distinct. Empty finish skips the
+hit/force path for every origin. No schema change; next073. Richer802, damage,
+BLOCK/aggro/SoulHP and original-client acceptance remain OPEN; no build/test,
+SQL/import/service/client/container execution or push.
+Previous code `391f499`, based on `42451e1`: basic-party own positive cures,
 source-unused finish party metadata including SOLO client raw-ID behavior,
 current local party context for output/MANSTAT and ordinary ACTION current
 actor/recipient grid guards. No new migration; next073. World membership stays
@@ -90,9 +97,28 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native own-PC cure MISS — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `391f499`, implements the
+source MISS branch of the admitted own-PC positive cure. Actual GOHOME2 or
+critical255 now consumes its accepted finish, emits the original MISS DEFEND
+without cure arithmetic/randomness, and invokes actual ForceMaintain802 after
+zero-MP cleanup. Missing802 follows the source no-effect branch; an existing
+richer802 definition remains unavailable instead of becoming an inert marker.
+The supported actual positive STATUS_NONE802 retains duration/static/erase flags,
+independent duplicate clocks, expiry, cancellation, death and native persistence.
+ACTION/ordinary cast/ACT erase actual flagged800/802 rows; LOOP keeps its source
+exception. Empty target lists perform no hit, cure or802 force for every origin.
+**INTEGRATED_UNVERIFIED**, static source/API/SQL-text/packet/diff review only; no
+build/test/SQL/import/service/client/container execution, push or deployment.
+No new migration: written044–072 remain unapplied; next073. Richer802/status
+semantics, general damage/BLOCK/aggro/SoulHP, other targets, bootstrap and actual
+original-client acceptance remain OPEN.
+[Source MISS, actual802 lifecycle and deferred acceptance](evidence/phase-a-native-self-miss-20261015/README.md).
+
 ## Native basic-party self cure — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `42451e1`, permits the
+Previous code `391f499` (2026-10-15), based on `42451e1`, permits the
 already admitted positive own-PC HP/MP cure in a basic native party, including
 SOLO. FINISHSKILL retains the supplied party WORD as source-unused metadata for
 this pure CURE profile; it cannot change membership or choose recipients.

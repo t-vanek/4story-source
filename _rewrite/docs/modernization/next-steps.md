@@ -11,7 +11,24 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `42451e1`, permits the
+Latest local Phase A work (2026-10-15), based on `391f499`, implements the
+source MISS branch of the admitted own-PC positive cure. Actual GOHOME2 or
+critical255 now consumes its accepted finish, emits the original MISS DEFEND
+without cure arithmetic/randomness, and invokes actual ForceMaintain802 after
+zero-MP cleanup. Missing802 follows the source no-effect branch; an existing
+richer802 definition remains unavailable instead of becoming an inert marker.
+The supported actual positive STATUS_NONE802 retains duration/static/erase flags,
+independent duplicate clocks, expiry, cancellation, death and native persistence.
+ACTION/ordinary cast/ACT erase actual flagged800/802 rows; LOOP keeps its source
+exception. Empty target lists perform no hit, cure or802 force for every origin.
+**INTEGRATED_UNVERIFIED**, static source/API/SQL-text/packet/diff review only; no
+build/test/SQL/import/service/client/container execution, push or deployment.
+No new migration: written044–072 remain unapplied; next073. Richer802/status
+semantics, general damage/BLOCK/aggro/SoulHP, other targets, bootstrap and actual
+original-client acceptance remain OPEN.
+[Source MISS, actual802 lifecycle and deferred acceptance](evidence/phase-a-native-self-miss-20261015/README.md).
+
+Previous code `391f499` (2026-10-15), based on `42451e1`, permits the
 already admitted positive own-PC HP/MP cure in a basic native party, including
 SOLO. FINISHSKILL retains the supplied party WORD as source-unused metadata for
 this pure CURE profile; it cannot change membership or choose recipients.
@@ -118,6 +135,13 @@ rechecked after the awaited repair. No uncertain-output retry or roster reset.
 container run or new migration (next070). Full roster/bootstrap, high-bit identity,
 party rewards/combat and other unported gameplay remain OPEN. Local Git only;
 no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
+
+The admitted own positive-cure MISS path now uses actual source802 metadata.
+Continue richer802 data/status/ability and BLOCK801 rather than guessing a marker
+or emitting success; keep actual other-target/negative-damage authority, aggro,
+SoulHP and mode-specific lifecycles separate. Missing802 is a real source branch,
+not evidence that a present unsupported definition can be omitted. Actual data
+and original-client acceptance of the admitted profile remain unexecuted.
 
 Next dependencies include full source movement/AOI and replica/mode revival,
 unsupported800 templates and aftermath underflow/normalization. Implement the

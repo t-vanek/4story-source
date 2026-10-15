@@ -13,7 +13,15 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current basic-party self-cure increment, based on `42451e1`, adds no schema,
+The current own-cure MISS increment, based on `391f499`, adds no schema,
+publisher or grant change. Actual802 comes from the existing pinned character
+catalog; missing and unsupported definitions remain distinct. Supported802
+uses existing maintained/checkpoint/transfer storage, without a seeded row or
+new clock field. Existing071/072 publication prerequisites remain required.
+No command in this document was run for it. Written044–072 remain unapplied;
+next073. [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-native-self-miss-20261015/README.md).
+
+Previous code `391f499`, based on `42451e1`, adds no schema,
 publisher or grant change. It retains071/072 and the explicit verified skill
 context publication required below. Source-unused FINISHSKILL party metadata
 never creates native World membership. Only static review was performed; no

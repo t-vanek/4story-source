@@ -64,6 +64,13 @@ owns party membership and validates actual HP/MP fanout independently. This is
 remain **OPEN**. See the
 [party self-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-party-self-cure-20261015/map-self-cure.md).
 
+Own positive cure completion now follows source MISS for actual GOHOME2 or
+critical255: no heal, exact MISS DEFEND, then the actual supported Avoid802
+marker when present. Its independent timer, cleanup, cancellation and ordered
+checkpoint/transfer rows use the existing native effect authority. Richer802
+definitions stay unavailable. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**;
+see the [self-MISS contract](../../_rewrite/docs/modernization/evidence/phase-a-native-self-miss-20261015/map-self-miss.md).
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

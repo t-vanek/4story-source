@@ -528,7 +528,7 @@ int main(int argc, char** argv)
                            !tmapsvr::ItemExpirationDue(*state->payload,std::time(nullptr))&&
                            (!state->payload->during||state->payload->during->items.empty())&&
                            std::none_of(state->payload->effects->begin(),state->payload->effects->end(),
-                            [](const auto& effect){return (effect.skill==800&&effect.remaining)||
+                            [](const auto& effect){return ((effect.skill==800||effect.skill==802)&&effect.remaining)||
                                 effect.skill==820||effect.skill==903||effect.skill==918||effect.skill==923||
                                 (tmapsvr::IsNativeItemProbabilitySkill(effect.skill)&&effect.remaining);});
                         if(!session_reg.BeginCheckpoint(client.get()))continue;

@@ -114,29 +114,31 @@ void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
         if(count!=1)throw std::runtime_error("Progression effect has no source maintained row");
         p.progress_effect_templates.push_back(def);
     }
-    // ForceMaintain800 uses the actual published template, never a guessed
-    // duration or an empty replacement for an existing unsupported definition.
+    // Source-forced revival800 and avoid802 read actual templates. Absence is
+    // a no-effect branch; an existing richer definition is never made inert.
     p.revival_effect_exists=p.revival_effect_supported=false;
-    const int id=800;soci::row chart;
-    sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
-    if(!sql.got_data())return; // original missing FindTSkill: revival still completes
-    p.revival_effect_exists=true;
-    if(U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||U8(chart,"bIsHideSkill")||
-       U8(chart,"bEraseHide")||U32(chart,"dwDurationInc")||U32(chart,"dwWeaponID")||U8(chart,"bIsDismount")||U8(chart,"bEraseAct")>3)return;
-    ProgressEffectTemplate def;def.skill=800;def.duration=U32(chart,"dwDuration");def.priority=U8(chart,"bPriority");
-    def.erase_at_zero_mp=U8(chart,"bIsuse")&&!def.duration;def.erase_act=U8(chart,"bEraseAct");
-    def.is_static=U8(chart,"bStatic")!=0;
-    unsigned count=0;
-    soci::rowset<soci::row> rows=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
-    for(const auto& row:rows) {
-        ++count;
-        if(U8(row,"bAction")!=3)return; // actual IsMaintainType requires SA_BUFF
-        if(U8(row,"bType")!=6||U8(row,"bExec")!=0)return; // actual STATUS_NONE marker only
+    p.avoid_effect_exists=p.avoid_effect_supported=false;
+    for(const int id:{800,802}) {
+        auto& exists=id==800?p.revival_effect_exists:p.avoid_effect_exists;
+        auto& supported=id==800?p.revival_effect_supported:p.avoid_effect_supported;
+        soci::row chart;
+        sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
+        if(!sql.got_data())continue;
+        exists=true;
+        if(U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||U8(chart,"bIsHideSkill")||
+           U8(chart,"bEraseHide")||U32(chart,"dwDurationInc")||U32(chart,"dwWeaponID")||U8(chart,"bIsDismount")||U8(chart,"bEraseAct")>3)continue;
+        ProgressEffectTemplate def;def.skill=static_cast<std::uint16_t>(id);def.duration=U32(chart,"dwDuration");def.priority=U8(chart,"bPriority");
+        def.erase_at_zero_mp=U8(chart,"bIsuse")&&!def.duration;def.erase_act=U8(chart,"bEraseAct");
+        def.is_static=U8(chart,"bStatic")!=0;
+        unsigned count=0;bool valid=true;
+        soci::rowset<soci::row> rows=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
+        for(const auto& row:rows) {
+            ++count;
+            if(U8(row,"bAction")!=3||U8(row,"bType")!=6||U8(row,"bExec")!=0)valid=false;
+        }
+        if(!count||!valid)continue; // supported positive STATUS_NONE marker only
+        supported=true;p.progress_effect_templates.push_back(std::move(def));
     }
-    // Ability/status-bearing800 needs a larger intermediate-stat, collision
-    // and attack/defend contract. Do not replace it with a fake inert marker.
-    if(!count)return;
-    p.revival_effect_supported=true;p.progress_effect_templates.push_back(std::move(def));
 }
 bool SupportedStatisticsContext(const CharSnapshot& s,const CharacterPayload& p) {
     // GetCON/MEN/GetMaxHP/MP and CalcAbilityValue do not read party metadata.
@@ -206,10 +208,10 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     ReadPostures(sql,p);
     ReadProgressEffects(sql,p);
     if(!s.dwHP&&p.effects&&std::any_of(p.effects->begin(),p.effects->end(),[&](const auto& e){
-        if(e.skill!=800)return false;
-        const auto def=std::find_if(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),[](const auto& d){return d.skill==800;});
+        if(e.skill!=800&&e.skill!=802)return false;
+        const auto def=std::find_if(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),[&](const auto& d){return d.skill==e.skill;});
         return def==p.progress_effect_templates.end()||!def->is_static;
-    }))throw std::runtime_error("Dead revival800 hydration requires unsupported source effect filtering");
+    }))throw std::runtime_error("Dead forced-marker hydration requires unsupported source effect filtering");
     for(const auto& skill:p.skills) {
         const int id=std::bit_cast<std::int16_t>(skill.wSkillID);soci::row chart;
         sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);

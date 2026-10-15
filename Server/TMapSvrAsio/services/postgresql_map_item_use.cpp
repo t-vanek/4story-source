@@ -123,6 +123,8 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
         // Original IT_ACTITEMS is outside IT_USE's common bUsed block. It
         // initiates an action only; ACTITEMSUSE later arms reuse and consumes.
         if(!ReadActItemSkill(sql,s,skill))throw std::runtime_error("Action item has no pinned skill definition");
+        if(s.cluster.mode==2&&s.payload->avoid_effect_exists&&!s.payload->avoid_effect_supported)
+            throw std::runtime_error("Action item initiation MISS requires unsupported actual avoid802 effects");
         packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_ACTION_ACK),
             EncodeActionAck(0,c.char_id,1,255,0xffffffffU,0xffffffffU,skill),QuestAudience::Nearby);
         return false;

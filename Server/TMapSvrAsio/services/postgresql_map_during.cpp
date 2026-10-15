@@ -96,8 +96,8 @@ void PostgreSQLMapService::ForceProgressEffect(soci::session& sql,const MapSessi
             [&](const auto& value){return value.skill==effect.skill;});
         if(old==s.payload->progress_effect_templates.end())throw std::runtime_error("Forced status found an unsupported old template");
         // Source HaveSkillData requires equal type/attribute/nonzero exec.
-        // Every admitted row is SA_BUFF/SDT_STATUS at rank1; STATUS_NONE800
-        // therefore never collides, including with another retained800.
+        // Every admitted row is SA_BUFF/SDT_STATUS at rank1; STATUS_NONE
+        // markers800/802 never collide, including with retained duplicates.
         if(!incoming.status||old->status!=incoming.status||old->attribute!=incoming.attribute){++i;continue;}
         bool remove=false;
         if(old->priority<incoming.priority)remove=true;

@@ -4,7 +4,25 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Latest local Phase A work (2026-10-15), based on `e2e4784`, admits signed
+Latest local Phase A work (2026-10-15), based on `1a9fa82`, integrates final-HP0
+completion for the bounded native own-PC positive-template CURE. After complete
+ordered rows and the target cap, actual zero-MP cleanup precedes LASTHIT4 DEFEND
+and conditional HPMP with wire HP0/MP0; silent ordinary death then emits DIE to
+neighboring cells. Later dead-target occurrences skip hit/RNG/clock work while
+terminal equipment cleanup remains. Existing atomic FINISH/core/effect/fullgraph
+receipts and current party/recipient output authority remain in force.
+Death requires the actual ordinary actor/graph and existing verified070 map
+context. Native constructor/admission/dispatch proof bounds active transient
+state; historical duel records are not active-duel authority. Shared death-state
+internals preserve DROP's separate ACK, old-MP and recovery+5000 behavior.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No new schema/publication/grant: written044–072 remain unapplied; next073.
+Active duel/ANGEL, rich entities, special-mode death, negative-template/foreign
+combat, hardcoded effects and actual original-client acceptance remain OPEN.
+[Bounded CURE death and deferred acceptance](evidence/phase-a-cure-death-20261015/README.md).
+
+Previous code `1a9fa82` (2026-10-15), based on `e2e4784`, admits signed
 numeric HP/MP deltas for the existing odd-positive-template own-PC pure CURE.
 The shared Delta helper accepts ±143165576 after the actual combine; FINISH
 computes signed variance with division toward zero, converts the completed

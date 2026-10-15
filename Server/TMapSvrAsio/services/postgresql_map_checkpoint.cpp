@@ -1334,6 +1334,7 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
     };
     const auto defend_now=SkillClockMs();
     for(const auto& target:request.targets) {
+        if(after.bDead)continue; // source HP/MP-only skills cannot defend a dead target
         (void)target;const auto hp=after.dwHP,mp=after.dwMP;
         if(!after.recovery)throw std::runtime_error("Self cure defend requires local ENTERCHAR clocks");
         after.recovery->last_attack_tick=static_cast<std::uint32_t>(defend_now);
@@ -1349,15 +1350,22 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
             resource=static_cast<std::uint32_t>(static_cast<std::uint64_t>(resource)+static_cast<std::uint32_t>(delta));
         }
         after.dwHP=std::min(after.dwHP,after.dwMaxHP);after.dwMP=std::min(after.dwMP,after.dwMaxMP);
-        if(!after.dwHP)throw std::runtime_error("Cure final death requires unsupported source Defend death lifecycle");
+        const bool lethal=!after.dwHP;
+        const bool hpmp_changed=!miss&&(after.dwHP!=hp||after.dwMP!=mp);
+        if(lethal) {
+            // Current account/ready claim, physical cell, catalog and actual
+            // graph/stat checks precede this native-owned ordinary death proof.
+            RequireNativeOrdinaryDeathState(after);
+            RequireNativeDeathMapContext(sql,after);
+        }
         // Defend calls CheckEternalBuff after applying the effect, before its
         // DEFEND/HPMP reply. Use catalog bIsuse/dwDuration, including a timed
         // ForceMaintain override such as Soul Lottery820.
         if(!after.dwMP)for(std::size_t i=0;i<after.payload->effects->size();)
             if(ErasesAtZeroMp(*after.payload,after.payload->effects->at(i).skill))erase(i);else ++i;
         emit(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,power,miss),FinishAudience::Nearby);
-        if(!miss&&(after.dwHP!=hp||after.dwMP!=mp))emit(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
-            EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP),FinishAudience::Nearby);
+        if(hpmp_changed)emit(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
+            EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwHP?after.dwMP:0),FinishAudience::Nearby);
         if(miss) {
             const auto old_count=after.payload->effects->size();
             const auto max_hp=after.dwMaxHP,max_mp=after.dwMaxMP;
@@ -1373,6 +1381,12 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
                     throw std::runtime_error("Unexpected avoid802 force audience");
                 emit(packet.opcode,std::move(packet.body),packet.audience==QuestAudience::Neighbors?FinishAudience::Neighbors:FinishAudience::Owner);
             }
+        }
+        if(lethal) {
+            // DeriveStats during zero-MP cleanup may already set bDead from
+            // HP0. It has not run source OnDie: always apply silent cleanup.
+            ApplyNativeOrdinaryDeath(sql,after);
+            emit(static_cast<std::uint16_t>(MessageId::CS_DIE_ACK),EncodeDieAck(c.char_id,1),FinishAudience::Neighbors);
         }
     }
     // FINISHSKILL ends with CheckEquipSkill even for an empty filtered target

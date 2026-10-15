@@ -11,7 +11,25 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `e2e4784`, admits signed
+Latest local Phase A work (2026-10-15), based on `1a9fa82`, integrates final-HP0
+completion for the bounded native own-PC positive-template CURE. After complete
+ordered rows and the target cap, actual zero-MP cleanup precedes LASTHIT4 DEFEND
+and conditional HPMP with wire HP0/MP0; silent ordinary death then emits DIE to
+neighboring cells. Later dead-target occurrences skip hit/RNG/clock work while
+terminal equipment cleanup remains. Existing atomic FINISH/core/effect/fullgraph
+receipts and current party/recipient output authority remain in force.
+Death requires the actual ordinary actor/graph and existing verified070 map
+context. Native constructor/admission/dispatch proof bounds active transient
+state; historical duel records are not active-duel authority. Shared death-state
+internals preserve DROP's separate ACK, old-MP and recovery+5000 behavior.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No new schema/publication/grant: written044–072 remain unapplied; next073.
+Active duel/ANGEL, rich entities, special-mode death, negative-template/foreign
+combat, hardcoded effects and actual original-client acceptance remain OPEN.
+[Bounded CURE death and deferred acceptance](evidence/phase-a-cure-death-20261015/README.md).
+
+Previous code `1a9fa82` (2026-10-15), based on `e2e4784`, admits signed
 numeric HP/MP deltas for the existing odd-positive-template own-PC pure CURE.
 The shared Delta helper accepts ±143165576 after the actual combine; FINISH
 computes signed variance with division toward zero, converts the completed
@@ -221,29 +239,31 @@ container run or new migration (next070). Full roster/bootstrap, high-bit identi
 party rewards/combat and other unported gameplay remain OPEN. Local Git only;
 no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
 
-Action-item and admitted ordinary/loop cures now preserve actual DWORD
-product/subtraction modulo, Win32 INT projection and both source BYTE defaults.
-Signed final deltas inside ±INTMAX/15 use truncation toward zero for variance,
-then DWORD addition modulo2^32 and one target-level cap. A negative numeric CURE
-on an odd-positive template does not itself require general damage semantics.
-Final HP must still remain>0. DIVIDE retains its nonpositive-divisor clamp to1.
-Do not replace signed results, underflow or actual defaults with guessed zero
-or saturation. Current rank/maxima remain current at FINISH; unsupported
-post-acceptance completion does not authorize a refund or replay.
+Action-item and admitted ordinary/loop cures preserve signed variance, source
+DWORD product/subtraction/resource modulo, actual BYTE defaults and ordered rows.
+Their final-HP0 branch now completes ordinary native death with LASTHIT DEFEND,
+conditional wire HPMP0/0, silent nonstatic release and neighbor DIE, after actual
+zero-MP cleanup. Subsequent dead-target occurrences skip numerical/clock work;
+terminal CheckEquipSkill remains. On lethal completion, existing070 publication
+and shared ordinary actor/companion/recall/local bounds join the current primary,
+statistic and effect authority already required for all FINISH requests.
+Unsupported completion still refuses
+atomically, without refunding or replaying an earlier ACT debit.
 
-The next final-HP0 slice needs source Defend ordering: LASTHIT DEFEND, conditional
-HPMP with both wire bars0, then DuelLose/OnDie. Establish actual active-duel,
-Angel/companion, GodBall/local/arena/tournament and death-context authority before
-sharing ordinary-death internals. Historical duel rows are not active-duel proof.
-Do not call the DROP adapter: its DROP ACK and recovery+5000 clocks are specific
-to that producer, whereas pure CURE Defend updates last-attack only. Silent
-nonstatic effect release, retained static effects, DIE and subsequent target
-occurrences need the source dead-state contract. This remains unimplemented;
-see [source dependencies](evidence/phase-a-cure-signed-20261015/analysis.md).
+Continue actual active-duel, ANGEL/companion, GodBall/local/castle/arena/tournament,
+recall/self/transform and source-native interoperability as separate gameplay.
+Current native constructor/admission/dispatch absence is a bounded capability
+proof, not implementation of those systems; every new activation producer must
+extend the death state/authority contract before admission. Historical duel
+records and inactive pet inventory must never substitute for actual live state.
+Keep origin-specific DROP versus Defend packets/recovery clocks and the current
+per-packet audiences; do not merge them into a generic damage adapter.
+See [source and implementation evidence](evidence/phase-a-cure-death-20261015/README.md).
 
 Continue hardcoded128/229/3604 erase/rank behavior and actual negative-template
-or foreign-target effects without borrowing ACT wire rank1. CRT/libm truncation
-boundaries and signed-resource/client behavior require later executable acceptance.
+or foreign-target effects without borrowing ACT wire rank1. CRT/libm boundaries,
+ordinary death/revival and signed resource/client behavior require Phase B
+acceptance. No current native death change closes the full combat/AI/reward gate.
 
 The admitted own positive-cure MISS path now uses actual source802 metadata.
 Continue richer802 data/status/ability and BLOCK801 rather than guessing a marker

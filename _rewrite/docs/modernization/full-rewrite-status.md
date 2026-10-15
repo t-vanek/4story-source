@@ -12,7 +12,17 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
-Latest local increment is based on `e2e4784`: signed numeric deltas for the
+Latest local increment is based on `1a9fa82`: bounded own-PC CURE final-HP0
+completion with source zero-MP cleanup, LASTHIT/conditional wireHPMP0/0, silent
+nonstatic release and neighbor DIE. Subsequent dead targets are skipped before
+RNG/clocks; final equipment cleanup and atomic native receipts/checkpoints remain.
+Existing070 map publication and explicit ordinary actor/graph guards bound death;
+constructor/admission/dispatch evidence is limited to native-owned PvE objects.
+Shared internals retain DROP-specific packet/clock rules. No schema change;
+next073. Active duel/ANGEL/rich entities/special death and general combat remain
+OPEN. Static review only; no builds/tests/SQL/import/services/client/container or
+push. Full functionality and original-client compatibility remain unverified.
+Previous code `1a9fa82`, based on `e2e4784`: signed numeric deltas for the
 existing positive-template living own-PC CURE, with symmetric ±INTMAX/15 bounds,
 signed variance truncation toward zero and DWORD resource addition modulo2^32.
 Both item producer preflights and every normal native FINISH use Delta; MISS/
@@ -141,7 +151,25 @@ historical evidence retain their original scope.
 
 ## Native CURE DWORD arithmetic and defaults — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `e2e4784`, admits signed
+Latest local Phase A work (2026-10-15), based on `1a9fa82`, integrates final-HP0
+completion for the bounded native own-PC positive-template CURE. After complete
+ordered rows and the target cap, actual zero-MP cleanup precedes LASTHIT4 DEFEND
+and conditional HPMP with wire HP0/MP0; silent ordinary death then emits DIE to
+neighboring cells. Later dead-target occurrences skip hit/RNG/clock work while
+terminal equipment cleanup remains. Existing atomic FINISH/core/effect/fullgraph
+receipts and current party/recipient output authority remain in force.
+Death requires the actual ordinary actor/graph and existing verified070 map
+context. Native constructor/admission/dispatch proof bounds active transient
+state; historical duel records are not active-duel authority. Shared death-state
+internals preserve DROP's separate ACK, old-MP and recovery+5000 behavior.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No new schema/publication/grant: written044–072 remain unapplied; next073.
+Active duel/ANGEL, rich entities, special-mode death, negative-template/foreign
+combat, hardcoded effects and actual original-client acceptance remain OPEN.
+[Bounded CURE death and deferred acceptance](evidence/phase-a-cure-death-20261015/README.md).
+
+Previous code `1a9fa82` (2026-10-15), based on `e2e4784`, admits signed
 numeric HP/MP deltas for the existing odd-positive-template own-PC pure CURE.
 The shared Delta helper accepts ±143165576 after the actual combine; FINISH
 computes signed variance with division toward zero, converts the completed

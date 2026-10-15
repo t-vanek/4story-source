@@ -13,7 +13,17 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current signed living-CURE increment, based on `e2e4784`, changes no schema,
+The current bounded CURE-death increment, based on `1a9fa82`, changes no schema,
+publisher or grant. Lethal FINISH now shares the existing070 death-context proof
+and separate Map SELECT grants with environmental death. Verified publication
+matched to current routing and actual map/global-local0/GodBall absence are
+required; missing/stale publication refuses the FINISH transaction. Living
+completion does not acquire this070 query. Existing071/072 and the native
+catalog/owner/actor-graph prerequisites remain. Written044–072 are unapplied;
+next073. No command here was run.
+[Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-cure-death-20261015/README.md).
+
+Previous code `1a9fa82`, based on `e2e4784`, changes no schema,
 publisher or grant. Actual row values and existing source maximum statistics feed
 the shared symmetric signed bound and signed variance; DWORD resource storage,
 receipts and checkpoints retain their current widths. Final-HP0 Defend death is

@@ -97,6 +97,7 @@ boost::asio::awaitable<void> OnNativeAction(std::shared_ptr<tnetlib::AsioSession
 }
 boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession> sess,
     std::vector<std::byte> body,const HandlerContext& ctx) {
+    if(ctx.mode!=Mode::PvE)throw std::runtime_error("Native FINISHSKILL requires ordinary PvE runtime");
     const auto request=DecodeFinishSkill(body);
     const auto identity=ctx.session_reg?ctx.session_reg->Identity(sess.get()):std::nullopt;
     if(!identity||identity->role!=MapSessionRole::Primary||request.host!=identity->char_id||

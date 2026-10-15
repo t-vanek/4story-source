@@ -112,6 +112,9 @@ private:
     static bool AdvanceAftermath(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,QuestPackets&);
     bool ReviveNative(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&) const;
     bool DropNativeDamage(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&) const;
+    void RequireNativeDeathMapContext(soci::session&,const CharSnapshot&) const;
+    static void RequireNativeOrdinaryDeathState(const CharSnapshot&);
+    static void ApplyNativeOrdinaryDeath(soci::session&,CharSnapshot&);
     static void EraseNativeActionEffects(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,bool,QuestPackets&,std::vector<EquipmentEffectEvent>* = nullptr);
     bool UseNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&,bool) const;
     void RequireSkillContext(soci::session&,std::uint16_t) const;

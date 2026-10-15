@@ -99,17 +99,23 @@ supported boundary. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 Source DWORD32 product/subtraction now retain their exact low32 bits and
 Windows signed-INT projection. Actual unknown Calc returns signed0 before its
 combine; unknown combine returns final0 after GetValue on nonempty CURE rows.
-Resource addition also preserves DWORD modulo when final post-row HP remains
-positive. Final-death completion remains unavailable.
+Resource addition also preserves DWORD modulo after each actual signed sample.
 This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 [DWORD/default-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-dword-20261015/map-dword.md).
 
 Odd-positive-template own-PC CURE rows also preserve negative numeric deltas.
-Signed variance truncates toward zero before DWORD resource addition; the actor
-must remain alive after each target's complete rows and cap. Template damage
-classification, general combat and death behavior are unchanged. This is
+Signed variance truncates toward zero before DWORD resource addition. Template
+classification and general-combat capability bounds remain unchanged. This is
 **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 [signed living-cure contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-signed-20261015/map-signed.md).
+
+Native-owned ordinary PvE CURE completion now handles final HP0 through the
+pinned070 death context and actual supported actor graph. Original LASTHIT and
+conditional wire HP/MP0 precede silent ordinary death cleanup and neighbor DIE;
+repeated dead targets are skipped and final equipment cleanup remains. DROP
+retains its distinct packets and recovery delay. This is **IMPLEMENTED /
+INTEGRATED_UNVERIFIED**; see the
+[cure-death contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-death-20261015/map-death.md).
 
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum

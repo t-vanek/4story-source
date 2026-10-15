@@ -51,7 +51,7 @@ inline std::vector<std::byte> EncodeCureDefend(const CharSnapshot& s,const Finis
     add(s.dwCharID);add(std::uint8_t{1}); // original FINISHSKILL supplies own PC host
     add(std::uint32_t{0});add(std::uint32_t{0}); // no client action/animation fields
     add(std::uint8_t{0});add(std::uint32_t{0}); // not a maintained effect
-    add(p.critical);add(static_cast<std::uint8_t>(miss?0:1)); // HT_MISS / HT_NORMAL
+    add(p.critical);add(static_cast<std::uint8_t>(!s.dwHP?4:miss?0:1)); // LASTHIT / MISS / NORMAL
     add(p.attack_type==1?p.physical_level:p.magic_level);add(s.bLevel);
     add(p.physical_min);add(p.physical_max);add(p.magic_min);add(p.magic_max);
     add(std::uint8_t{1});add(std::uint8_t{0});add(s.bCountry);add(s.payload->aid_country);

@@ -85,18 +85,38 @@ void PostgreSQLMapService::ForceProgressEffect(soci::session& sql,const MapSessi
     const auto def=std::find_if(s.payload->progress_effect_templates.begin(),s.payload->progress_effect_templates.end(),
         [id](const auto& v){return v.skill==id;});
     if(def==s.payload->progress_effect_templates.end())return; // original missing FindTSkill
-    const auto duration=remaining?remaining:def->duration;
-    // These pinned pure positive statuses have distinct SDT_STATUS kinds.
-    // At rank one equal priority/value collisions replace every same-kind old
-    // entry in vector order (UpdateBuffSkill); postures do not collide.
-    for(std::size_t i=0;i<s.payload->effects->size();)
-        if(s.payload->effects->at(i).skill==id)EraseProgressEffect(sql,c,s,i,packets);else ++i;
+    // EraseProgressEffect refreshes/replaces payload and its template vector.
+    // Copy incoming metadata before any removal, never retain its iterator.
+    const auto incoming=*def;const auto duration=remaining?remaining:incoming.duration;
+    const bool was_empty=s.payload->effects->empty();bool erased=false,collision=false;
+    for(std::size_t i=0;i<s.payload->effects->size();) {
+        const auto effect=s.payload->effects->at(i);
+        if(IsNativePosture(effect.skill)){++i;continue;}
+        const auto old=std::find_if(s.payload->progress_effect_templates.begin(),s.payload->progress_effect_templates.end(),
+            [&](const auto& value){return value.skill==effect.skill;});
+        if(old==s.payload->progress_effect_templates.end())throw std::runtime_error("Forced status found an unsupported old template");
+        // Source HaveSkillData requires equal type/attribute/nonzero exec.
+        // Every admitted row is SA_BUFF/SDT_STATUS at rank1; STATUS_NONE800
+        // therefore never collides, including with another retained800.
+        if(!incoming.status||old->status!=incoming.status||old->attribute!=incoming.attribute){++i;continue;}
+        bool remove=false;
+        if(old->priority<incoming.priority)remove=true;
+        else if(old->priority>incoming.priority)collision=true;
+        else if(old->value>incoming.value)collision=true;
+        else if(old->value<incoming.value)remove=true;
+        else remove=true; // incoming self-PC wins the equal-value case; no admitted aura
+        if(remove){EraseProgressEffect(sql,c,s,i,packets);erased=true;}else ++i;
+    }
+    // UpdateBuffSkill permits a push if ANY old row was removed, even if
+    // another stronger matching row survived. Do not replace it with a global
+    // strongest-wins test or invent a DEFEND for a fully blocked collision.
+    if(!was_empty&&!erased&&collision)return;
+    if(s.payload->effects->size()>=255)throw std::runtime_error("Forced status exceeds original effect count");
     auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
     MaintainedEffect e;e.skill=id;e.level=1;e.remaining=duration;
     e.attack_id=e.host_id=c.char_id;e.attack_type=e.host_type=1;e.attack_country=p->aid_country!=3?p->aid_country:s.bCountry;
     e.hit=0;e.attacker_level=0;e.attack_level=0;e.position={s.fPosX,s.fPosY,s.fPosZ};
     e.sampled_ms=e.charge_ms=p->event_ms;p->effects->push_back(e);
-    if(p->effects->size()>255)throw std::runtime_error("Forced status exceeds original effect count");
     packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),EncodeForcedStatusDefend(s,id,duration),QuestAudience::Neighbors);
 }
 void PostgreSQLMapService::HangExpBenefit(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,QuestPackets& packets) {

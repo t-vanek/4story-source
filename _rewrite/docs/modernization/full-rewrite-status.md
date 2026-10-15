@@ -12,12 +12,18 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–070 are **written, not applied**; next071.
-Latest local increment is based on `d86d407`: original own-PC environmental
+Latest local increment is based on `d5377dd`: actual positive maintained-status
+collision semantics, STATUS_NONE800 append during ordinary revival, independent
+duplicate clocks, per-row ACTION/cast erasure events and native cancellation
+publication fences. No migration; next071. Exact native checkpoint/transfer state
+is retained, with source save-only first-eligible duplicate collapse explicitly
+OPEN alongside general effects, full combat/SoulHP/bootstrap and client acceptance.
+Previous code `d5377dd`, based on `d86d407`: original own-PC environmental
 damage and bounded ordinary death in the native PostgreSQL mutation path;
 silent nonstatic removal, old-MP packet order, dead ENTER action, prototype AI
 isolation and current actor/recipient projection guards. New070, offline source
-publisher and separate Map view grants are written only. Full combat/SoulHP,
-special death and retained-static800 revival replacement remain OPEN.
+publisher and separate Map view grants were written only. At that revision,
+full combat/SoulHP, special death and retained800 revival remained OPEN.
 Previous code `d86d407`, based on `1fe7404`: native ordinary recovery,
 actual HPR/MPR rates, client mode request and battle timeout with private local
 connection clocks and supported cast/self-Defend producers. Existing PostgreSQL
@@ -69,9 +75,26 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native maintained-status collisions and retained800 — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `d5377dd`, integrates
+source positive maintained-status collisions and permits ordinary native revival
+with retained static800. Actual STATUS_NONE0 does not collide: another800 is
+appended with its own clock, without invented END/STAT or resetting older rows.
+Nonzero statuses compare actual type/attribute, priority and rank-one value in
+source vector order; action/cast removal retains one event per erased row.
+Cancellation and per-row erasure output use current native actor/recipient
+authority before publication.
+**INTEGRATED_UNVERIFIED**, static review only; no build/test/SQL/import/service/
+client/container run, new migration (next071), push or deployment. Exact native
+checkpoint/transfer multiplicity remains a documented recovery policy; source DB
+save-only filters/first-eligible duplicate collapse, full combat/SoulHP, richer
+effects/modes and original-client acceptance remain OPEN.
+[Source collision, persistence distinction and deferred acceptance](evidence/phase-a-revival-replacement-20261015/README.md).
+
 ## Native environmental damage and death — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `d86d407`, connects the
+Previous code `d5377dd` (2026-10-15), based on `d86d407`, connects the
 original own-PC environmental DROPDAMAGE request to native PostgreSQL HP/MP,
 effects and checkpoints. The bounded ordinary death branch preserves source
 DROP → HPMP (old MP) → DIE order, silent nonstatic-effect removal and dead ENTER
@@ -79,8 +102,8 @@ action. Historical prototype monster AI is isolated from native actors. Written0
 adds explicit routing-bound battle-zone/GodBall publication; it is **not applied**.
 Gameplay is **INTEGRATED_UNVERIFIED**; SQL/publisher/grants are
 **IMPLEMENTED_UNVERIFIED**. Static review only: no build/test/SQL/import/service/
-client/container run, push or deployment. Full combat/SoulHP, special death,
-retained-static800 revival replacement and original-client acceptance remain OPEN.
+client/container run, push or deployment. At that revision, full combat/SoulHP,
+special death, retained800 revival and original-client acceptance remained OPEN.
 [Source contract, publication and deferred acceptance](evidence/phase-a-native-death-20261015/README.md).
 
 ## Native recovery and mode — source review, 2026-10-15

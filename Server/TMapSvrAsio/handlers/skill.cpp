@@ -338,15 +338,20 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             if(entry.map_id==state.wMapID&&std::abs(cell(entry.pos.x)-cell(state.fPosX))<=1&&
                std::abs(cell(entry.pos.z)-cell(state.fPosZ))<=1)neighbors.push_back(std::move(client));
         });
-        for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),EncodeSkillEnd(cid,event.skill));
+        const auto end=EncodeSkillEnd(cid,event.skill);
+        for(auto& client:neighbors)co_await DeliverNativeGridProjection(sess,*identity,client,
+            static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),end,ctx);
         if(max_hp!=state.dwMaxHP||max_mp!=state.dwMaxMP) {
             const auto bars=EncodeHpMpAck(cid,1,state.dwMaxHP,state.dwHP,state.dwMaxMP,state.dwMP);
             for(auto& client:neighbors) {
-                co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),bars);
-                if(client.get()==sess.get())co_await PublishPartyVitals(sess,state,bars,ctx);
+                const bool sent=co_await DeliverNativeGridProjection(sess,*identity,client,
+                    static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),bars,ctx);
+                if(sent&&client.get()==sess.get())co_await PublishPartyVitals(sess,state,bars,ctx);
             }
         }
-        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(state,*state.payload->statistics));
+        const auto stats=EncodeCharacterStatistics(state,*state.payload->statistics);
+        co_await DeliverNativeGridProjection(sess,*identity,sess,
+            static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),stats,ctx);
     }
 
     // Success — broadcast the fat SKILL_SUCCESS ack (the cast + its

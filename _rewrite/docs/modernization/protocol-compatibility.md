@@ -4,7 +4,22 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Latest local Phase A work (2026-10-15), based on `d86d407`, connects the
+Latest local Phase A work (2026-10-15), based on `d5377dd`, integrates
+source positive maintained-status collisions and permits ordinary native revival
+with retained static800. Actual STATUS_NONE0 does not collide: another800 is
+appended with its own clock, without invented END/STAT or resetting older rows.
+Nonzero statuses compare actual type/attribute, priority and rank-one value in
+source vector order; action/cast removal retains one event per erased row.
+Cancellation and per-row erasure output use current native actor/recipient
+authority before publication.
+**INTEGRATED_UNVERIFIED**, static review only; no build/test/SQL/import/service/
+client/container run, new migration (next071), push or deployment. Exact native
+checkpoint/transfer multiplicity remains a documented recovery policy; source DB
+save-only filters/first-eligible duplicate collapse, full combat/SoulHP, richer
+effects/modes and original-client acceptance remain OPEN.
+[Source collision, persistence distinction and deferred acceptance](evidence/phase-a-revival-replacement-20261015/README.md).
+
+Previous code `d5377dd` (2026-10-15), based on `d86d407`, connects the
 original own-PC environmental DROPDAMAGE request to native PostgreSQL HP/MP,
 effects and checkpoints. The bounded ordinary death branch preserves source
 DROP → HPMP (old MP) → DIE order, silent nonstatic-effect removal and dead ENTER
@@ -12,8 +27,8 @@ action. Historical prototype monster AI is isolated from native actors. Written0
 adds explicit routing-bound battle-zone/GodBall publication; it is **not applied**.
 Gameplay is **INTEGRATED_UNVERIFIED**; SQL/publisher/grants are
 **IMPLEMENTED_UNVERIFIED**. Static review only: no build/test/SQL/import/service/
-client/container run, push or deployment. Full combat/SoulHP, special death,
-retained-static800 revival replacement and original-client acceptance remain OPEN.
+client/container run, push or deployment. At that revision, full combat/SoulHP,
+special death, retained800 revival and original-client acceptance remained OPEN.
 [Source contract, publication and deferred acceptance](evidence/phase-a-native-death-20261015/README.md).
 
 Previous code `d86d407` (2026-10-15), based on `1fe7404`, integrates ordinary

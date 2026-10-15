@@ -330,9 +330,8 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
             }
         }
         QuestPackets erased;const auto old_effects=after.payload->effects->size();
-        if(!cast->loop)EraseRevivalByAction(sql,c,after,skill,false,erased);
+        if(!cast->loop)EraseRevivalByAction(sql,c,after,skill,false,erased,&cast_result->ended);
         if(after.payload->effects->size()!=old_effects) {
-            cast_result->ended.push_back({false,800,std::make_shared<const CharSnapshot>(after)});
             if(!graph)WriteMaintainedEffects(sql,c,after);
         }
         // Source SKILLUSE calls CheckEternalBuff after attack erasure;
@@ -1179,9 +1178,8 @@ SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim&
     SkillActionCommit committed;
     if(result==SKILL_SUCCESS&&request.skill) {
         QuestPackets erased;const auto old_effects=after.payload->effects->size();
-        EraseRevivalByAction(sql,c,after,request.skill,false,erased);
+        EraseRevivalByAction(sql,c,after,request.skill,false,erased,&committed.ended);
         if(after.payload->effects->size()!=old_effects) {
-            committed.ended.push_back({false,800,std::make_shared<const CharSnapshot>(after)});
             if(!graph)WriteMaintainedEffects(sql,c,after);
         }
     }

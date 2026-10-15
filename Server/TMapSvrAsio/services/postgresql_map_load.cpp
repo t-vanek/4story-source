@@ -109,7 +109,7 @@ void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
             if(++count!=1||U8(row,"bAction")!=3||U8(row,"bType")!=6||U8(row,"bAttr")!=(id==820?1:0)||
                U8(row,"bExec")!=(id==820?73:id==903?41:id==911?60:id==912?58:id==913?59:id==918?63:id==919?64:id==923?67:42)||U8(row,"bCalc")||U16(row,"wValueInc"))
                 throw std::runtime_error("Progression effect has unsupported skill data");
-            def.status=U8(row,"bExec");def.value=U16(row,"wValue");
+            def.status=U8(row,"bExec");def.value=U16(row,"wValue");def.attribute=U8(row,"bAttr");
         }
         if(count!=1)throw std::runtime_error("Progression effect has no source maintained row");
         p.progress_effect_templates.push_back(def);

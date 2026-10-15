@@ -5,6 +5,7 @@
 #include "services/main_transfer_runtime.h"
 #include "services/player_service.h"
 #include "services/party_runtime.h"
+#include "services/native_projection.h"
 #include "services/session_registry.h"
 #include "services/channel_presence.h"
 #include "fourstory/db/co_offload.h"
@@ -82,9 +83,12 @@ boost::asio::awaitable<void> OnNativeAction(std::shared_ptr<tnetlib::AsioSession
     });
     for(const auto& event:committed.ended) {
         if(!event.state||!event.state->payload||!event.state->payload->statistics)throw std::runtime_error("Action erase lost source statistics");
-        for(auto& client:effect_neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SKILLEND_ACK),EncodeSkillEnd(cid,event.skill));
-        co_await sess->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_CHARSTATINFO_ACK),
-            EncodeCharacterStatistics(*event.state,*event.state->payload->statistics));
+        const auto end=EncodeSkillEnd(cid,event.skill);
+        for(auto& client:effect_neighbors)co_await DeliverNativeGridProjection(sess,*identity,client,
+            static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SKILLEND_ACK),end,ctx);
+        const auto stats=EncodeCharacterStatistics(*event.state,*event.state->payload->statistics);
+        co_await DeliverNativeGridProjection(sess,*identity,sess,
+            static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_CHARSTATINFO_ACK),stats,ctx);
     }
     for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ACTION_ACK),committed.acknowledgement);
 }
@@ -152,7 +156,8 @@ boost::asio::awaitable<void> OnSkillEndReq(std::shared_ptr<tnetlib::AsioSession>
     // Original client says to all Map connections. The secondary has no PC
     // object to mutate and answers the requester without touching persistence.
     if(identity->role==MapSessionRole::Replica) {
-        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),acknowledgement);co_return;
+        co_await DeliverNativeGridProjection(sess,*identity,sess,
+            static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),acknowledgement,ctx);co_return;
     }
     if(!ctx.char_state||!ctx.player_service||!ctx.skill_cooldown)
         throw std::runtime_error("Effect transaction context missing");
@@ -180,18 +185,21 @@ boost::asio::awaitable<void> OnSkillEndReq(std::shared_ptr<tnetlib::AsioSession>
         if(entry.map_id==after.wMapID&&std::abs(cell(entry.pos.x)-cell(after.fPosX))<=1&&
            std::abs(cell(entry.pos.z)-cell(after.fPosZ))<=1)neighbors.push_back(std::move(client));
     });
-    for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),acknowledgement);
+    for(auto& client:neighbors)co_await DeliverNativeGridProjection(sess,*identity,client,
+        static_cast<std::uint16_t>(MessageId::CS_SKILLEND_ACK),acknowledgement,ctx);
     if(committed.removed) {
         if(!after.payload||!after.payload->statistics)throw std::runtime_error("Effect commit lacks statistics");
         if(before.dwMaxHP!=after.dwMaxHP||before.dwMaxMP!=after.dwMaxMP) {
             const auto bars=EncodeHpMpAck(cid,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwMP);
             for(auto& client:neighbors) {
-                co_await client->SendPacket(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),bars);
-                if(client.get()==sess.get())co_await PublishPartyVitals(sess,after,bars,ctx);
+                const bool sent=co_await DeliverNativeGridProjection(sess,*identity,client,
+                    static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),bars,ctx);
+                if(sent&&client.get()==sess.get())co_await PublishPartyVitals(sess,after,bars,ctx);
             }
         }
-        co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),
-            EncodeCharacterStatistics(after,*after.payload->statistics));
+        const auto stats=EncodeCharacterStatistics(after,*after.payload->statistics);
+        co_await DeliverNativeGridProjection(sess,*identity,sess,
+            static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),stats,ctx);
     }
 }
 }

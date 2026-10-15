@@ -62,8 +62,6 @@ bool PostgreSQLMapService::ReviveNative(soci::session& sql,const MapSessionClaim
         throw std::runtime_error("Revival requires supported ordinary source context");
     if(s.payload->revival_effect_exists&&!s.payload->revival_effect_supported)
         throw std::runtime_error("Existing revival800 template requires unsupported source effects");
-    if(std::any_of(s.payload->effects->begin(),s.payload->effects->end(),[](const auto& e){return e.skill==800;}))
-        throw std::runtime_error("Revival cannot replay an existing protection effect");
     if(Cell(x)!=Cell(s.fPosX)||Cell(z)!=Cell(s.fPosZ)||
        CellOwner(sql,c,s.wMapID,x,z)!=m_config.server)
         throw std::runtime_error("Cross-cell revival requires full source movement admission");
@@ -88,7 +86,7 @@ bool PostgreSQLMapService::ReviveNative(soci::session& sql,const MapSessionClaim
     ForceProgressEffect(sql,c,s,800,0,packets);return true;
 }
 void PostgreSQLMapService::EraseRevivalByAction(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
-    std::uint16_t skill,bool defend,QuestPackets& packets) {
+    std::uint16_t skill,bool defend,QuestPackets& packets,std::vector<EquipmentEffectEvent>* ended) {
     if(!skill||IsNativePosture(skill))return;
     const int id=static_cast<std::int16_t>(skill);int posture=0;
     sql<<"SELECT count(*) FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=6 AND \"bExec\" IN (7,26,27)",
@@ -97,6 +95,9 @@ void PostgreSQLMapService::EraseRevivalByAction(soci::session& sql,const MapSess
     const auto definition=std::find_if(s.payload->progress_effect_templates.begin(),s.payload->progress_effect_templates.end(),[](const auto& d){return d.skill==800;});
     if(definition==s.payload->progress_effect_templates.end()||!(definition->erase_act&(defend?2:1)))return;
     for(std::size_t i=0;i<s.payload->effects->size();)
-        if(s.payload->effects->at(i).skill==800)EraseProgressEffect(sql,c,s,i,packets);else ++i;
+        if(s.payload->effects->at(i).skill==800) {
+            EraseProgressEffect(sql,c,s,i,packets);
+            if(ended)ended->push_back({false,800,std::make_shared<const CharSnapshot>(s)});
+        }else ++i;
 }
 }

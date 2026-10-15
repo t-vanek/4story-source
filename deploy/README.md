@@ -13,7 +13,13 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The latest local increment, based on `d86d407`, additionally writes070 and
+The current local collision/retained800 increment, based on `d5377dd`, adds no
+migration or grant. Its native source effect rows still come from the existing
+pinned character publication; richer800 data remains unavailable. Existing070
+requirements below still apply to lethal environmental self-damage. This slice
+has static review only; no command in this document was run for it.
+
+Previous code `d5377dd`, based on `d86d407`, additionally writes070 and
 `deploy/sql/death-context-runtime-grants.sql`. Bounded lethal environmental
 self-damage requires an explicit `death_compat` release matched to active routing.
 The offline `tools/database/activate_death_context.py --manifest ...` publisher

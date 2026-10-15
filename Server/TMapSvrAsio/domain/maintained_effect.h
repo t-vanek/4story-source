@@ -44,7 +44,7 @@ struct PostureTemplate {
 };
 struct ProgressEffectTemplate {
     std::uint16_t skill{},value{};
-    std::uint8_t status{},priority{};
+    std::uint8_t status{},priority{},attribute{};
     std::uint32_t duration{};
     bool erase_at_zero_mp{}; // original bIsuse && !dwDuration, even for a forced timed effect
     std::uint8_t erase_act{}; // validated BEA_ATTACK / BEA_DEFEND, revival800 only

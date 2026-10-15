@@ -35,7 +35,14 @@ publication proving no castle/local/GodBall branch for that map; nonlethal damag
 is independent of that publication. Prototype monster AI is excluded from native
 actors and native startup. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 [self-damage/death contract](../../_rewrite/docs/modernization/evidence/phase-a-native-death-20261015/map-death.md).
-Static800 survives source death; its replacement during revival remains **OPEN**.
+Retained static800 now survives revival as well: the supported STATUS_NONE
+template does not collide, so revival appends another independent source row.
+Supported positive-status collisions retain the original ordered priority/value
+rules, and native cancellation plus per-row ACTION/SKILLUSE effect output uses
+current actor/recipient fences. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**.
+Native ordered checkpoints preserve duplicates; original DB-only save filters
+and first-eligible duplicate collapse remain **OPEN**. See the
+[maintained-status contract](../../_rewrite/docs/modernization/evidence/phase-a-revival-replacement-20261015/map-replacement.md).
 
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum

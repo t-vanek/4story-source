@@ -886,6 +886,21 @@ OnEnterCharAck(std::shared_ptr<PeerSession> peer,
             /*release_main=*/0);
         co_return;
     }
+    // A route reconciliation may report a Map which is already SQL/local
+    // Ready. Its duplicate client CONREADY is silent; try the same read-only
+    // recovery here too. A merely loaded claim cannot pass the native proof.
+    if(ctx.chat_repo) {
+        co_await RefreshReadyParty(ctx,peer,ch,key);
+        // Recovery waits for party/SQL authority and writes. Route planning,
+        // close or peer replacement may have invalidated the earlier snapshot.
+        if(ctx.chars->Find(char_id)!=ch||!ctx.peers->IsCurrentMap(peer)||!peer->Wire()->IsOpen())co_return;
+        std::lock_guard g(ch->lock);
+        if(ch->closing||ch->logout||ch->key!=key||
+           (ch->main_handoff&&ch->main_handoff->phase!=MainHandoffPhase::Confirm))co_return;
+        if(!std::any_of(ch->cons.begin(),ch->cons.end(),[reporting_id](const auto& c){
+            return c.server_id==reporting_id&&c.valid&&c.ready;}))co_return;
+        all_ready=std::all_of(ch->cons.begin(),ch->cons.end(),[](const auto& c){return c.ready;});
+    }
     if (!all_ready)
     {
         spdlog::info("OnEnterCharAck[{}]: char_id={} con server={} ready; "

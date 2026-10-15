@@ -58,6 +58,14 @@ struct PartyInvitation {
     std::string origin_name;
     PartyIdentity origin_identity, target_identity;
 };
+// Real source DEL events which have not reached a send attempt. Process-local
+// like the party itself, bound to this exact character/session object. Never
+// use this queue to retry an uncertain write or synthesize a roster reset.
+struct DeferredPartyRemoval {
+    std::uint32_t member=0,chief=0;
+    std::uint16_t commander=0,party=0;
+    std::uint8_t kick=0;
+};
 
 // W4-1 — one entry in a character's friend list (legacy TFRIEND in
 // m_mapTFRIEND, keyed by the friend's char id). Stored in
@@ -216,6 +224,7 @@ struct TChar
     // while an invite dialog is pending on this char's client so a
     // second inviter is rejected with PARTY_WAITERS.
     std::uint16_t party_id     = 0;
+    std::vector<DeferredPartyRemoval> deferred_party_removals;
     bool          party_waiter = false;
     // One dialog belongs to both exact live actors, peers and native claim
     // generations. It is consumed once; names alone never authorize a join.

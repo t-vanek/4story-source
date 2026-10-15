@@ -1,3 +1,14 @@
+> Current Phase A, based on `b251cdf`: retain only actual native corps0 party
+> departures skipped before any send attempt; drain FIFO after current SQL Ready,
+> pop before the single attempt, then repair actual primary/ready-route ATTR even
+> for a replica trigger. Pending deltas gate new membership; entered-route repair
+> rechecks current identity and readiness after waiting. No synthetic roster reset
+> or uncertain-output retry. **INTEGRATED_UNVERIFIED**, static review only;
+> no build/test/runtime/SQL/migration or push. Full roster/bootstrap/gameplay OPEN.
+> [Current contracts and deferred acceptance](../../_rewrite/docs/modernization/evidence/phase-a-party-stats-20261015/README.md).
+>
+> Earlier evidence below retains its original scope.
+
 > Current Phase A, based on `622fb2e`: manual native chief/type commands,
 > exact source results/order, all-member authority preflight, post-ready primary
 > and replica ATTR through the existing entered identity, and serialized handoff

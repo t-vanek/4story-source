@@ -11,7 +11,26 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-14), based on `622fb2e`, connects manual
+Latest local Phase A work (2026-10-15), based on `b251cdf`, permits supported
+native statistic/equipment transactions in a basic party using actual effect,
+guild/local, companion and recall capability checks. World retains only real
+party DEL events which never reached a send attempt, drains them after current
+SQL Ready proof, and publishes final attributes to the primary even when a
+replica triggers recovery. Pending deltas gate new membership; route readiness is
+rechecked after the awaited repair. No uncertain-output retry or roster reset.
+**INTEGRATED_UNVERIFIED**: static review only; no build/test/SQL/service/client/
+container run or new migration (next070). Full roster/bootstrap, high-bit identity,
+party rewards/combat and other unported gameplay remain OPEN. Local Git only;
+no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
+
+Next dependencies include the separate source SoulHP/XP producers, full client
+roster and source Map admission/bootstrap, plus a coherent signed-DWORD native
+identity contract. Do not fix just one Map writer: account/key admission and
+replica/load/checkpoint/release bindings precede it, and the existing positive-only
+character allocator is an independent schema boundary. Known unsent DEL recovery
+does not authorize replay of attempted/unknown output or fake roster clearing.
+
+Previous code `b251cdf` (2026-10-14), based on `622fb2e`, connects manual
 party chief/type changes and repairs post-ready attributes for both primary and
 replica. The existing ENTERCHAR identity is repeated only after SQL/local Ready;
 World verifies native primary/replica ownership and republishes actual ATTR,

@@ -212,6 +212,7 @@ CS_* wire handlers ported           ██░░░░░░░░░░░░�
 | Real player AP/WAP/DP from stats + gear | ❌ | combat uses client-sent powers vs monster DP; player defense = 0 placeholder |
 | Basic native party | 🟡 | Original ADD/JOIN/DEL requests and ADD/JOIN/DEL/ATTR/MANSTAT replies plus party chat wired through World; native primary/replica actor fences and source client bytes. Implemented, unverified; corps/loot/XP/arena/instance/equipment dependencies remain OPEN. See [Map evidence](../../_rewrite/docs/modernization/evidence/phase-a-native-party-20261014/map-party.md). |
 | Party metadata recovery and manual changes | 🟡 | Primary/replica recovery after real Ready repeats original entered identity ACK; source chief/type requests and replies are wired with native actor fences. No guessed replica stats or roster replay. Implemented, unverified; see [Map recovery evidence](../../_rewrite/docs/modernization/evidence/phase-a-party-recovery-20261014/map-recovery.md). |
+| Basic party statistic context | 🟡 | Supported native equipment/progression derivation accepts basic party membership with the same actual item/skill/effect inputs. Guild/local/companion/recall and unsupported maintained graphs stay refused. Implemented, unverified; [Map statistic evidence](../../_rewrite/docs/modernization/evidence/phase-a-party-stats-20261015/map-stats.md) also records the still-open high-bit identity audit. |
 | BR-BoW queue | ❌ | `OnRegisterBow*` remain subsystem stubs. Native chat/TMS and Control have their separately documented scopes. |
 
 ## Wired handlers

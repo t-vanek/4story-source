@@ -12,7 +12,13 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–069 are **written, not applied**.
-Latest local increment is based on `622fb2e`: manual party chief/type paths,
+Latest local increment is based on `b251cdf`: supported basic-party statistic
+context and process-local real unsent departure deltas, SQL-ready FIFO drain,
+primary metadata repair after replica triggers, pending-membership guards and
+post-await route readiness checks. Source fields and ordinary message order stay
+unchanged; delayed succession ordering is documented. No execution or migration.
+Full roster/bootstrap, rewards/combat and high-bit identity remain OPEN.
+Previous code `b251cdf`, based on `622fb2e`: manual party chief/type paths,
 post-ready primary/replica attribute recovery through the existing entered ACK,
 sorted native replica authority and handoff-start serialization. Source wire
 fields remain unchanged; no unknown replica bars enter MANSTAT. No execution or
@@ -42,9 +48,23 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Basic party statistics and unsent departures — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `b251cdf`, permits supported
+native statistic/equipment transactions in a basic party using actual effect,
+guild/local, companion and recall capability checks. World retains only real
+party DEL events which never reached a send attempt, drains them after current
+SQL Ready proof, and publishes final attributes to the primary even when a
+replica triggers recovery. Pending deltas gate new membership; route readiness is
+rechecked after the awaited repair. No uncertain-output retry or roster reset.
+**INTEGRATED_UNVERIFIED**: static review only; no build/test/SQL/service/client/
+container run or new migration (next070). Full roster/bootstrap, high-bit identity,
+party rewards/combat and other unported gameplay remain OPEN. Local Git only;
+no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
+
 ## Party attributes and manual changes — source review, 2026-10-14
 
-Latest local Phase A work (2026-10-14), based on `622fb2e`, connects manual
+Code `b251cdf` (2026-10-14), based on `622fb2e`, connects manual
 party chief/type changes and repairs post-ready attributes for both primary and
 replica. The existing ENTERCHAR identity is repeated only after SQL/local Ready;
 World verifies native primary/replica ownership and republishes actual ATTR,
@@ -723,7 +743,11 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `622fb2e`: original/server/client source reads,
+Latest local work based on `b251cdf`: original statistic/DEL/client consumers,
+native graph capability and queued removal source/API/SQL-text/diff review only.
+See [current evidence](evidence/phase-a-party-stats-20261015/README.md). No build,
+test, SQL, server, client, service or container executed. Previous local work
+based on `622fb2e`: original/server/client source reads,
 declaration/call/CMake/SQL/packet/diff review, implementation and documentation.
 `git diff --check` passes. No build, test, SQL execution, service/client/container
 startup or runtime acceptance was performed. The following build results belong

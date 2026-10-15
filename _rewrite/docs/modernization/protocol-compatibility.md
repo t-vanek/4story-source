@@ -4,7 +4,19 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Latest local Phase A work (2026-10-14), based on `622fb2e`, connects manual
+Latest local Phase A work (2026-10-15), based on `b251cdf`, permits supported
+native statistic/equipment transactions in a basic party using actual effect,
+guild/local, companion and recall capability checks. World retains only real
+party DEL events which never reached a send attempt, drains them after current
+SQL Ready proof, and publishes final attributes to the primary even when a
+replica triggers recovery. Pending deltas gate new membership; route readiness is
+rechecked after the awaited repair. No uncertain-output retry or roster reset.
+**INTEGRATED_UNVERIFIED**: static review only; no build/test/SQL/service/client/
+container run or new migration (next070). Full roster/bootstrap, high-bit identity,
+party rewards/combat and other unported gameplay remain OPEN. Local Git only;
+no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
+
+Previous code `b251cdf` (2026-10-14), based on `622fb2e`, connects manual
 party chief/type changes and repairs post-ready attributes for both primary and
 replica. The existing ENTERCHAR identity is repeated only after SQL/local Ready;
 World verifies native primary/replica ownership and republishes actual ATTR,

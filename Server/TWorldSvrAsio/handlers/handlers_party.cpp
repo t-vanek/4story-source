@@ -74,6 +74,7 @@ boost::asio::awaitable<bool> AuthorizePartyRoster(const HandlerContext& ctx,
     const std::shared_ptr<TParty>& party,const std::shared_ptr<PeerSession>& peer,
     const std::shared_ptr<TChar>& actor) {
     if(!party||!actor)co_return false;
+    if(!party_authority::CanMutate(ctx,actor))co_return false;
     const auto identity=co_await party_authority::Authorize(ctx,peer,actor);
     if(!identity.valid)co_return false;
     if(!ctx.chat_repo)co_return true; // explicit source cache adapter
@@ -86,6 +87,7 @@ boost::asio::awaitable<bool> AuthorizePartyRoster(const HandlerContext& ctx,
     std::vector<Route> routes;
     for(const auto mid:members) {
         auto member=ctx.chars->Find(mid);if(!member)co_return false;
+        if(!party_authority::CanMutate(ctx,member))co_return false;
         std::uint8_t server=0;std::uint32_t key=0;
         {std::lock_guard g(member->lock);server=member->main_server_id;key=member->key;
          if(member->party_id!=id)co_return false;}
@@ -123,6 +125,7 @@ JoinPartyFanout(const HandlerContext& ctx,
         co_return false;
     auto joining_peer = FindMapPeer(ctx, joining_msi);
     auto joining=ctx.chars->Find(joining_char_id);
+    if(!party_authority::CanMutate(ctx,joining))co_return false;
     const auto joining_identity=co_await party_authority::Authorize(ctx,joining_peer,joining);
     if(!joining_identity.valid)co_return false;
 
@@ -146,6 +149,7 @@ JoinPartyFanout(const HandlerContext& ctx,
         senders::PartyMemberInfo info;std::uint32_t key=0;std::uint8_t server=0;
         if(!SnapshotMember(ctx,mid,info,key,server)){if(ctx.chat_repo)co_return false;continue;}
         auto actor=ctx.chars->Find(mid);auto map=FindMapPeer(ctx,server);
+        if(!party_authority::CanMutate(ctx,actor))co_return false;
         const auto identities=co_await party_authority::AuthorizePair(ctx,joining_peer,joining,map,actor);
         if(!identities[0].valid||identities[0]!=joining_identity) {
             if(ctx.chat_repo)co_return false;continue;
@@ -225,6 +229,8 @@ OnPartyAddAck(std::shared_ptr<PeerSession> peer,
     auto target = ctx.chars->FindByName(target_name);
     const auto requester_identity=co_await party_authority::Authorize(ctx,peer,requester);
     if(!requester_identity.valid)co_return;
+    if(!party_authority::CanMutate(ctx,requester)||
+       (target&&!party_authority::CanMutate(ctx,target)))co_return;
 
     // Inviting yourself (same TChar) is a no-op drop (legacy
     // pRequest == pTarget short-circuit).
@@ -395,6 +401,8 @@ OnPartyJoinAck(std::shared_ptr<PeerSession> peer,
     auto origin = ctx.chars->FindByName(origin_name); // inviter / chief
     auto target = ctx.chars->FindByName(target_name); // invitee answering
     if(!target)co_return;
+    if(!party_authority::CanMutate(ctx,target)||
+       (origin&&!party_authority::CanMutate(ctx,origin)))co_return;
     std::shared_ptr<const PartyInvitation> invitation;
     {std::lock_guard g(target->lock);invitation=target->party_invite;}
     if(!invitation||invitation->target_peer.lock()!=peer||invitation->obtain!=obtain_type||
@@ -622,6 +630,9 @@ SendAttr(const HandlerContext& ctx, std::uint32_t char_id,
 {
     auto c = ctx.chars->Find(char_id);
     if (!c) co_return false;
+    // Keep later metadata behind any real removal which was never sent.
+    // Ready recovery drains those events before publishing current attributes.
+    if(!party_authority::CanMutate(ctx,c))co_return false;
     std::uint32_t key = 0;
     std::uint8_t  msi = 0;
     {
@@ -645,6 +656,23 @@ SendAttr(const HandlerContext& ctx, std::uint32_t char_id,
     co_return party_authority::Current(ctx,main,c,key);
 }
 
+boost::asio::awaitable<bool> FlushDeferredPartyRemovals(const HandlerContext& ctx,
+    const std::shared_ptr<PeerSession>& main,const std::shared_ptr<TChar>& character,std::uint32_t key) {
+    // Caller holds party_operations and has independently proved SQL Ready.
+    // Pop before the single attempt: a completed/failed/unknown network write
+    // cannot turn into another client DEL on the next ready probe.
+    while(party_authority::Current(ctx,main,character,key)) {
+        DeferredPartyRemoval event;
+        {std::lock_guard g(character->lock);
+         if(character->deferred_party_removals.empty())co_return true;
+         event=character->deferred_party_removals.front();
+         character->deferred_party_removals.erase(character->deferred_party_removals.begin());}
+        co_await senders::SendMwPartyDelReq(main,character->char_id,key,event.member,
+            event.chief,event.commander,event.party,event.kick);
+    }
+    co_return false;
+}
+
 // Remove `leaver_id` from `party`, mirroring legacy
 // CTWorldSvrModule::LeaveParty. Survives if ≥2 members remain
 // (with chief succession when the leaver was chief), else disbands
@@ -666,11 +694,13 @@ LeaveParty(const HandlerContext& ctx, std::shared_ptr<TParty> party,
     std::uint32_t chief_after = 0;
     bool          will_delete = false;
     bool          succession  = false;
+    bool          defer_supported = false;
     {
         std::lock_guard pg(party->lock);
         pid            = party->id;
         obtain         = party->obtain_type;
         members_before = party->members;
+        defer_supported=ctx.chat_repo&&party->corps_id==0;
         const std::uint8_t size = party->Size();
         const bool leaver_was_chief = party->IsChief(leaver_id);
         if (size > 2 || !is_delete)
@@ -718,10 +748,16 @@ LeaveParty(const HandlerContext& ctx, std::shared_ptr<TParty> party,
             mmsi = c->main_server_id;
         }
         auto p = FindMapPeer(ctx, mmsi);
-        if (!p) continue;
         const std::uint32_t chief_field = (mid != leaver_id) ? chief_after : 0;
         const std::uint16_t party_field = chief_field ? pid : 0;
-        if(!party_authority::Current(ctx,p,c,mkey))continue;
+        if(!party_authority::Current(ctx,p,c,mkey)||!party_authority::CanMutate(ctx,c)) {
+            if(defer_supported&&ctx.chars->Find(mid)==c) {
+                std::lock_guard g(c->lock);
+                if(c->key==mkey&&!c->closing&&!c->logout)
+                    c->deferred_party_removals.push_back({leaver_id,chief_field,0,party_field,kick});
+            }
+            continue;
+        }
         co_await senders::SendMwPartyDelReq(p, mid, mkey, leaver_id,
             chief_field, /*commander=*/0, party_field, kick);
     }
@@ -761,6 +797,9 @@ boost::asio::awaitable<void> RefreshReadyParty(const HandlerContext& ctx,
         if(!(co_await party_authority::Authorize(ctx,peer,character)).valid)co_return;
     } else if(!(co_await party_authority::AuthorizeReplica(ctx,peer,main,character,key))[0].valid)co_return;
     if(!party_authority::Current(ctx,main,character,key))co_return;
+    bool had_deferred=false;
+    {std::lock_guard g(character->lock);had_deferred=!character->deferred_party_removals.empty();}
+    if(!co_await FlushDeferredPartyRemovals(ctx,main,character,key))co_return;
     std::uint16_t id=0;std::uint8_t obtain=0;std::uint32_t chief=0;
     {std::lock_guard g(character->lock);id=character->party_id;}
     if(id) {
@@ -769,9 +808,11 @@ boost::asio::awaitable<void> RefreshReadyParty(const HandlerContext& ctx,
         if(!party->IsMember(character->char_id)||party->corps_id!=0)co_return;
         obtain=party->obtain_type;chief=party->chief_char_id;
     }
-    if(primary) {
-        // A primary ready proof repairs every already-ready route. A replica
-        // which becomes ready later sends its own entered-status probe.
+    if(primary||had_deferred) {
+        // A deferred DEL went to the actual primary even when a ready replica
+        // triggered recovery. Publish current metadata to that primary too:
+        // the original Map forwards DEL with its previous cached attributes.
+        // A replica which becomes ready later sends its own entered probe.
         if(!co_await SendAttr(ctx,character->char_id,id,obtain,chief))co_return;
     } else if(party_authority::CurrentReplica(ctx,peer,main,character,key))
         co_await senders::SendMwPartyAttrReq(peer,character->char_id,key,id,obtain,chief,0);
@@ -844,9 +885,10 @@ OnPartyDelAck(std::shared_ptr<PeerSession> peer,
     {std::lock_guard pg(party->lock);if(kick)issuer=party->chief_char_id;}
     if(kick&&issuer==char_id)co_return;
     auto actor=ctx.chars->Find(issuer);
+    if(!party_authority::CanMutate(ctx,actor))co_return;
     if(kick) {
         auto target=ctx.chars->Find(char_id);std::uint8_t server=0;
-        if(!target)co_return;
+        if(!party_authority::CanMutate(ctx,target))co_return;
         {std::lock_guard g(target->lock);server=target->main_server_id;}
         if(!(co_await party_authority::AuthorizePair(ctx,peer,actor,FindMapPeer(ctx,server),target))[0].valid)co_return;
     } else if(!(co_await party_authority::Authorize(ctx,peer,actor)).valid)co_return;

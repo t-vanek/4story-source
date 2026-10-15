@@ -115,6 +115,16 @@ void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
         p.progress_effect_templates.push_back(def);
     }
 }
+bool SupportedStatisticsContext(const CharSnapshot& s,const CharacterPayload& p) {
+    // GetCON/MEN/GetMaxHP/MP and CalcAbilityValue do not read party metadata.
+    // Actual companions, recalls, guild/local state and unsupported maintained
+    // effects still need their own source-derived producers. Recheck the graph,
+    // not just a sheet cached before a social or full-graph projection.
+    if(s.cluster.guild||!p.recalls.empty()||!SupportedPostures(p))return false;
+    if(!p.transfer_state)return true;
+    const auto& t=*p.transfer_state;
+    return t.companions.empty()&&t.companion_items.empty()&&t.recalls.empty()&&t.recall_buffs.empty()&&!t.local_id;
+}
 void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     for(auto& bag:p.bags) {
         const int item=std::bit_cast<std::int16_t>(bag.bag.wItemID);int slots=0;
@@ -329,7 +339,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             skill_timing::AttackTiming(normal,short_weapon_delay,delta(100,54),equipment[54]),
             skill_timing::AttackTiming(normal,long_weapon_delay,delta(100,55),equipment[55]),
             skill_timing::AttackTiming(magical,short_weapon_delay,delta(100,56),equipment[56])};
-        if(!s.cluster.guild&&(!p.transfer_state||(p.transfer_state->companions.empty()&&p.transfer_state->recalls.empty()&&!p.transfer_state->local_id))) {
+        if(SupportedStatisticsContext(s,p)) {
             static constexpr std::array columns{"wSTR","wDEX","wCON","wINT","wWIS","wMEN"};
             std::array<std::uint32_t,6> unscaled{};
             for(unsigned i=0;i<6;++i)unscaled[i]=1U+U16(cl,columns[i])+U16(ra,columns[i]);
@@ -395,10 +405,10 @@ ItemInstance PostgreSQLMapService::ProjectNativeItem(soci::session& sql,const tr
     return ProjectItem(sql,raw,template_projection);
 }
 void PostgreSQLMapService::RefreshEquipment(soci::session& sql,CharSnapshot& s,bool derive) {
+    if(!s.payload)throw std::runtime_error("Equipment requires a native character graph");
     auto p=std::make_shared<CharacterPayload>(*s.payload);
-    if(!p->statistics)throw std::runtime_error("Equipment requires supported source-derived statistics");
-    if(!p->recalls.empty()||s.cluster.party)
-        throw std::runtime_error("Equipment active recall or party dependencies are not implemented");
+    if(!p->statistics||!SupportedStatisticsContext(s,*p))
+        throw std::runtime_error("Equipment requires supported source-derived statistics and effect/companion context");
     // TPETTABLE is account-owned inactive pet inventory, not an active stat
     // effect. Active companion/recall graphs already lack a supported sheet.
     for(auto& bag:p->bags)for(auto& item:bag.items) {
@@ -412,7 +422,10 @@ void PostgreSQLMapService::RefreshEquipment(soci::session& sql,CharSnapshot& s,b
         soci::rowset<int> kinds=(sql.prepare<<"SELECT \"bExec\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=0",soci::use(id));
         for(int kind:kinds)if(kind>=0&&kind<256)p->equipment_kinds[kind]=true;
     }
-    if(derive)DeriveStats(sql,s,*p);
+    if(derive) {
+        DeriveStats(sql,s,*p);
+        if(!p->statistics)throw std::runtime_error("Equipment statistic derivation requires additional source semantics");
+    }
     s.payload=std::move(p);
 }
 std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessionClaim& claim) {

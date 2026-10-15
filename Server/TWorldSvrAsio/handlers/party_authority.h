@@ -2,6 +2,14 @@
 #include "communication_authority.h"
 
 namespace tworldsvr::handlers::party_authority {
+inline bool CanMutate(const HandlerContext& ctx,const std::shared_ptr<TChar>& character) {
+    if(!character)return false;
+    if(!ctx.chat_repo)return true;
+    std::lock_guard g(character->lock);
+    // An old real self/other DEL must be attempted before another membership
+    // generation can join. Otherwise it could erase a later valid client JOIN.
+    return character->deferred_party_removals.empty();
+}
 inline bool Current(const HandlerContext& ctx,const std::shared_ptr<PeerSession>& peer,
                     const std::shared_ptr<TChar>& character,std::uint32_t key) {
     if(!communication::Current(ctx,peer,character,key))return false;

@@ -111,6 +111,7 @@ private:
     static void RebaseAftermath(const CharSnapshot&,CharacterPayload&,std::uint64_t);
     static bool AdvanceAftermath(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,QuestPackets&);
     bool ReviveNative(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&) const;
+    bool DropNativeDamage(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&) const;
     static void EraseRevivalByAction(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,bool,QuestPackets&);
     static bool UseNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestEvent&,QuestPackets&);
     static void EarnNativeMoney(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,QuestPackets&);

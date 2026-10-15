@@ -539,6 +539,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool use_item=message==MessageId::CS_ITEMUSE_REQ;
     const bool revival=message==MessageId::CS_REVIVAL_REQ;
     const bool change_mode=message==MessageId::CS_CHGMODE_REQ;
+    const bool drop_damage=message==MessageId::CS_DROPDAMAGE_REQ;
     const bool sell_item=message==MessageId::CS_ITEMSELL_REQ;
     const bool buy_item=message==MessageId::CS_ITEMBUY_REQ||message==MessageId::CS_MAGICITEMBUY_REQ;
     const bool repair_items=message==MessageId::CS_DURATIONREP_REQ;
@@ -560,6 +561,8 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
         if(body.size()!=13)throw std::runtime_error("Invalid REVIVAL request length");
     } else if(change_mode) {
         if(body.size()!=1||!facts.sample_ms)throw std::runtime_error("Invalid CHGMODE request length");
+    } else if(drop_damage) {
+        if(body.size()!=12||!facts.sample_ms)throw std::runtime_error("Invalid DROPDAMAGE request length");
     } else if(soulmate) {
         if(body.size()>65527)throw std::runtime_error("Invalid soulmate request length");
     } else if(mail_send||protected_change) {
@@ -619,7 +622,10 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     bool other_state_changed=false;
     std::optional<SoulmateOfferCommit> soulmate_offer;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
-    if(change_mode) {
+    if(drop_damage) {
+        other_state_changed=DropNativeDamage(sql,c,after,body,facts,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(change_mode) {
         ChangeNativeMode(after,std::to_integer<std::uint8_t>(body[0]),facts.sample_ms,committed.packets);
         other_state_changed=true;
     }else if(revival) {

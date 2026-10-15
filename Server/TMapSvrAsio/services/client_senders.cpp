@@ -296,7 +296,7 @@ std::vector<std::byte> EncodeEnterAck(
     wire::WritePOD<float>        (b, pos.x);
     wire::WritePOD<float>        (b, pos.y);
     wire::WritePOD<float>        (b, pos.z);
-    wire::WritePOD<std::uint8_t> (b, 0);            // action
+    wire::WritePOD<std::uint8_t> (b, s.bDead?7:0);  // source TA_DEAD / TA_STAND
     wire::WritePOD<std::uint8_t> (b, 0);            // block
     wire::WritePOD<std::uint8_t> (b, s.cluster.mode);
     wire::WritePOD<std::uint16_t>(b, 0);            // pitch

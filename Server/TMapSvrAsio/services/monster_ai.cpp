@@ -107,20 +107,30 @@ RunMonsterAi(IMonsterRegistry&         registry,
             // re-killed every tick).
             std::vector<Position>      player_pos;
             std::vector<std::uint32_t> player_cid;
-            std::vector<std::shared_ptr<tnetlib::AsioSession>> watchers;
+            struct Watcher {std::uint32_t character;std::shared_ptr<tnetlib::AsioSession> session;};
+            std::vector<Watcher> watchers;
             presence.ForEachInChannel(m.bChannel, /*skip=*/0,
                 [&](const ChannelPresenceEntry& e,
                     std::shared_ptr<tnetlib::AsioSession> ws)
                 {
-                    watchers.push_back(std::move(ws));
                     const auto cs = char_state.Get(e.char_id);
-                    if (cs && cs->bDead)
+                    // Native primaries and deliberately partial native replicas
+                    // cannot participate in a cache-only combat simulation.
+                    if(!cs||cs->payload||cs->cluster.hydrated)return;
+                    watchers.push_back({e.char_id,std::move(ws)});
+                    if (cs->bDead)
                         return;                        // corpse — not a target
                     player_pos.push_back(e.pos);
                     player_cid.push_back(e.char_id);
                 });
             if (watchers.empty())
                 continue;
+            const auto prototype_watcher=[&](const Watcher& w) {
+                const auto current=char_state.Get(w.character);
+                const auto entry=presence.FindEntry(w.character);
+                return w.session->IsOpen()&&current&&!current->payload&&!current->cluster.hydrated&&entry&&
+                    entry->channel==m.bChannel&&entry->session.lock().get()==w.session.get();
+            };
 
             // Chase the nearest player in aggro range, else roam.
             const Move2D mv = DecideMonsterMove(m.fPosX, m.fPosZ, player_pos,
@@ -130,7 +140,7 @@ RunMonsterAi(IMonsterRegistry&         registry,
             const auto move = EncodeMonMoveAck(m.dwInstanceID, mv.x, m.fPosY,
                 mv.z, /*dir=*/0, /*action=*/0);
             for (auto& w : watchers)
-                co_await w->SendPacket(
+                if(prototype_watcher(w))co_await w.session->SendPacket(
                     static_cast<std::uint16_t>(MessageId::CS_MONMOVE_ACK), move);
 
             // Attack: a live player within melee reach takes damage. Roll
@@ -164,6 +174,9 @@ RunMonsterAi(IMonsterRegistry&         registry,
             std::uint32_t max_hp = 0, cur_hp = 0, max_mp = 0, cur_mp = 0;
             char_state.Update(victim, [&](CharSnapshot& s)
             {
+                // Recheck under the mutation lock: the initial target list is
+                // not authority to touch a subsequently hydrated native actor.
+                if(s.payload||s.cluster.hydrated||s.bDead)return;
                 if (s.dwHP > dmg)
                     s.dwHP -= dmg;
                 else
@@ -183,14 +196,14 @@ RunMonsterAi(IMonsterRegistry&         registry,
             const auto hp = EncodeHpMpAck(victim, /*OT_PC=*/1,
                                           max_hp, cur_hp, max_mp, cur_mp);
             for (auto& w : watchers)
-                co_await w->SendPacket(
+                if(prototype_watcher(w))co_await w.session->SendPacket(
                     static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK), hp);
 
             if (died)
             {
                 const auto die = EncodeDieAck(victim, /*OT_PC=*/1);
                 for (auto& w : watchers)
-                    co_await w->SendPacket(
+                    if(prototype_watcher(w))co_await w.session->SendPacket(
                         static_cast<std::uint16_t>(MessageId::CS_DIE_ACK), die);
                 spdlog::info("monster_ai: mon {} killed player {} → dead",
                     m.dwInstanceID, victim);

@@ -6,12 +6,25 @@
 
 # Linux containers
 
-## Active Phase A: compile only
+## Active Phase A: static review only
 
 The current owner instruction requires the full implementation before new tests,
 migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
+
+The latest local increment, based on `d86d407`, additionally writes070 and
+`deploy/sql/death-context-runtime-grants.sql`. Bounded lethal environmental
+self-damage requires an explicit `death_compat` release matched to active routing.
+The offline `tools/database/activate_death_context.py --manifest ...` publisher
+requires the complete pinned historical manifest, verified import, original text
+bytes and stopped Map/World owners. It validates actual table values/text bytes
+and atomically records publication/history; runtime views retain metadata,
+checkpoint and actual row-count guards. Missing publication is unavailable rather
+than proof of an empty chart. Existing role grants remain prerequisites; this
+separate grant adds read access to three death-context views only. These are
+**later Phase B instructions**, not executed commands. Written044–070 are
+unapplied; next071. [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-native-death-20261015/README.md).
 
 Code `d3904c5` additionally requires unapplied060 and refreshed Map grants for
 returns/payment and the mailbox notification poll. Historical mailbox import

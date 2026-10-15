@@ -640,7 +640,9 @@ int main(int argc, char** argv)
         // the life of the io_context. Needs the monster chart (attack
         // level) + char state (player HP); without a DB there are no
         // monsters anyway, so it's only spun up when the chart loaded.
-        if (monster_chart)
+        // This historical AI mutates only prototype cache state. Native
+        // damage/death requires a separate fenced, durable producer.
+        if (monster_chart&&!native_owner)
         {
             boost::asio::co_spawn(io,
                 tmapsvr::RunMonsterAi(monster_reg, presence, char_state,

@@ -11,8 +11,14 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–069 are **written, not applied**.
-Latest local increment is based on `1fe7404`: native ordinary recovery,
+evidence remain unchanged. New migrations044–070 are **written, not applied**; next071.
+Latest local increment is based on `d86d407`: original own-PC environmental
+damage and bounded ordinary death in the native PostgreSQL mutation path;
+silent nonstatic removal, old-MP packet order, dead ENTER action, prototype AI
+isolation and current actor/recipient projection guards. New070, offline source
+publisher and separate Map view grants are written only. Full combat/SoulHP,
+special death and retained-static800 revival replacement remain OPEN.
+Previous code `d86d407`, based on `1fe7404`: native ordinary recovery,
 actual HPR/MPR rates, client mode request and battle timeout with private local
 connection clocks and supported cast/self-Defend producers. Existing PostgreSQL
 operation/core/effect/checkpoint authority commits before resource/mode replies.
@@ -63,9 +69,23 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native environmental damage and death — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `d86d407`, connects the
+original own-PC environmental DROPDAMAGE request to native PostgreSQL HP/MP,
+effects and checkpoints. The bounded ordinary death branch preserves source
+DROP → HPMP (old MP) → DIE order, silent nonstatic-effect removal and dead ENTER
+action. Historical prototype monster AI is isolated from native actors. Written070
+adds explicit routing-bound battle-zone/GodBall publication; it is **not applied**.
+Gameplay is **INTEGRATED_UNVERIFIED**; SQL/publisher/grants are
+**IMPLEMENTED_UNVERIFIED**. Static review only: no build/test/SQL/import/service/
+client/container run, push or deployment. Full combat/SoulHP, special death,
+retained-static800 revival replacement and original-client acceptance remain OPEN.
+[Source contract, publication and deferred acceptance](evidence/phase-a-native-death-20261015/README.md).
+
 ## Native recovery and mode — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `1fe7404`, integrates ordinary
+Previous code `d86d407` (2026-10-15), based on `1fe7404`, integrates ordinary
 native PvE resource recovery and the original one-BYTE CHGMODE request through
 the existing PostgreSQL authority/operation/checkpoint path. Actual formula,
 powered equipment and passive HPR/MPR rates feed independent three-second clocks;

@@ -11,7 +11,19 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `1fe7404`, integrates ordinary
+Latest local Phase A work (2026-10-15), based on `d86d407`, connects the
+original own-PC environmental DROPDAMAGE request to native PostgreSQL HP/MP,
+effects and checkpoints. The bounded ordinary death branch preserves source
+DROP → HPMP (old MP) → DIE order, silent nonstatic-effect removal and dead ENTER
+action. Historical prototype monster AI is isolated from native actors. Written070
+adds explicit routing-bound battle-zone/GodBall publication; it is **not applied**.
+Gameplay is **INTEGRATED_UNVERIFIED**; SQL/publisher/grants are
+**IMPLEMENTED_UNVERIFIED**. Static review only: no build/test/SQL/import/service/
+client/container run, push or deployment. Full combat/SoulHP, special death,
+retained-static800 revival replacement and original-client acceptance remain OPEN.
+[Source contract, publication and deferred acceptance](evidence/phase-a-native-death-20261015/README.md).
+
+Previous code `d86d407` (2026-10-15), based on `1fe7404`, integrates ordinary
 native PvE resource recovery and the original one-BYTE CHGMODE request through
 the existing PostgreSQL authority/operation/checkpoint path. Actual formula,
 powered equipment and passive HPR/MPR rates feed independent three-second clocks;
@@ -59,9 +71,12 @@ no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-pa
 
 Next dependencies include full source movement/AOI and replica/mode revival,
 unsupported800 templates and aftermath underflow/normalization. Implement the
-actual positive-PC-damage/death producer before cross-actor SoulHP; it is not a
-revival bonus. Party/monster XP, complete client roster and source Map admission/
-bootstrap remain required. Full high-bit character allocation still needs a
+actual negative Defend/positive-PC combat-damage producer before cross-actor
+SoulHP; it is not a revival bonus. Own-PC environmental damage now has its real
+producer and deliberately never invokes Defend/SoulHP. Complete retained-static800
+replacement in revival before claiming every supported death/revival cycle.
+Party/monster XP, complete client roster and source Map admission/bootstrap
+remain required. Full high-bit character allocation still needs a
 source/schema/sequence policy for the positive-only012 allocator. Preserve both
 INTEGER identity and unsigned BIGINT receipt key domains; do not replay unknown
 writes or fake roster clearing.
@@ -167,7 +182,7 @@ fencing. Migration043 preserves account security and its audit across low-level
 character deletion. See `security-contract.json` for executed verification and explicit
 modern changes (initialized enabled flag, durable expiry, disabled-state transfer,
 strict byte input and commit-before-response). Backups and migrations001–043 are
-immutable. Phase A has added unapplied migrations044–069; the next free number is070.
+immutable. Phase A has added unapplied migrations044–070; the next free number is071.
 
 Earlier code `11e0df1` / `dd07164` repairs both mutual-friend acceptance
 paths: two source directed edges commit together before cache/success responses,

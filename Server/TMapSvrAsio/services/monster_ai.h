@@ -14,6 +14,9 @@
 // broadcast is channel-wide — `max_per_tick` caps the per-tick fan-out so
 // it stays bounded even with a large monster population; proper per-cell
 // AOI + per-monster AI scheduling are the refinements.
+// Never scheduled for native PostgreSQL ownership. The implementation also
+// excludes native/partial-replica actors from targets and every output audience
+// and rechecks native state under the target mutation lock.
 
 #include "domain/position.h"
 

@@ -28,6 +28,15 @@ bytes. Ordinary casts and supported self-defend producers update their real
 activity clock. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
 [recovery contract](../../_rewrite/docs/modernization/evidence/phase-a-native-recovery-20261015/map-recovery.md).
 
+Native ordinary PvE self `CS_DROPDAMAGE_REQ` now commits actual damage, recovery
+delay and bounded death cleanup through the existing quest/checkpoint authority.
+Lethal damage additionally requires migration070 and the pinned `death_compat`
+publication proving no castle/local/GodBall branch for that map; nonlethal damage
+is independent of that publication. Prototype monster AI is excluded from native
+actors and native startup. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
+[self-damage/death contract](../../_rewrite/docs/modernization/evidence/phase-a-native-death-20261015/map-death.md).
+Static800 survives source death; its replacement during revival remains **OPEN**.
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

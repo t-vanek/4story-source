@@ -2,7 +2,19 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Latest local Phase A work (2026-10-15), based on `1fe7404`, integrates ordinary
+Latest local Phase A work (2026-10-15), based on `d86d407`, connects the
+original own-PC environmental DROPDAMAGE request to native PostgreSQL HP/MP,
+effects and checkpoints. The bounded ordinary death branch preserves source
+DROP → HPMP (old MP) → DIE order, silent nonstatic-effect removal and dead ENTER
+action. Historical prototype monster AI is isolated from native actors. Written070
+adds explicit routing-bound battle-zone/GodBall publication; it is **not applied**.
+Gameplay is **INTEGRATED_UNVERIFIED**; SQL/publisher/grants are
+**IMPLEMENTED_UNVERIFIED**. Static review only: no build/test/SQL/import/service/
+client/container run, push or deployment. Full combat/SoulHP, special death,
+retained-static800 revival replacement and original-client acceptance remain OPEN.
+[Source contract, publication and deferred acceptance](evidence/phase-a-native-death-20261015/README.md).
+
+Previous code `d86d407` (2026-10-15), based on `1fe7404`, integrates ordinary
 native PvE resource recovery and the original one-BYTE CHGMODE request through
 the existing PostgreSQL authority/operation/checkpoint path. Actual formula,
 powered equipment and passive HPR/MPR rates feed independent three-second clocks;

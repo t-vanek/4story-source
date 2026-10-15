@@ -117,6 +117,16 @@ retains its distinct packets and recovery delay. This is **IMPLEMENTED /
 INTEGRATED_UNVERIFIED**; see the
 [cure-death contract](../../_rewrite/docs/modernization/evidence/phase-a-cure-death-20261015/map-death.md).
 
+Gameplay dispatch now binds checkpoint-waiting requests to their original ready
+session tuple, role and authority epoch after acquiring the operation. The
+existing secondary opcode allowlist remains; partial replicas never become
+full HP/MP state merely through client output. Supported pure own-PC CURE also
+handles source128/229 only with absent partner effects and source3604 using the
+current learned3603 effect rank, independently of trigger critical and outgoing
+powers. Empty FINISH retains its original cleanup path. This is **IMPLEMENTED /
+INTEGRATED_UNVERIFIED**; see the
+[cast-authority and cure-exception contract](../../_rewrite/docs/modernization/evidence/phase-a-native-cast-authority-20261015/map-casts.md).
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

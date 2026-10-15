@@ -12,7 +12,17 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–072 are **written, not applied**; next073.
-Latest local increment is based on `1a9fa82`: bounded own-PC CURE final-HP0
+Latest local increment is based on `5f81b9f`: dispatch rechecks Ready/open
+session identity, role and epoch after gameplay-lease waits, retaining the
+existing replica opcode filter. Current pure-CURE 128/229 requires actual
+partner-effect absence; 3604 resolves actual learned3603 effect rank separately
+from trigger critical and outgoing powers. Both item preflights and eligible
+FINISH targets share the private resolver; MISS checks exception context but
+skips numeric work; empty/dead targets skip resolution. No schema change;
+next073. Rich partner erasure, missing3603 nonempty completion, secondary vitals
+and general combat remain OPEN. Static review only; no builds/tests/SQL/import/
+services/client/container or push. Full functionality/client parity is unverified.
+Previous code `5f81b9f`, based on `1a9fa82`: bounded own-PC CURE final-HP0
 completion with source zero-MP cleanup, LASTHIT/conditional wireHPMP0/0, silent
 nonstatic release and neighbor DIE. Subsequent dead targets are skipped before
 RNG/clocks; final equipment cleanup and atomic native receipts/checkpoints remain.
@@ -151,7 +161,24 @@ historical evidence retain their original scope.
 
 ## Native CURE DWORD arithmetic and defaults — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `1a9fa82`, integrates final-HP0
+Latest local Phase A work (2026-10-15), based on `5f81b9f`, rechecks the full
+Ready session identity/role/epoch after checkpoint waits and gameplay-lease
+acquisition, so a request cannot continue under a different ownership tenure.
+The initial replica opcode filter remains. Native CURE exceptions now admit
+128/229 only with actual maintained129/230 absence; 3604 uses the current actual
+learned3603 rank, including0, for calculation and DEFEND only. Trigger critical
+and outgoing powers/attack level remain distinct. Init/ACT preflight and each
+eligible FINISH target share this resolution; MISS still resolves exception
+context before skipping numeric work, while empty/dead targets do not resolve it.
+Missing3603 on a nonempty target and richer partner erasure remain unavailable.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No new wire/schema/publication/grant: written044–072 remain unapplied; next073.
+Secondary vitals convergence, general foreign/negative combat, richer exception
+effects and actual published-data/original-client acceptance remain OPEN.
+[Native cast authority and source exceptions](evidence/phase-a-native-cast-authority-20261015/README.md).
+
+Previous code `5f81b9f` (2026-10-15), based on `1a9fa82`, integrates final-HP0
 completion for the bounded native own-PC positive-template CURE. After complete
 ordered rows and the target cap, actual zero-MP cleanup precedes LASTHIT4 DEFEND
 and conditional HPMP with wire HP0/MP0; silent ordinary death then emits DIE to

@@ -11,7 +11,24 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `1a9fa82`, integrates final-HP0
+Latest local Phase A work (2026-10-15), based on `5f81b9f`, rechecks the full
+Ready session identity/role/epoch after checkpoint waits and gameplay-lease
+acquisition, so a request cannot continue under a different ownership tenure.
+The initial replica opcode filter remains. Native CURE exceptions now admit
+128/229 only with actual maintained129/230 absence; 3604 uses the current actual
+learned3603 rank, including0, for calculation and DEFEND only. Trigger critical
+and outgoing powers/attack level remain distinct. Init/ACT preflight and each
+eligible FINISH target share this resolution; MISS still resolves exception
+context before skipping numeric work, while empty/dead targets do not resolve it.
+Missing3603 on a nonempty target and richer partner erasure remain unavailable.
+**INTEGRATED_UNVERIFIED**: static source/API/SQL-text/packet/diff review only;
+no build/test/SQL/import/service/client/container execution, push or deployment.
+No new wire/schema/publication/grant: written044–072 remain unapplied; next073.
+Secondary vitals convergence, general foreign/negative combat, richer exception
+effects and actual published-data/original-client acceptance remain OPEN.
+[Native cast authority and source exceptions](evidence/phase-a-native-cast-authority-20261015/README.md).
+
+Previous code `5f81b9f` (2026-10-15), based on `1a9fa82`, integrates final-HP0
 completion for the bounded native own-PC positive-template CURE. After complete
 ordered rows and the target cap, actual zero-MP cleanup precedes LASTHIT4 DEFEND
 and conditional HPMP with wire HP0/MP0; silent ordinary death then emits DIE to
@@ -260,10 +277,28 @@ Keep origin-specific DROP versus Defend packets/recovery clocks and the current
 per-packet audiences; do not merge them into a generic damage adapter.
 See [source and implementation evidence](evidence/phase-a-cure-death-20261015/README.md).
 
-Continue hardcoded128/229/3604 erase/rank behavior and actual negative-template
-or foreign-target effects without borrowing ACT wire rank1. CRT/libm boundaries,
+The current pure-CURE path handles128/229 with proven actual129/230 absence
+and3604 with current learned3603 effect rank. Continue actual129/230 notifying
+erasure and richer target effects only with their complete stat/effect contract.
+Missing3603 on a nonempty target remains refused; do not manufacture a rank,
+consume a fake successful finish, run terminal equipment cleanup as a substitute
+for source early return, or refund/replay an earlier ACT. Empty/dead filtered
+targets do not need this override. Keep trigger critical/outgoing powers and
+3603 calculation/DEFEND rank distinct, including actual rank0.
+
+The existing dispatcher already filters secondary opcodes; the new post-wait
+identity/role/epoch fence prevents a waiting request from crossing ownership
+tenures. It does not implement secondary HP/MP replication. Source ENTER has no
+own-PC bars, HPMP/DIE client handlers do not write another Map cache, and current
+checkpoint revision is not a sequence for every gameplay mutation. Any broader
+native vitals projection needs a separate authority/order contract and must not
+activate payload-null prototype gameplay or invent a client/peer packet.
+See [source contracts and deferred acceptance](evidence/phase-a-native-cast-authority-20261015/README.md).
+
+Continue actual negative-template or foreign-target effects without borrowing
+ACT wire rank1. CRT/libm boundaries, real published exception eligibility,
 ordinary death/revival and signed resource/client behavior require Phase B
-acceptance. No current native death change closes the full combat/AI/reward gate.
+acceptance. These changes do not close the full combat/AI/reward gate.
 
 The admitted own positive-cure MISS path now uses actual source802 metadata.
 Continue richer802 data/status/ability and BLOCK801 rather than guessing a marker

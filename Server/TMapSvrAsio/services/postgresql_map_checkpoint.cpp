@@ -1335,13 +1335,15 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
     const auto defend_now=SkillClockMs();
     for(const auto& target:request.targets) {
         if(after.bDead)continue; // source HP/MP-only skills cannot defend a dead target
+        auto effect_power=power;
+        effect_power.rank=ResolveNativeCureEffectRank(after,request.skill,power.rank);
         (void)target;const auto hp=after.dwHP,mp=after.dwMP;
         if(!after.recovery)throw std::runtime_error("Self cure defend requires local ENTERCHAR clocks");
         after.recovery->last_attack_tick=static_cast<std::uint32_t>(defend_now);
         auto timed=std::make_shared<CharacterPayload>(*after.payload);timed->last_attack_ms=timed->event_ms=defend_now;after.payload=std::move(timed);
         // PerformSkill rolls each ordered row separately, not their sum.
         if(!miss)for(const auto& row:definition.instant_cure) {
-            const auto value=native_cure::Delta(row,definition,power.rank,row.bExec==SCT_HP?after.dwMaxHP:after.dwMaxMP);
+            const auto value=native_cure::Delta(row,definition,effect_power.rank,row.bExec==SCT_HP?after.dwMaxHP:after.dwMaxMP);
             unsigned char random{};if(RAND_bytes(&random,1)!=1)throw std::runtime_error("Cure randomness unavailable");
             const auto delta=static_cast<std::int64_t>(value)+static_cast<std::int64_t>(value)*static_cast<std::int64_t>(random&15)/100;
             auto& resource=row.bExec==SCT_HP?after.dwHP:after.dwMP;
@@ -1363,7 +1365,7 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
         // ForceMaintain override such as Soul Lottery820.
         if(!after.dwMP)for(std::size_t i=0;i<after.payload->effects->size();)
             if(ErasesAtZeroMp(*after.payload,after.payload->effects->at(i).skill))erase(i);else ++i;
-        emit(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,power,miss),FinishAudience::Nearby);
+        emit(static_cast<std::uint16_t>(MessageId::CS_DEFEND_ACK),EncodeCureDefend(after,request,effect_power,miss),FinishAudience::Nearby);
         if(hpmp_changed)emit(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),
             EncodeHpMpAck(c.char_id,1,after.dwMaxHP,after.dwHP,after.dwMaxMP,after.dwHP?after.dwMP:0),FinishAudience::Nearby);
         if(miss) {

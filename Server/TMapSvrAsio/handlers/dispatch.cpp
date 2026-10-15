@@ -68,12 +68,23 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         // A periodic snapshot must finish before a new immediate durable cast.
         // Wait rather than dropping a packet while the checkpoint owns the lease.
         boost::asio::steady_timer wait(co_await boost::asio::this_coro::executor);
-        while(!ctx.session_reg->BeginGameplay(sess.get())) {
+        const auto current_request=[&] {
             const auto current=ctx.session_reg->Identity(sess.get());
-            if(!sess->IsOpen()||!current||current->phase!=SessionPhase::Ready)co_return;
+            return sess->IsOpen()&&current&&current->phase==SessionPhase::Ready&&
+                current->char_id==identity->char_id&&current->user_id==identity->user_id&&
+                current->key==identity->key&&current->channel==identity->channel&&
+                current->connection_id==identity->connection_id&&current->authority_epoch==identity->authority_epoch&&
+                current->role==identity->role;
+        };
+        while(!ctx.session_reg->BeginGameplay(sess.get())) {
+            if(!current_request())co_return;
             wait.expires_after(std::chrono::milliseconds(5));co_await wait.async_wait(boost::asio::use_awaitable);
         }
         operation.emplace(*ctx.session_reg,sess.get());
+        // BeginGameplay gates Ready/checkpoint atomically, but does not bind
+        // the request to its original role/epoch across a completed handoff.
+        // Keep the acquired operation alive until this stale request returns.
+        if(!current_request())co_return;
     }
     switch (id)
     {

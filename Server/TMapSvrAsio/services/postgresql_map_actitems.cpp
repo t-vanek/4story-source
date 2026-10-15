@@ -29,7 +29,7 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
     // Kind21's source finish uses its trigger's current learned rank (possibly
     // zero), unlike the fixed rank1 ACT acknowledgement. Only the outgoing
     // positive-template CURE is applied; the trigger is not an ordinary cast.
-    if(skill==128||skill==229||skill==3604||!s.payload||!s.payload->statistics||!s.recovery||!s.payload->item_cooldowns||!SupportedPostures(*s.payload)||s.bDead||!s.dwHP||
+    if(!s.payload||!s.payload->statistics||!s.recovery||!s.payload->item_cooldowns||!SupportedPostures(*s.payload)||s.bDead||!s.dwHP||
        !s.cluster.hydrated||s.cluster.guild||s.cluster.tactics||s.cluster.riding||s.payload->arena_id||s.payload->tournament_player||
        !s.payload->recalls.empty()||(s.wMapID>=500&&s.wMapID<533)||
        (s.payload->transfer_state&&(!s.payload->transfer_state->companions.empty()||!s.payload->transfer_state->companion_items.empty()||
@@ -92,9 +92,27 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
     }
     out.attack_profile=power;return out;
 }
+std::uint8_t PostgreSQLMapService::ResolveNativeCureEffectRank(const CharSnapshot& s,std::uint16_t skill,std::uint8_t trigger_rank) {
+    if(!s.payload||!s.payload->effects||!SupportedPostures(*s.payload))
+        throw std::runtime_error("Cure exception requires actual supported maintained state");
+    // Source128/229 erases matching maintained129/230 rows before Defend. Those
+    // richer effects are not admitted by the current native graph; prove their
+    // actual absence rather than silently skipping a present erase branch.
+    if((skill==128||skill==229)&&std::any_of(s.payload->effects->begin(),s.payload->effects->end(),
+        [&](const auto& effect){return effect.skill==skill+1;}))
+        throw std::runtime_error("Cure partner-effect removal is unsupported");
+    if(skill!=3604)return trigger_rank;
+    const auto learned=std::find_if(s.payload->skills.begin(),s.payload->skills.end(),
+        [](const auto& row){return row.wSkillID==3603;});
+    if(learned==s.payload->skills.end())throw std::runtime_error("Cure3604 requires current learned3603");
+    // FindTSkill tests object presence, including a present rank0. Only the
+    // effect rank changes; trigger critical and outgoing powers stay intact.
+    return learned->bLevel;
+}
 void PostgreSQLMapService::PreflightActItemCure(const CharSnapshot& s,const SkillTemplate& definition) {
     if(!s.payload||!definition.attack_profile)throw std::runtime_error("Action item preflight lacks current source profile");
     const auto& power=*definition.attack_profile;
+    const auto effect_rank=ResolveNativeCureEffectRank(s,definition.wID,power.rank);
     if(s.cluster.mode==2||power.critical==255) {
         if(s.payload->avoid_effect_exists&&!s.payload->avoid_effect_supported)
             throw std::runtime_error("Action item MISS requires unsupported actual avoid802 effects");
@@ -103,7 +121,7 @@ void PostgreSQLMapService::PreflightActItemCure(const CharSnapshot& s,const Skil
     // Validate the current-rank cure before hooks/debit, including checked
     // exponential conversion and the original signed-INT variance product.
     for(const auto& row:definition.instant_cure)
-        (void)native_cure::Delta(row,definition,power.rank,row.bExec==SCT_HP?s.dwMaxHP:s.dwMaxMP);
+        (void)native_cure::Delta(row,definition,effect_rank,row.bExec==SCT_HP?s.dwMaxHP:s.dwMaxMP);
 }
 bool PostgreSQLMapService::UseNativeActItems(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::span<const std::byte> body,QuestPackets& packets,std::vector<std::byte>& accepted) const {

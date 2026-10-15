@@ -13,7 +13,15 @@ migration/import runs and container startup. The commands in the historical
 sections below reproduce their original revisions; they do not certify current
 Phase A code. See [active status](../_rewrite/docs/modernization/full-rewrite-status.md).
 
-The current bounded CURE-death increment, based on `1a9fa82`, changes no schema,
+The current cast-authority/exception increment, based on `5f81b9f`, adds no
+schema, publication, grant or wire field. Current native skills/effects and the
+actual learned3603 row supply exception rank/context; no template, partner
+effect, learned rank or successful outcome is seeded. Existing070 remains
+required for lethal completion and071/072 for native accepted-cast context.
+Written044–072 remain unapplied; next073. No command here was run.
+[Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-native-cast-authority-20261015/README.md).
+
+Previous code `5f81b9f`, based on `1a9fa82`, changes no schema,
 publisher or grant. Lethal FINISH now shares the existing070 death-context proof
 and separate Map SELECT grants with environmental death. Verified publication
 matched to current routing and actual map/global-local0/GodBall absence are

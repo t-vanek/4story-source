@@ -24,6 +24,7 @@ public:
 private:
     friend class PostgreSQLSoulmateOffers;
     friend class PostgreSQLChatRepository;
+    friend class PostgreSQLRpsRepository;
     bool AuthorizeCommunication(soci::session&,std::uint32_t,FriendAuthority,bool loading);
     bool AuthorizeSoulmateOffer(soci::session&,std::uint32_t,std::uint32_t,FriendAuthority);
     bool AuthorizeReplicaParty(soci::session&,std::uint32_t,FriendAuthority);

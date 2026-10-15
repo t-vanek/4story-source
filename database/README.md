@@ -5,7 +5,17 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, based on `7a8dfee`:** written073 adds only nullable
+**Current Phase A, baseline `0533c73`:** written074 adds exact RPS catalog
+publication, mutable win history, batch receipts and source-calendar resolver.
+The new `tools/database/import_world_rps.py` requires the complete verified
+pinned manifest, explicit IANA source timezone and offline owners. It preserves
+archives, duplicates and original INT audit identities, and refuses replacement
+of existing runtime state. Separate World grants are written. Nothing was
+executed;044–074 remain unapplied, next075. Full PostgreSQL-only World bootstrap
+and Map RPS gameplay remain incomplete.
+[Contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-world-rps-20261015/README.md).
+
+**Previous Phase A, based on `7a8dfee`:** written073 adds only nullable
 terminal FINISHSKILL disposition to the existing native receipt. Missing3603
 requires unchanged bars/effects and zero output for a nonempty3604 request;
 historical receipts retain NULL. The production Map writer records it inside

@@ -11,7 +11,18 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `7a8dfee`, implements the
+Local Phase A continuation (2026-10-15), baseline `0533c73`: native World RPS
+catalog/history hydration, atomic expiry/win batches, source calendar conversion
+and serialized Control updates are wired into the existing World paths,
+**INTEGRATED_UNVERIFIED** in that World-only scope. Complete RPS gameplay
+remains **IMPLEMENTING** because native Map start/round/reward and reply
+consumers are missing. Written074/import/grants are unexecuted; written044–074
+remain unapplied, next075. Full Phase A, source Map admission, PostgreSQL-only
+World bootstrap and original-client acceptance remain OPEN. No build, test,
+SQL, import, service, client, container, push or deployment occurred.
+[Source contracts and deferred acceptance](evidence/phase-a-world-rps-20261015/README.md).
+
+Previous local Phase A work (2026-10-15), based on `7a8dfee`, implements the
 source3604 whole-handler return when current learned3603 is absent. ITEMUSE/ACT
 retain initiation, activity, reuse and debit; eligible FINISH records an explicit
 terminal no-effect receipt, without Defend, MISS802 or CheckEquipSkill. A present
@@ -464,7 +475,14 @@ incomplete. [Contracts, differences and compilation evidence](evidence/phase-a-q
 
 Active next source paths after this increment:
 
-Next implementation unit: original Map MW_CONNECT_ACK admission and native
+Immediate continuation in the RPS unit: native Map `OnCS_RPSSTART_REQ`,
+`OnCS_RPSGAME_REQ`, `OnMW_RPSGAME_REQ/CHANGE_REQ`, `RPSReward`, `SelectNpcRPS`
+and their actual start-item/mail/reset/transfer dependencies. Preserve the
+World-only gate and source next-win-count key; do not call complete RPS
+integrated until these producers and consumers exist. Migration074 and
+its importer/grants are written only; next075.
+
+Cross-cutting bootstrap prerequisite: original Map MW_CONNECT_ACK admission and native
 World bootstrap. Start with Server/TMapSvr/{TMapSvr.cpp::LoadData/InitNetwork;
 SSSender.cpp::SendMW_CONNECT_ACK;DBAccess.h channel queries} and
 Server/TWorldSvr/SSHandler.cpp::OnMW_CONNECT_ACK, then existing AsioWorldClient,

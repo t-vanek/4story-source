@@ -1,4 +1,11 @@
-> Current Phase A, based on `b251cdf`: retain only actual native corps0 party
+> Current Phase A, baseline `0533c73`: native RPS catalog/history bootstrap,
+> atomic source expiry/win batches and serialized Control edits are connected,
+> **INTEGRATED_UNVERIFIED** within World. Native Map RPS gameplay and full World
+> bootstrap remain **IMPLEMENTING**. Written074/import/grants are unexecuted;
+> next075. No build/test/SQL/runtime or publication.
+> [Source contracts and exact handoff](../../_rewrite/docs/modernization/evidence/phase-a-world-rps-20261015/README.md).
+
+> Historical Phase A, based on `b251cdf`: retain only actual native corps0 party
 > departures skipped before any send attempt; drain FIFO after current SQL Ready,
 > pop before the single attempt, then repair actual primary/ready-route ATTR even
 > for a replica trigger. Pending deltas gate new membership; entered-route repair
@@ -9,7 +16,7 @@
 >
 > Earlier evidence below retains its original scope.
 
-> Current Phase A, based on `622fb2e`: manual native chief/type commands,
+> Historical Phase A, based on `622fb2e`: manual native chief/type commands,
 > exact source results/order, all-member authority preflight, post-ready primary
 > and replica ATTR through the existing entered identity, and serialized handoff
 > start. No unknown replica vitals are imported or connection verdicts replayed.
@@ -20,7 +27,7 @@
 >
 > Earlier evidence below retains its original scope.
 
-> Current Phase A, based on `2e406dc`: source basic parties, single-use invites,
+> Historical Phase A, based on `2e406dc`: source basic parties, single-use invites,
 > native pairwise actor/owner checks, serialized join/leave/close/chat, primary
 > and ready-replica ATTR, source MANSTAT and post-CONREADY membership repair.
 > Native unported corps/instance/loot mutators are rejected. Source historical
@@ -32,7 +39,7 @@
 >
 > Earlier evidence below retains its original scope.
 
-> Current Phase A, based on `acbcaaf`: actual World/Map/Control links now use
+> Historical Phase A, based on `acbcaaf`: actual World/Map/Control links now use
 > original Plain16 (total16–65534), no crypto/body fold and source receive ignoring
 > metadata. Control inventory World3 is corrected; monitor counts raw listener
 > sessions. Original Map MW_CONNECT_ACK/full bootstrap remains OPEN; modern RW

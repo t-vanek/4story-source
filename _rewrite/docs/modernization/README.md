@@ -1,6 +1,17 @@
 # Modern server implementation status
 
-Latest local Phase A work (2026-10-15), based on `5f81b9f`, rechecks the full
+Local Phase A continuation (2026-10-15), baseline `0533c73`: native World RPS
+catalog/history hydration, atomic expiry/win batches, source calendar conversion
+and serialized Control updates are wired into the existing World paths,
+**INTEGRATED_UNVERIFIED** in that World-only scope. Complete RPS gameplay
+remains **IMPLEMENTING** because native Map start/round/reward and reply
+consumers are missing. Written074/import/grants are unexecuted; written044–074
+remain unapplied, next075. Full Phase A, source Map admission, PostgreSQL-only
+World bootstrap and original-client acceptance remain OPEN. No build, test,
+SQL, import, service, client, container, push or deployment occurred.
+[Source contracts and deferred acceptance](evidence/phase-a-world-rps-20261015/README.md).
+
+Previous local Phase A work (2026-10-15), based on `5f81b9f`, rechecks the full
 Ready session identity/role/epoch after checkpoint waits and gameplay-lease
 acquisition, so a request cannot continue under a different ownership tenure.
 The initial replica opcode filter remains. Native CURE exceptions now admit

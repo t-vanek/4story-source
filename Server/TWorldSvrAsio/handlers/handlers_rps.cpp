@@ -1,4 +1,5 @@
 #include "handlers.h"
+#include "communication_authority.h"
 #include "../senders/senders.h"
 #include "../wire_codec.h"
 
@@ -11,6 +12,8 @@
 #include <cstdint>
 #include <ctime>
 #include <vector>
+#include <optional>
+#include <stdexcept>
 
 namespace tworldsvr::handlers {
 
@@ -44,7 +47,7 @@ OnRpsGameAck(std::shared_ptr<PeerSession> peer,
     std::uint32_t char_id = 0, key = 0;
     std::uint8_t  type = 0, win_count = 0, player_rps = 0;
     if (!r.Read(char_id) || !r.Read(key) || !r.Read(type) ||
-        !r.Read(win_count) || !r.Read(player_rps))
+        !r.Read(win_count) || !r.Read(player_rps) || !r.Eof())
     {
         spdlog::warn("OnRpsGameAck[{}]: short body ({} bytes)", ip,
             body.size());
@@ -53,6 +56,33 @@ OnRpsGameAck(std::shared_ptr<PeerSession> peer,
 
     auto ch = ctx.chars->Find(char_id);
     if (!ch) co_return;
+
+    if(ctx.native_rps) {
+        auto operation=co_await ctx.rps->AcquireOperation();
+        const auto current=[&] {
+            if(!communication::Current(ctx,peer,ch,key))return false;
+            std::lock_guard guard(ch->lock);return !ch->main_handoff&&ch->chg_main_id==0;
+        };
+        if(!current())co_return;
+        const auto now=static_cast<std::int64_t>(std::time(nullptr));
+        if(now<0||now>4000000000LL)throw std::runtime_error("Native RPS clock outside supported domain");
+        const auto plan=ctx.rps->PlanWin(type,win_count,char_id,now);
+        const auto token=peer->NativeMapToken();
+        const auto committed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+            [repo=ctx.native_rps,plan,char_id,key,server=static_cast<std::uint8_t>(peer->Wid()),token,type,win_count,now] {
+                return repo->CommitWin(plan,char_id,{key,server},token,type,win_count,now);
+            });
+        if(!committed)co_return;
+        // Publish even after caller disconnects: the global cap has committed.
+        // A stale caller must receive no success and no compensation/replay.
+        if(!ctx.rps->PublishWin(plan)) {
+            ctx.native_rps->Stop();throw std::runtime_error("Committed RPS cache disagreement; World stopped");
+        }
+        if(!current())co_return;
+        co_await senders::SendMwRpsGameReq(peer,char_id,key,
+            plan.outcome==RpsRegistry::Outcome::kAllowed?1:0,player_rps);
+        co_return;
+    }
 
     std::uint8_t  main_id = 0;
     bool          key_ok = true;
@@ -110,6 +140,10 @@ OnRpsGameRecordReq(std::shared_ptr<PeerSession> peer,
                    std::vector<std::byte>       body,
                    const HandlerContext&        ctx)
 {
+    if(ctx.native_rps) {
+        // Source DM is an in-process DB queue, not a peer-authorized mutation.
+        peer->Wire()->Close();co_return;
+    }
     // W6-49: hybrid fan-in — a legacy DB worker (or another shard)
     // pushing the record packet now really persists through
     // IRpsRepository (legacy OnDM_RPSGAMERECORD_REQ,
@@ -154,11 +188,16 @@ OnRpsGameDataReq(std::shared_ptr<PeerSession> peer,
     }
     wire::Reader r(body.data(), body.size());
     std::uint8_t group = 0;
-    if (!r.Read(group))
+    if (!r.Read(group)||!r.Eof())
     {
         spdlog::warn("OnRpsGameDataReq[{}]: short body ({} bytes)", ip,
             body.size());
         co_return;
+    }
+    std::optional<RpsRegistry::OperationLease> operation;
+    if(ctx.native_rps) {
+        operation.emplace(co_await ctx.rps->AcquireOperation());
+        if(!ctx.ctrl_svr||ctx.ctrl_svr->Get()!=peer||!peer->Wire()->IsOpen())co_return;
     }
     auto snapshot = ctx.rps->Snapshot();
     spdlog::info("OnRpsGameDataReq[{}]: group={} → {} row(s)", ip, group,
@@ -189,6 +228,8 @@ OnRpsGameChangeReq(std::shared_ptr<PeerSession> peer,
     }
 
     std::uint16_t applied = 0;
+    std::vector<TRpsGame> edits;
+    if(count>(body.size()-3)/9)co_return;
     for (std::uint16_t i = 0; i < count; ++i)
     {
         std::uint8_t  type = 0, win_count = 0;
@@ -202,10 +243,19 @@ OnRpsGameChangeReq(std::shared_ptr<PeerSession> peer,
                 i, count);
             co_return;
         }
-        if (ctx.rps->Set(type, win_count, win_prob, draw_prob, lose_prob,
-                         win_keep, win_period))
-            ++applied;
+        TRpsGame edit;edit.type=type;edit.win_count=win_count;edit.win_prob=win_prob;
+        edit.draw_prob=draw_prob;edit.lose_prob=lose_prob;edit.win_keep=win_keep;edit.win_period=win_period;
+        edits.push_back(edit);
     }
+    if(!r.Eof())co_return;
+    std::optional<RpsRegistry::OperationLease> operation;
+    if(ctx.native_rps) {
+        operation.emplace(co_await ctx.rps->AcquireOperation());
+        if(!ctx.ctrl_svr||ctx.ctrl_svr->Get()!=peer||!peer->Wire()->IsOpen())co_return;
+    }
+    for(const auto& edit:edits)
+        if(ctx.rps->Set(edit.type,edit.win_count,edit.win_prob,edit.draw_prob,edit.lose_prob,
+                       edit.win_keep,edit.win_period))++applied;
 
     spdlog::info("OnRpsGameChangeReq[{}]: group={} applied {} / {} rows",
         ip, group, applied, count);
@@ -218,7 +268,8 @@ OnRpsGameChangeReq(std::shared_ptr<PeerSession> peer,
     co_await senders::SendCtRpsGameDataAck(peer, /*change=*/1, group,
         ctx.rps->Snapshot());
     for (auto& mp : ctx.peers->Snapshot())
-        co_await senders::SendMwRpsGameChangeReq(mp, body);
+        if(!ctx.native_rps||ctx.peers->IsCurrentMap(mp))
+            co_await senders::SendMwRpsGameChangeReq(mp, body);
 }
 
 } // namespace tworldsvr::handlers

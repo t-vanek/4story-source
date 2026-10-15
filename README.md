@@ -28,7 +28,13 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Latest local Phase A work (2026-10-15), based on `7a8dfee`, implements the
+Current Phase A continuation: native World RPS bootstrap and atomic win ledger,
+with explicit source calendar and Control ordering, are integrated and unverified.
+Complete RPS Map gameplay and PostgreSQL-only World bootstrap remain unfinished.
+Migration074/import/grants are written only; next075.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-world-rps-20261015/README.md).
+
+Previous local Phase A work (2026-10-15), based on `7a8dfee`, implements the
 source3604 whole-handler return when current learned3603 is absent. ITEMUSE/ACT
 retain initiation, activity, reuse and debit; eligible FINISH records an explicit
 terminal no-effect receipt, without Defend, MISS802 or CheckEquipSkill. A present

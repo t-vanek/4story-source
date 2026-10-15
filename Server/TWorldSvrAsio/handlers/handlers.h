@@ -48,6 +48,7 @@
 #include "../services/event_quarter_scheduler.h"
 #include "../services/expired_buffer.h"
 #include "../services/rps_repository.h"
+#include "../services/postgresql_rps_repository.h"
 #include "../services/bow_repository.h"
 #include "../services/tournament_registry.h"
 #include "../services/tournament_repository.h"
@@ -220,6 +221,7 @@ struct HandlerContext
     // W6-49: RPS win-ledger persistence (TRPSGameRecord SP +
     // TRPSGAMECHART / TRPSGAMERECORDTABLE boot load).
     IRpsRepository*           rps_repo = nullptr;
+    PostgreSQLRpsRepository*  native_rps = nullptr;
 
     // W6-50: tournament state core (legacy m_mapTournament /
     // m_mapTournamentSchedule / m_mapTournamentTime / m_tournament /
@@ -2862,8 +2864,8 @@ boost::asio::awaitable<void> NotifyCorpsLeave(
 //
 // Small dedicated subsystem covering the rock-paper-scissors event
 // game. State lives in RpsRegistry (services/rps_registry.h);
-// persistence of the win ledger (TRPSGAMERECORDTABLE) is deferred
-// — no IRpsRepository yet.
+// native win-ledger batches commit before cache/result publication. Native
+// admission/full World bootstrap and Map reward gameplay remain separate work.
 
 // MW_RPSGAME_ACK — char played one round against an RPS NPC. The
 // map already resolved the outcome; world's job is to vet the
@@ -2879,10 +2881,8 @@ boost::asio::awaitable<void> OnRpsGameAck(
 
 // DM_RPSGAMERECORD_REQ — DB-side persistence of a single win
 // ledger row (insert / remove). Legacy fires this via the DB
-// queue from inside OnMW_RPSGAME_ACK; the SOCI-direct port would
-// route it through an IRpsRepository write-back. Today: stub
-// that logs and drops — same pattern as the W3a-20 vestigial
-// DB-server ACK echoes.
+// queue from inside OnMW_RPSGAME_ACK. Native commits that batch internally and
+// rejects network injection of this internal-only persistence message.
 //   Wire (SSHandler.cpp:13232): BYTE record, DWORD char_id,
 //     BYTE type, win_count, INT64 date
 boost::asio::awaitable<void> OnRpsGameRecordReq(

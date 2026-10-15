@@ -1,4 +1,10 @@
-> Current implementation, based on `acbcaaf`: Map–World and Control–World use
+> Current Phase A: `sql/world-rps-runtime-grants.sql` is written for074,
+> alongside `tools/database/import_world_rps.py` and explicit source timezone.
+> No grants, migration, import, service or container was run. Full World
+> bootstrap remains incomplete; source admission/RPS Map gameplay are OPEN.
+> [Current scope and acceptance](../_rewrite/docs/modernization/evidence/phase-a-world-rps-20261015/README.md).
+
+> Historical implementation, based on `acbcaaf`: Map–World and Control–World use
 > source Plain16; Control inventory IDs are the original CTProtocol IDs. Original
 > Map admission/full bootstrap and remaining peer profiles remain OPEN. No build,
 > migration, import, service, container or test was run for this source-only slice.

@@ -197,13 +197,19 @@ void ValidateWorldSchema(fourstory::db::SessionPool& pool)
                          "- the MonthRank rollover (SM_MONTHRANKSAVE, "
                          "W6-42) will abort its persist.", rn);
     }
-    if (!routine_exists("TRPSGameRecord"))
+    if(pool.GetBackend()==fourstory::db::Backend::PostgreSQL) {
+        int probe=0;
+        *lease<<"SELECT count(*) FROM (SELECT world_id,manifest_sha256,chart_rows,source_timezone "
+            "FROM world_compat.rps_release WHERE false) c",soci::into(probe);
+        *lease<<"SELECT count(*) FROM (SELECT record_id,world_id,game_type,win_count,win_time,hydrate_second,character_id "
+            "FROM app_world.rps_records WHERE false) c",soci::into(probe);
+    } else if (!routine_exists("TRPSGameRecord"))
     {
         spdlog::warn("schema_validator (world): TRPSGameRecord SP not "
                      "deployed - RPS win-ledger persistence (W6-49) "
                      "will log SOCI errors.");
     }
-    if (!TableHasColumns(*lease, "TRPSGAMECHART",
+    if (pool.GetBackend()!=fourstory::db::Backend::PostgreSQL && !TableHasColumns(*lease, "TRPSGAMECHART",
             {"bType","bWinCount","bProb_Win","wWinKeep","wWinPeriod"}))
     {
         spdlog::warn("schema_validator (world): TRPSGAMECHART not "

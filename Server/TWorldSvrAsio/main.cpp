@@ -34,6 +34,7 @@
 #include "services/peer_registry.h"
 #include "services/soci_guild_level_repository.h"
 #include "services/postgresql_guild_level_repository.h"
+#include "services/postgresql_rps_repository.h"
 #include "services/soci_guild_repository.h"
 #include "services/soci_friend_repository.h"
 #include "services/postgresql_friend_repository.h"
@@ -248,9 +249,9 @@ int main(int argc, char** argv)
             lucky_repo =
                 std::make_unique<tworldsvr::SociLuckyEventRepository>(
                     *db_pool_owner);
-            rps_repo =
-                std::make_unique<tworldsvr::SociRpsRepository>(
-                    *db_pool_owner);
+            if(world_owner)rps_repo=std::make_unique<tworldsvr::PostgreSQLRpsRepository>(
+                static_cast<tworldsvr::PostgreSQLFriendRepository&>(*friend_repo));
+            else rps_repo=std::make_unique<tworldsvr::SociRpsRepository>(*db_pool_owner);
             tournament_repo =
                 std::make_unique<tworldsvr::SociTournamentRepository>(
                     *db_pool_owner);
@@ -433,6 +434,7 @@ int main(int argc, char** argv)
         ctx.br           = &br;
         ctx.rps          = &rps;
         ctx.rps_repo     = rps_repo.get();
+        ctx.native_rps   = dynamic_cast<tworldsvr::PostgreSQLRpsRepository*>(rps_repo.get());
         ctx.events       = &events;
         ctx.cash_sales   = &cash_sales;
         ctx.ctrl_svr     = &ctrl_svr;

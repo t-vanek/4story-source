@@ -9,8 +9,8 @@
 //
 // Holds the win-date log inline on the entry (legacy m_vWinDate) so
 // the cap can be evaluated cheaply on each MW_RPSGAME_ACK without a
-// DB round-trip. Persistence to TRPSGAMERECORDTABLE is deferred;
-// see handlers_rps.cpp's OnRpsGameRecordReq stub note.
+// DB round-trip. Native requests plan on a copy, persist the complete batch,
+// then publish; live timestamps retain seconds until the next process load.
 
 #include <cstdint>
 #include <mutex>
@@ -18,6 +18,10 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <memory>
+#include <utility>
+#include <boost/asio/awaitable.hpp>
+#include <boost/asio/experimental/channel.hpp>
 
 namespace tworldsvr {
 
@@ -36,6 +40,7 @@ struct TRpsGame
     // pruned; entries within `win_period` days count against the
     // cap. Legacy m_vWinDate.
     std::vector<std::int64_t> win_dates;
+    bool operator==(const TRpsGame&) const = default;
 };
 
 class RpsRegistry
@@ -68,6 +73,30 @@ public:
         std::uint8_t  win_count;
         std::int64_t  date_unix;
     };
+
+    struct WinPlan {
+        Outcome outcome = Outcome::kNotFound;
+        TRpsGame before, after;
+        std::vector<PersistOp> operations;
+    };
+    // One reactor owns the gate. It spans SQL and output; no thread mutex is
+    // held across an await. Native Control edits use the same operation gate.
+    using OperationPermit=boost::asio::experimental::channel<void(boost::system::error_code,int)>;
+    class OperationLease {
+    public:
+        explicit OperationLease(std::shared_ptr<OperationPermit> p):m_permit(std::move(p)){}
+        OperationLease(OperationLease&&)=default;
+        OperationLease(const OperationLease&)=delete;
+        ~OperationLease(){if(m_permit)m_permit->try_send(boost::system::error_code{},0);}
+    private:
+        std::shared_ptr<OperationPermit> m_permit;
+    };
+    boost::asio::awaitable<OperationLease> AcquireOperation();
+    WinPlan PlanWin(std::uint8_t type,std::uint8_t win_count,
+                    std::uint32_t char_id,std::int64_t now) const;
+    // Compare the entire observed entry, including live seconds and Control
+    // overrides. An unexpected writer cannot publish a stale plan after COMMIT.
+    bool PublishWin(const WinPlan&);
 
     // Run the win-cap gate for the (type, win_count) game key:
     //   - prunes win_dates entries older than 30 days (emits a
@@ -105,8 +134,7 @@ public:
     bool HydrateWinDate(std::uint8_t type, std::uint8_t win_count,
                         std::int64_t date_unix);
 
-    // Snapshot every config row for the GAMEDATA_ACK reply. Order
-    // is unordered_map iteration order (legacy uses the same).
+    // Snapshot every config row in source MAKEWORD key order.
     std::vector<TRpsGame> Snapshot() const;
     std::size_t           Size() const;
 
@@ -117,6 +145,7 @@ private:
 
     mutable std::shared_mutex m_lock;
     std::unordered_map<std::uint16_t, TRpsGame> m_games;
+    std::shared_ptr<OperationPermit> m_operation;
 };
 
 } // namespace tworldsvr

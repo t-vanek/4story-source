@@ -11,9 +11,20 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–073 are **written, not applied**; next074.
+evidence remain unchanged. New migrations044–074 are **written, not applied**; next075.
 
-Latest local Phase A work (2026-10-15), based on `7a8dfee`, implements the
+Local Phase A continuation (2026-10-15), baseline `0533c73`: native World RPS
+catalog/history hydration, atomic expiry/win batches, source calendar conversion
+and serialized Control updates are wired into the existing World paths,
+**INTEGRATED_UNVERIFIED** in that World-only scope. Complete RPS gameplay
+remains **IMPLEMENTING** because native Map start/round/reward and reply
+consumers are missing. Written074/import/grants are unexecuted; written044–074
+remain unapplied, next075. Full Phase A, source Map admission, PostgreSQL-only
+World bootstrap and original-client acceptance remain OPEN. No build, test,
+SQL, import, service, client, container, push or deployment occurred.
+[Source contracts and deferred acceptance](evidence/phase-a-world-rps-20261015/README.md).
+
+Previous local Phase A work (2026-10-15), based on `7a8dfee`, implements the
 source3604 whole-handler return when current learned3603 is absent. ITEMUSE/ACT
 retain initiation, activity, reuse and debit; eligible FINISH records an explicit
 terminal no-effect receipt, without Defend, MISS802 or CheckEquipSkill. A present
@@ -174,7 +185,7 @@ historical evidence retain their original scope.
 
 ## Native CURE DWORD arithmetic and defaults — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `5f81b9f`, rechecks the full
+Historical local Phase A work (2026-10-15), based on `5f81b9f`, rechecks the full
 Ready session identity/role/epoch after checkpoint waits and gameplay-lease
 acquisition, so a request cannot continue under a different ownership tenure.
 The initial replica opcode filter remains. Native CURE exceptions now admit
@@ -460,7 +471,7 @@ party/gameplay dependencies remain OPEN. Local Git only; no push.
 
 ## Basic native parties — source review, 2026-10-14
 
-Latest local Phase A work (2026-10-14), based on `2e406dc`, connects source
+Historical local Phase A work (2026-10-14), based on `2e406dc`, connects source
 basic party ADD/JOIN/DEL, succession/dissolution/logout cleanup, primary/replica
 ATTR and native HPMP/level MANSTAT. Normal party chat uses the existing full-text
 pipeline and current World membership. Typed peer ownership, native SQL pair

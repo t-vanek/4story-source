@@ -133,6 +133,8 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
         const auto duration=forced?forced:definition->duration;
         const auto attack_level=p->statistics->attack_level; // argument sampled before CheckEternalBuff
         p->last_attack_ms=p->event_ms;
+        if(!s.recovery)throw std::runtime_error("Item defend requires local ENTERCHAR clocks");
+        s.recovery->last_attack_tick=static_cast<std::uint32_t>(p->event_ms);
         // Source Defend removes zero-MP eternal buffs before pushing the new
         // maintained effect. Unlike ForceMaintain this side effect is required.
         if(!s.dwMP)for(std::size_t i=0;i<s.payload->effects->size();) {

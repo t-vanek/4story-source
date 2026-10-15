@@ -318,6 +318,17 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
         for(std::size_t i=0;i<debits.size();++i)for(auto& bag:p->bags)for(auto& item:bag.items)
             if(item.dlID==debits[i].before.dlID)item.durable_hash=hashes[i];
         after.payload=p;
+        if(!cast->loop) {
+            if(!after.recovery)throw std::runtime_error("PC cast requires local ENTERCHAR clocks");
+            const auto now=SkillClockMs();after.recovery->last_attack_tick=static_cast<std::uint32_t>(now);p->last_attack_ms=now;
+            const int skill_id=std::bit_cast<std::int16_t>(skill);int positive=0;
+            sql<<"SELECT \"bPositive\" FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(skill_id),soci::into(positive);
+            if(!sql.got_data())throw std::runtime_error("PC cast lost its pinned skill template");
+            if(after.cluster.mode==0&&!(positive%2)) {
+                QuestPackets mode;ChangeNativeMode(after,1,now,mode);
+                cast_result->mode_acknowledgement=std::move(mode.front().body);
+            }
+        }
         QuestPackets erased;const auto old_effects=after.payload->effects->size();
         if(!cast->loop)EraseRevivalByAction(sql,c,after,skill,false,erased);
         if(after.payload->effects->size()!=old_effects) {
@@ -527,6 +538,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool mail_poll=opcode==2; // internal idle-primary mailbox timer only
     const bool use_item=message==MessageId::CS_ITEMUSE_REQ;
     const bool revival=message==MessageId::CS_REVIVAL_REQ;
+    const bool change_mode=message==MessageId::CS_CHGMODE_REQ;
     const bool sell_item=message==MessageId::CS_ITEMSELL_REQ;
     const bool buy_item=message==MessageId::CS_ITEMBUY_REQ||message==MessageId::CS_MAGICITEMBUY_REQ;
     const bool repair_items=message==MessageId::CS_DURATIONREP_REQ;
@@ -546,6 +558,8 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
     } else if(revival) {
         if(body.size()!=13)throw std::runtime_error("Invalid REVIVAL request length");
+    } else if(change_mode) {
+        if(body.size()!=1||!facts.sample_ms)throw std::runtime_error("Invalid CHGMODE request length");
     } else if(soulmate) {
         if(body.size()>65527)throw std::runtime_error("Invalid soulmate request length");
     } else if(mail_send||protected_change) {
@@ -605,7 +619,10 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     bool other_state_changed=false;
     std::optional<SoulmateOfferCommit> soulmate_offer;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
-    if(revival) {
+    if(change_mode) {
+        ChangeNativeMode(after,std::to_integer<std::uint8_t>(body[0]),facts.sample_ms,committed.packets);
+        other_state_changed=true;
+    }else if(revival) {
         other_state_changed=ReviveNative(sql,c,after,body,facts,committed.packets);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
     }else if(soulmate) {
@@ -944,7 +961,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
             else if(use_item)other_state_changed=UseNativeItem(sql,c,after,body,event,committed.packets);
             else if(mail_get)other_state_changed=NativeMail(sql,c,after,opcode,body,event,committed.packets);
             else {
-                AdvanceProgressEffects(sql,c,after,facts.sample_ms,event,committed.packets);
+                AdvanceProgressEffects(sql,c,after,facts.sample_ms,event,committed.packets,facts.ordinary_recovery);
                 AdvanceDuringItems(sql,c,after,committed.packets);
                 AdvanceItemExpirations(sql,c,after,committed.packets);
                 PollNativeMail(sql,c,after,committed.packets);
@@ -1257,8 +1274,12 @@ FinishSkillCommit PostgreSQLMapService::FinishSkill(const MapSessionClaim& c,std
         if(!after.payload->statistics)throw std::runtime_error("Finished effect removal lacks source statistics");
         emit(static_cast<std::uint16_t>(MessageId::CS_CHARSTATINFO_ACK),EncodeCharacterStatistics(after,*after.payload->statistics),FinishAudience::Owner);
     };
+    const auto defend_now=SkillClockMs();
     for(const auto& target:request.targets) {
         (void)target;const auto hp=after.dwHP,mp=after.dwMP;
+        if(!after.recovery)throw std::runtime_error("Self cure defend requires local ENTERCHAR clocks");
+        after.recovery->last_attack_tick=static_cast<std::uint32_t>(defend_now);
+        auto timed=std::make_shared<CharacterPayload>(*after.payload);timed->last_attack_ms=defend_now;after.payload=std::move(timed);
         // PerformSkill rolls each ordered row separately, not their sum.
         for(const auto& row:definition.instant_cure) {
             const auto value=skill_effect::Calculate(row,definition,power.rank,row.bExec==SCT_HP?after.dwMaxHP:after.dwMaxMP);

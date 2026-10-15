@@ -11,7 +11,18 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `1c83b5f`, moves native
+Latest local Phase A work (2026-10-15), based on `1fe7404`, integrates ordinary
+native PvE resource recovery and the original one-BYTE CHGMODE request through
+the existing PostgreSQL authority/operation/checkpoint path. Actual formula,
+powered equipment and passive HPR/MPR rates feed independent three-second clocks;
+entry, local replica handoff, battle delay/timeout and supported cast/self-Defend
+hooks retain their source distinctions. **INTEGRATED_UNVERIFIED**: static review
+only; no build/test/SQL/service/client/container run, migration (next070), push or
+deployment. Full combat/death/SoulHP, unsupported effect/guild/companion graphs,
+other mode lifecycles and original-client acceptance remain OPEN.
+[Source contract, local clocks and deferred acceptance](evidence/phase-a-native-recovery-20261015/README.md).
+
+Previous code `1fe7404` (2026-10-15), based on `1c83b5f`, moves native
 REVIVAL out of the cache-only full-heal prototype and into the current PostgreSQL
 mutation/checkpoint path. The bounded same-cell primary path uses actual source
 30/40% bars, aftermath/stat/mode replies and validated protection800. Stored
@@ -54,6 +65,13 @@ bootstrap remain required. Full high-bit character allocation still needs a
 source/schema/sequence policy for the positive-only012 allocator. Preserve both
 INTEGER identity and unsigned BIGINT receipt key domains; do not replay unknown
 writes or fake roster clearing.
+
+Ordinary native recovery and manual/battle mode now have a concrete production
+path; full STOPRECOVER and other effect graphs, companion/guild/local rate
+dependencies, source wrapped numeric branches and ACTITEMSUSE/nonself damage
+activity producers remain separate implementation work. Retain the original
+target-local mode/recovery clocks at existing-replica handoff; do not append
+unbacked clocks to the transfer wire or add a guessed sit-down healing bonus.
 
 Previous code `b251cdf` (2026-10-14), based on `622fb2e`, connects manual
 party chief/type changes and repairs post-ready attributes for both primary and

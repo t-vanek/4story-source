@@ -92,6 +92,10 @@ boost::asio::awaitable<void> OnMWTransferEnterReq(std::vector<std::byte> body,co
         if(!client->IsOpen()||std::chrono::steady_clock::now()>=drain_deadline){client->Close();co_return;}
         drain.expires_after(std::chrono::milliseconds(5));co_await drain.async_wait(boost::asio::use_awaitable);
     }
+    // These clocks/mode belong to the existing target connection, not the
+    // remote full DTO. Capture only after outstanding local operations drain.
+    replica=ctx.char_state->Get(cid);
+    if(!replica||!replica->recovery){client->Close();co_return;}
     if(ctx.presence)ctx.presence->UnbindIfMatches(client.get());
     std::optional<TransferredCharacter> incoming;
     auto* players=ctx.player_service;const auto claim=id->Claim(ctx.expected_group);
@@ -107,6 +111,7 @@ boost::asio::awaitable<void> OnMWTransferEnterReq(std::vector<std::byte> body,co
     }
     if(!incoming){client->Close();co_return;}
     incoming->snapshot.cluster=replica->cluster;
+    incoming->snapshot.recovery=replica->recovery;
     // Publish ownership even if the socket closed during PostgreSQL commit;
     // teardown waits for this operation and uses the promoted claim.
     ctx.char_state->Store(cid,incoming->snapshot);

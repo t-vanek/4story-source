@@ -31,6 +31,7 @@ struct QuestMapFacts {
     std::uint16_t map{};
     std::uint8_t channel{};
     bool world_registered{};
+    bool ordinary_recovery{}; // configured native ordinary runtime, never a wire field
     std::uint64_t sample_ms{}; // local scheduler observation, never a client field
     std::vector<std::pair<std::uint32_t,std::uint16_t>> monsters;
     std::optional<WorldEventSnapshot> world_events;

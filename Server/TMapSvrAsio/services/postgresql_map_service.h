@@ -85,7 +85,10 @@ private:
     static bool OpenSpecialBox(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,QuestPackets&);
     static void ConsumeQuestItems(soci::session&,const MapSessionClaim&,CharSnapshot&,const QuestDef&,QuestPackets&);
     using QuestEvent = std::function<void(std::uint32_t,std::uint8_t,std::uint8_t,int)>;
-    static void AdvanceProgressEffects(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,const QuestEvent&,QuestPackets&);
+    static void AdvanceProgressEffects(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,const QuestEvent&,QuestPackets&,bool);
+    static void ChangeNativeMode(CharSnapshot&,std::uint8_t,std::uint64_t,QuestPackets&);
+    static void AdvanceRecovery(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint64_t,QuestPackets&);
+    static void AdvanceBattleMode(CharSnapshot&,std::uint64_t,QuestPackets&);
     static void AdvanceItemExpirations(soci::session&,const MapSessionClaim&,CharSnapshot&,QuestPackets&);
     static void PostExpiredBag(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,QuestPackets&,QuestPackets&);
     static void HydrateNativePosts(soci::session&,const MapSessionClaim&,CharacterPayload&);

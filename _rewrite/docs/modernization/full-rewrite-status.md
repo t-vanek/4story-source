@@ -12,7 +12,12 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–069 are **written, not applied**.
-Latest local increment is based on `1c83b5f`: PostgreSQL-backed same-cell native
+Latest local increment is based on `1fe7404`: native ordinary recovery,
+actual HPR/MPR rates, client mode request and battle timeout with private local
+connection clocks and supported cast/self-Defend producers. Existing PostgreSQL
+operation/core/effect/checkpoint authority commits before resource/mode replies.
+No schema change or execution; full combat/death/SoulHP and richer graphs remain OPEN.
+Previous code `1fe7404`, based on `1c83b5f`: PostgreSQL-backed same-cell native
 revival, source30/40% bars and ordinary aftermath decay, source step-preserving
 load/transfer clock reconstruction and validated protection800 lifecycle.
 No schema change or execution; unsupported variants/data/underflow and full
@@ -58,9 +63,22 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native recovery and mode — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `1fe7404`, integrates ordinary
+native PvE resource recovery and the original one-BYTE CHGMODE request through
+the existing PostgreSQL authority/operation/checkpoint path. Actual formula,
+powered equipment and passive HPR/MPR rates feed independent three-second clocks;
+entry, local replica handoff, battle delay/timeout and supported cast/self-Defend
+hooks retain their source distinctions. **INTEGRATED_UNVERIFIED**: static review
+only; no build/test/SQL/service/client/container run, migration (next070), push or
+deployment. Full combat/death/SoulHP, unsupported effect/guild/companion graphs,
+other mode lifecycles and original-client acceptance remain OPEN.
+[Source contract, local clocks and deferred acceptance](evidence/phase-a-native-recovery-20261015/README.md).
+
 ## Native revival and aftermath — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `1c83b5f`, moves native
+Code `1fe7404` (2026-10-15), based on `1c83b5f`, moves native
 REVIVAL out of the cache-only full-heal prototype and into the current PostgreSQL
 mutation/checkpoint path. The bounded same-cell primary path uses actual source
 30/40% bars, aftermath/stat/mode replies and validated protection800. Stored
@@ -780,7 +798,12 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `1c83b5f`: original revival/aftermath/protection,
+Latest local work based on `1fe7404`: original resource recovery, formulas,
+entry/transfer clocks, client mode/HPMP consumers and actual native timer/cast/
+self-Defend/authority/packet/diff review only. See
+[current recovery evidence](evidence/phase-a-native-recovery-20261015/README.md).
+No build, test, SQL, server, client, service or container executed.
+Previous local work based on `1c83b5f`: original revival/aftermath/protection,
 client consumers and native authority/persistence/caller/diff review only. See
 [current evidence](evidence/phase-a-native-revival-20261015/README.md). No build,
 test, SQL, server, client, service or container executed. Previous local work

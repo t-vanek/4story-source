@@ -16,5 +16,6 @@ struct SkillCastRequest {
 struct SkillCastCommit {
     std::shared_ptr<const CharSnapshot> snapshot;
     std::vector<EquipmentEffectEvent> ended; // original erase order before cast ACK
+    std::vector<std::byte> mode_acknowledgement; // source grid-neighbor battle transition, before erasure
 };
 }

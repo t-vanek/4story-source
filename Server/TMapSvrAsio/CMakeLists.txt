@@ -157,6 +157,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_quest_rewards.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_progression.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_revival.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_recovery.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_during.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_item_use.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_soul_lottery.cpp

@@ -81,7 +81,8 @@ struct CharacterPayload {
     // never serialized; a newly forced effect must not start after its own tick.
     std::uint64_t event_ms{};
     // CTPlayer::Defend updates m_dwLastAtkTick even for an item self-buff.
-    // Process-local; the full regeneration/combat timer integration is pending.
+    // Process-local observation; the connection's DWORD timers live outside
+    // this full payload so replica promotion/demotion can retain them.
     std::uint64_t last_attack_ms{};
     std::int64_t event_time{};
     // Static definitions for learned skills, hydrated from the pinned character
@@ -94,6 +95,9 @@ struct CharacterPayload {
     // Absent for active-effect/companion/guild states whose stat semantics are
     // not yet implemented. Never synthesize a successful zero-filled sheet.
     std::optional<CharacterStatistics> statistics;
+    // Actual GetHPR/GetMPR under the same supported graph as the stat sheet.
+    // Absence is unsupported; zero is a real derived source rate.
+    std::optional<std::array<std::uint32_t,2>> recovery_rates;
     // Source SetAftermath rebases this DWORD clock on real load/transfer.
     // Only bAftermath is persisted/encoded; checkpoints preserve this clock.
     std::uint32_t aftermath_tick{},aftermath_item_bonus{};

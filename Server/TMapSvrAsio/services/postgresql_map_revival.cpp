@@ -78,10 +78,8 @@ bool PostgreSQLMapService::ReviveNative(soci::session& sql,const MapSessionClaim
         Sheet(s,packets);
     }else RefreshEquipment(sql,s,true);
     if(!s.dwMaxHP)throw std::runtime_error("Revival zero maximum-HP semantics are not supported");
-    s.cluster.mode=0;
     auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;p->last_attack_ms=facts.sample_ms;
-    std::vector<std::byte> mode;wire::WritePOD(mode,c.char_id);wire::WritePOD(mode,std::uint8_t{1});wire::WritePOD(mode,std::uint8_t{0});
-    packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_CHGMODE_ACK),std::move(mode),QuestAudience::Neighbors);
+    ChangeNativeMode(s,0,facts.sample_ms,packets); // NORMAL retains prior recovery deadlines
     const double rate=type==0?0.3:0.4;
     s.dwHP=std::max<std::uint32_t>(1,static_cast<std::uint32_t>(s.dwMaxHP*rate));
     s.dwMP=static_cast<std::uint32_t>(s.dwMaxMP*rate);s.bDead=0;

@@ -20,6 +20,14 @@ INTEGRATED_UNVERIFIED**. Cross-cell movement, secondary revival projection,
 special modes and richer800 effects remain **OPEN**; see the
 [bounded revival contract](../../_rewrite/docs/modernization/evidence/phase-a-native-revival-20261015/map-revival.md).
 
+Native ordinary PvE recovery now uses actual HPR/MPR formulas, powered equipment
+and supported passives in the durable timer between effect expiry and aftermath.
+`CS_CHGMODE_REQ` retains its original BYTE body and battle-delay behavior; current
+connection clocks survive replica promotion/demotion without entering transfer
+bytes. Ordinary casts and supported self-defend producers update their real
+activity clock. This is **IMPLEMENTED / INTEGRATED_UNVERIFIED**; see the
+[recovery contract](../../_rewrite/docs/modernization/evidence/phase-a-native-recovery-20261015/map-recovery.md).
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

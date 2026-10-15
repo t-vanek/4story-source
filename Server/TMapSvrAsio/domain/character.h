@@ -11,9 +11,16 @@
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <optional>
 #include "domain/character_payload.h"
 
 namespace tmapsvr {
+
+// Local CTObjBase clocks belong to this Map connection, including replicas.
+// They never enter a character row, transfer DTO or durable fingerprint.
+struct SourceRecoveryClock {
+    std::uint32_t hp_tick{},mp_tick{},last_attack_tick{};
+};
 
 struct CharacterClusterState {
     std::uint32_t guild{},fame{},fame_color{},tactics{},party_chief{},riding{},soulmate{},soul_silence{};
@@ -30,6 +37,7 @@ struct CharSnapshot
     bool persistence_uncertain = false;
     std::shared_ptr<const CharacterPayload> payload;
     CharacterClusterState cluster;
+    std::optional<SourceRecoveryClock> recovery;
     std::uint32_t  dwCharID         = 0;
     std::string    szNAME;
     std::uint8_t   bStartAct        = 0;

@@ -202,6 +202,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     p.equipment_kinds.fill(false);
     p.skill_points.fill(0);
     p.statistics.reset();
+    p.recovery_rates.reset();
     ReadPostures(sql,p);
     ReadProgressEffects(sql,p);
     if(!s.dwHP&&p.effects&&std::any_of(p.effects->begin(),p.effects->end(),[&](const auto& e){
@@ -290,7 +291,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         }
         // Original IsRemainType only adds skills having a SA_CONTINUE row.
         soci::rowset<soci::row> data=(sql.prepare<<"SELECT d.* FROM character_compat.\"TSKILLDATA\" d WHERE d.\"wSkillID\"=:id "
-            "AND d.\"bAction\" IN (1,4) AND d.\"bType\"=1 AND d.\"bExec\" IN (1,2,3,4,5,6,7,8,9,11,12,13,16,17,19,20,21,50,51,54,55,56,86,87) "
+            "AND d.\"bAction\" IN (1,4) AND d.\"bType\"=1 AND d.\"bExec\" IN (1,2,3,4,5,6,7,8,9,11,12,13,16,17,19,20,21,32,33,50,51,54,55,56,86,87) "
             "AND EXISTS (SELECT 1 FROM character_compat.\"TSKILLDATA\" a WHERE a.\"wSkillID\"=:id AND a.\"bAction\"=1)",soci::use(id,"id"));
         for(const auto& d:data) {
             passives.push_back(ReadAbility(d,definition,skill.bLevel));
@@ -370,6 +371,22 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             skill_timing::AttackTiming(normal,long_weapon_delay,delta(100,55),equipment[55]),
             skill_timing::AttackTiming(magical,short_weapon_delay,delta(100,56),equipment[56])};
         if(SupportedStatisticsContext(s,p)) {
+            // GetHPR/MPR use full FLOAT CON/MEN, not the WORD client sheet.
+            // New recovery formulas are bounded to source representable INT
+            // CalcAbilityValue inputs/results, independently of older maxima.
+            const auto recover_rate=[&](const Formula& formula,float primary,int type) {
+                const auto scaled=Truncate(primary*formula.rate);
+                const std::uint64_t base=static_cast<std::uint64_t>(formula.initial)+scaled+equipment[type];
+                if(base>std::numeric_limits<std::int32_t>::max())
+                    throw std::runtime_error("Recovery formula outside supported source INT domain");
+                const auto value=static_cast<std::int64_t>(base)+delta(static_cast<std::uint32_t>(base),type);
+                if(value>std::numeric_limits<std::int32_t>::max())
+                    throw std::runtime_error("Recovery ability outside supported source INT domain");
+                return static_cast<std::uint32_t>(std::max<std::int64_t>(0,value));
+            };
+            p.recovery_rates=std::array<std::uint32_t,2>{
+                recover_rate(ReadFormula(sql,9),stat("wCON",3),32),
+                recover_rate(ReadFormula(sql,20),stat("wMEN",6),33)};
             static constexpr std::array columns{"wSTR","wDEX","wCON","wINT","wWIS","wMEN"};
             std::array<std::uint32_t,6> unscaled{};
             for(unsigned i=0;i<6;++i)unscaled[i]=1U+U16(cl,columns[i])+U16(ra,columns[i]);
@@ -615,8 +632,8 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
 }
 
 CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const transfer::State& t,const MapSessionClaim& claim) const {
-    CharSnapshot s=t.character;s.payload.reset();auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
-    auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();
+    CharSnapshot s=t.character;s.payload.reset();s.recovery.reset();auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
+    auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();graph->character.recovery.reset();
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
     HydrateNativePosts(sql,claim,p);
     HydrateNativeProtected(sql,claim,p);

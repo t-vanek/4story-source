@@ -67,12 +67,15 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     if(!identity||identity->phase!=SessionPhase::Ready||identity->role!=MapSessionRole::Primary)co_return;
     const auto message=static_cast<tnetlib::protocol::MessageId>(opcode);
     const bool revival=message==tnetlib::protocol::MessageId::CS_REVIVAL_REQ;
-    if(revival) {
-        if(ctx.mode!=Mode::PvE)co_return;
+    const bool change_mode=message==tnetlib::protocol::MessageId::CS_CHGMODE_REQ;
+    const bool recovery_tick=opcode==0&&ctx.mode==Mode::PvE;
+    const bool source_projection=revival||change_mode||recovery_tick;
+    if(revival||change_mode)if(ctx.mode!=Mode::PvE)co_return;
+    if(source_projection) {
         const auto state=ctx.char_state?ctx.char_state->Get(identity->char_id):std::nullopt;
         const auto entry=ctx.presence?ctx.presence->FindEntry(identity->char_id):std::nullopt;
-        if(!state||!state->payload||!entry||entry->map_id!=state->wMapID)
-            throw std::runtime_error("Native revival requires actual map presence and payload");
+        if(!state||!state->payload||!entry||entry->map_id!=state->wMapID||entry->channel!=identity->channel||entry->session.lock().get()!=client.get())
+            throw std::runtime_error("Native recovery/mode/revival requires actual map presence and payload");
     }
     const bool soulmate=message==tnetlib::protocol::MessageId::CS_SOULMATESEARCH_REQ||
         message==tnetlib::protocol::MessageId::CS_SOULMATEREG_REQ||message==tnetlib::protocol::MessageId::CS_SOULMATEREGREADY_REQ||
@@ -134,6 +137,7 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const bool lottery=opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_REQ)||
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SOULLOTTERY_TRIGGER_REQ);
     const auto required=opcode<=2||lottery?0U:
+        change_mode?1U:
         message==tnetlib::protocol::MessageId::CS_POSTRETURN_REQ||message==tnetlib::protocol::MessageId::CS_PROTECTEDOPTION_REQ?5U:
         message==tnetlib::protocol::MessageId::CS_REVIVAL_REQ?13U:
         message==tnetlib::protocol::MessageId::CS_ITEMBUY_REQ?11U:
@@ -165,6 +169,7 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     try {
         const auto before=transfer::PersistenceSnapshot(*original,identity->key,*ctx.skill_cooldown,SkillClockMs());
         QuestMapFacts facts;facts.map=before.wMapID;facts.channel=identity->channel;
+        facts.ordinary_recovery=recovery_tick;
         facts.sample_ms=SkillClockMs();
         facts.world_registered=ctx.world_client&&ctx.world_client->IsRegistered();
         if(ctx.world_client)facts.world_events=ctx.world_client->EventSnapshot();
@@ -198,12 +203,12 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         ctx.char_state->Store(cid,uncertain);client->Close();throw;
     }
     const auto& after=*committed.snapshot;
-    if(revival) {
+    if(source_projection) {
         const auto current=ctx.session_reg->Identity(client.get());
         if(!client->IsOpen()||!current||current->phase!=SessionPhase::Ready||current->char_id!=identity->char_id||
            current->user_id!=identity->user_id||current->key!=identity->key||current->channel!=identity->channel||
            current->connection_id!=identity->connection_id||current->authority_epoch!=identity->authority_epoch||current->role!=identity->role)co_return;
-        ctx.presence->UpdatePosition(cid,after.wMapID,{after.fPosX,after.fPosY,after.fPosZ});
+        if(revival)ctx.presence->UpdatePosition(cid,after.wMapID,{after.fPosX,after.fPosY,after.fPosZ});
     }
     std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{client};
     const auto cell=[](float value)->int{return std::isfinite(value)&&value>=0&&value<65536?static_cast<std::uint16_t>(value)/64:-10000;};
@@ -211,24 +216,24 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         if(entry.map_id==after.wMapID&&std::abs(cell(entry.pos.x)-cell(after.fPosX))<=1&&
            std::abs(cell(entry.pos.z)-cell(after.fPosZ))<=1)neighbors.push_back(std::move(session));
     });
-    std::unordered_map<const tnetlib::AsioSession*,SessionIdentity> revival_proofs;
+    std::unordered_map<const tnetlib::AsioSession*,SessionIdentity> projection_proofs;
     std::unordered_set<const tnetlib::AsioSession*> unavailable;
     const auto same=[](const SessionIdentity& a,const SessionIdentity& b) {
         return a.char_id==b.char_id&&a.user_id==b.user_id&&a.key==b.key&&a.channel==b.channel&&a.connection_id==b.connection_id&&a.authority_epoch==b.authority_epoch&&a.role==b.role&&b.phase==SessionPhase::Ready;
     };
     const auto deliver=[&](const std::shared_ptr<tnetlib::AsioSession>& recipient,const QuestPacket& packet)->boost::asio::awaitable<bool> {
-        if(!revival){co_await recipient->SendPacket(packet.opcode,packet.body);co_return true;}
+        if(!source_projection){co_await recipient->SendPacket(packet.opcode,packet.body);co_return true;}
         if(unavailable.contains(recipient.get()))co_return false;
         const auto id=ctx.session_reg->Identity(recipient.get());
         if(!recipient->IsOpen()||!id||id->phase!=SessionPhase::Ready)co_return false;
         // Nonblocking only: never wait for a second actor's checkpoint while
-        // dispatch owns the reviver. A busy/stale recipient may miss this event.
+        // dispatch owns the actor. A busy/stale recipient may miss this event.
         std::optional<SessionOperation> operation;
         if(recipient.get()!=client.get()) {
             if(!ctx.session_reg->BeginGameplay(recipient.get()))co_return false;
             operation.emplace(*ctx.session_reg,recipient.get());
         }
-        if(const auto it=revival_proofs.find(recipient.get());it!=revival_proofs.end()) {
+        if(const auto it=projection_proofs.find(recipient.get());it!=projection_proofs.end()) {
             if(!same(it->second,*id))co_return false;
         }else {
             const auto live=ctx.char_state->Get(id->char_id);bool authorized=false;
@@ -240,12 +245,12 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
                 if(recipient.get()==client.get())client->Close();
                 co_return false;
             }
-            revival_proofs.emplace(recipient.get(),*id);
+            projection_proofs.emplace(recipient.get(),*id);
         }
         const auto current=ctx.session_reg->Identity(recipient.get());
         if(!recipient->IsOpen()||!current||!same(*id,*current))co_return false;
         const auto location=ctx.presence->FindEntry(id->char_id);
-        if(!location||location->channel!=identity->channel||id->channel!=identity->channel||location->map_id!=after.wMapID||
+        if(!location||location->session.lock().get()!=recipient.get()||location->channel!=identity->channel||id->channel!=identity->channel||location->map_id!=after.wMapID||
            std::abs(cell(location->pos.x)-cell(after.fPosX))>1||std::abs(cell(location->pos.z)-cell(after.fPosZ))>1)co_return false;
         co_await recipient->SendPacket(packet.opcode,packet.body);co_return true;
     };

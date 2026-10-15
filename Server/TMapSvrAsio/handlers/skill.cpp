@@ -46,6 +46,7 @@
 #include "services/main_transfer_runtime.h"
 #include "services/player_service.h"
 #include "services/party_runtime.h"
+#include "services/native_projection.h"
 #include "fourstory/db/co_offload.h"
 #include "wire_codec.h"
 
@@ -155,6 +156,7 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
     SkillCooldownTracker planned_timers;
     std::optional<std::uint64_t> planning_now;
     std::vector<EquipmentEffectEvent> ended_effects;
+    std::vector<std::byte> mode_acknowledgement;
     auto* timers=ctx.skill_cooldown;
     std::vector<SkillItemDebit> consumed;
     auto apply=[&](CharSnapshot& cs) {
@@ -282,6 +284,7 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             });
             if(!committed.snapshot||!committed.snapshot->payload)throw std::runtime_error("Incomplete cast commit result");
             planned=*committed.snapshot;ended_effects=std::move(committed.ended);
+            mode_acknowledgement=std::move(committed.mode_acknowledgement);
         }
         ctx.skill_cooldown->Restore(cid,planned.payload->skills,sampled_at);
         ctx.char_state->Store(cid,planned);
@@ -311,6 +314,18 @@ HandleSkillReq(std::shared_ptr<tnetlib::AsioSession> sess,
             co_await sess->SendPacket(static_cast<std::uint16_t>(deleted?MessageId::CS_DELITEM_ACK:MessageId::CS_UPDATEITEM_ACK),item_ack);
         }
         co_await sess->SendPacket(static_cast<std::uint16_t>(MessageId::CS_MOVEITEM_ACK),std::vector<std::byte>{std::byte{0}});
+    }
+
+    if(!mode_acknowledgement.empty()) {
+        const auto state=ctx.char_state->Get(cid);if(!state){sess->Close();co_return;}
+        std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{sess};
+        const auto cell=[](float v)->int{return std::isfinite(v)&&v>=0&&v<65536?static_cast<std::uint16_t>(v)/64:-10000;};
+        if(ctx.presence)ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto client){
+            if(entry.map_id==state->wMapID&&std::abs(cell(entry.pos.x)-cell(state->fPosX))<=1&&
+               std::abs(cell(entry.pos.z)-cell(state->fPosZ))<=1)neighbors.push_back(std::move(client));
+        });
+        for(auto& client:neighbors)co_await DeliverNativeGridProjection(sess,*identity,client,
+            static_cast<std::uint16_t>(MessageId::CS_CHGMODE_ACK),mode_acknowledgement,ctx);
     }
 
     // Original CheckEternalBuff runs after powers are captured and before the

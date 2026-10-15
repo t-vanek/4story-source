@@ -4,7 +4,18 @@ The original client must remain unchanged. Database/domain migrations must pass
 through the existing fixed-width packet boundary. A passing codec round trip is
 not sufficient evidence of a particular original executable working.
 
-Latest local Phase A work (2026-10-15), based on `1c83b5f`, moves native
+Latest local Phase A work (2026-10-15), based on `1fe7404`, integrates ordinary
+native PvE resource recovery and the original one-BYTE CHGMODE request through
+the existing PostgreSQL authority/operation/checkpoint path. Actual formula,
+powered equipment and passive HPR/MPR rates feed independent three-second clocks;
+entry, local replica handoff, battle delay/timeout and supported cast/self-Defend
+hooks retain their source distinctions. **INTEGRATED_UNVERIFIED**: static review
+only; no build/test/SQL/service/client/container run, migration (next070), push or
+deployment. Full combat/death/SoulHP, unsupported effect/guild/companion graphs,
+other mode lifecycles and original-client acceptance remain OPEN.
+[Source contract, local clocks and deferred acceptance](evidence/phase-a-native-recovery-20261015/README.md).
+
+Previous code `1fe7404` (2026-10-15), based on `1c83b5f`, moves native
 REVIVAL out of the cache-only full-heal prototype and into the current PostgreSQL
 mutation/checkpoint path. The bounded same-cell primary path uses actual source
 30/40% bars, aftermath/stat/mode replies and validated protection800. Stored

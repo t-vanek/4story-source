@@ -8,7 +8,7 @@
 
 namespace tmapsvr {
 void PostgreSQLMapService::AdvanceProgressEffects(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
-    std::uint64_t now,const QuestEvent& event,QuestPackets& packets) {
+    std::uint64_t now,const QuestEvent& event,QuestPackets& packets,bool recover) {
     using tnetlib::protocol::MessageId;
     if(!s.payload||!SupportedPostures(*s.payload))throw std::runtime_error("Effect timer requires supported hydrated source effects");
     // CTObjBase::CheckMaintainSkill: expiry precedes automatic EXP. Delayed
@@ -52,7 +52,9 @@ void PostgreSQLMapService::AdvanceProgressEffects(soci::session& sql,const MapSe
         ++i;
     }
     if(exp_expired)HangExpBenefit(sql,c,s,packets);
+    if(recover)AdvanceRecovery(sql,c,s,now,packets);
     AdvanceAftermath(sql,c,s,now,packets);
+    if(recover)AdvanceBattleMode(s,now,packets);
 }
 void PostgreSQLMapService::GainQuestExperience(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::uint32_t gain,const QuestEvent& event,QuestPackets& packets) {

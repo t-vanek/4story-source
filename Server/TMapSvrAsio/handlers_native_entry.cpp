@@ -104,13 +104,21 @@ boost::asio::awaitable<void> OnMWNativeEnterCharReq(std::vector<std::byte> body,
     if(!client||!ctx.char_state||!ctx.world_client)co_return;
     const auto identity=ctx.session_reg->Identity(client.get());if(!identity)co_return;
     const bool replica=identity->role==MapSessionRole::Replica;
+    std::optional<SessionOperation> entry_operation;
     if(replica) {
         if(identity->phase!=SessionPhase::Pending||s||!ctx.validator)co_return;
         s=CharSnapshot{};s->dwCharID=cid;
         // The replica receives only the source cluster summary, not the core
         // graph. Unknown vitals/inventory must never become a client CHARINFO.
         s->dwHP=s->dwMP=s->dwMaxHP=s->dwMaxMP=0;
-    } else if(!s||!s->payload)co_return;
+    } else {
+        // This descriptor belongs to fresh loading, before World admission.
+        // Ready repair uses the separate repeated ENTERCHAR_ACK, not another
+        // descriptor allowed to overwrite a running cast/timer's local clocks.
+        if(identity->phase!=SessionPhase::Loaded||!s||!s->payload)co_return;
+        if(!ctx.session_reg->BeginProjection(client.get())){client->Close();co_return;}
+        entry_operation.emplace(*ctx.session_reg,client.get());
+    }
     auto c=s->cluster;std::uint8_t start{},level{},helmet{},country{},aid{},klass{},recalls{};std::string name;std::uint16_t map{};float x{},y{},z{};
     if(!r.Read(start)||!r.ReadString(name)||!r.Read(map)||!r.Read(x)||!r.Read(y)||!r.Read(z)||
        !r.Read(c.guild)||!r.Read(c.fame)||!r.Read(c.fame_color)||!r.ReadString(c.guild_name)||!r.Read(c.duty)||!r.Read(c.peer)||
@@ -130,14 +138,24 @@ boost::asio::awaitable<void> OnMWNativeEnterCharReq(std::vector<std::byte> body,
             loaded=co_await fourstory::db::CoOffloadIf(ctx.db_pool,[validator,claim=identity->Claim(ctx.expected_group),map,x,z]{return validator->LoadReplica(claim,map,x,z);});
         }catch(...){client->Close();co_return;}
         if(!loaded){client->Close();co_return;}
-        if(!client->IsOpen())co_return;
+        const auto current=ctx.session_reg->Identity(client.get());
+        if(!client->IsOpen()||!current||current->char_id!=identity->char_id||current->user_id!=identity->user_id||
+           current->key!=identity->key||current->channel!=identity->channel||current->connection_id!=identity->connection_id||
+           current->authority_epoch!=identity->authority_epoch||current->role!=MapSessionRole::Replica||current->phase!=SessionPhase::Pending)co_return;
         s->bStartAct=start;s->szNAME=std::move(name);s->wMapID=map;s->fPosX=x;s->fPosY=y;s->fPosZ=z;
         s->bLevel=level;s->bHelmetHide=helmet;s->bCountry=country;s->bClass=klass;c.hydrated=true;
+        const auto tick=static_cast<std::uint32_t>(SkillClockMs());
+        s->recovery=SourceRecoveryClock{tick+5000U,tick+5000U,0};
         s->cluster=std::move(c);ctx.char_state->Store(cid,*s);
         // CONRESULT is sent only to the main Map. Its client then sends
         // CONREADY to all returned server IDs, including this replica.
         if(!ctx.session_reg->Transition(cid,key,SessionPhase::Pending,SessionPhase::Admitted)){client->Close();co_return;}
-    }else ctx.char_state->Update(cid,[&](CharSnapshot& v){v.cluster=std::move(c);});
+    }else ctx.char_state->Update(cid,[&](CharSnapshot& v){
+        const auto tick=static_cast<std::uint32_t>(SkillClockMs());
+        if(!v.recovery)v.recovery=SourceRecoveryClock{};
+        v.recovery->hp_tick=v.recovery->mp_tick=tick+5000U;
+        v.cluster=std::move(c);
+    });
     co_await ctx.world_client->SendPacket(static_cast<std::uint16_t>(MessageId::MW_ENTERCHAR_ACK),EncodeEnterCharAck(cid,key));
 }
 }

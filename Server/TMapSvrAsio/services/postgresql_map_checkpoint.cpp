@@ -318,6 +318,14 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
         for(std::size_t i=0;i<debits.size();++i)for(auto& bag:p->bags)for(auto& item:bag.items)
             if(item.dlID==debits[i].before.dlID)item.durable_hash=hashes[i];
         after.payload=p;
+        QuestPackets erased;const auto old_effects=after.payload->effects->size();
+        if(!cast->loop)EraseRevivalByAction(sql,c,after,skill,false,erased);
+        if(after.payload->effects->size()!=old_effects) {
+            cast_result->ended.push_back({false,800,std::make_shared<const CharSnapshot>(after)});
+            if(!graph)WriteMaintainedEffects(sql,c,after);
+        }
+        // Source SKILLUSE calls CheckEternalBuff after attack erasure;
+        // LOOPSKILL and timer expiry do not invoke either operation.
         if(!cast->loop&&!after.dwMP) {
             if(!SupportedPostures(*p))throw std::runtime_error("Zero-MP cast requires supported eternal effect semantics");
             for(std::size_t i=0;i<after.payload->effects->size();) {
@@ -518,6 +526,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool during_entry=opcode==1; // internal EnterMAP only; no wire change
     const bool mail_poll=opcode==2; // internal idle-primary mailbox timer only
     const bool use_item=message==MessageId::CS_ITEMUSE_REQ;
+    const bool revival=message==MessageId::CS_REVIVAL_REQ;
     const bool sell_item=message==MessageId::CS_ITEMSELL_REQ;
     const bool buy_item=message==MessageId::CS_ITEMBUY_REQ||message==MessageId::CS_MAGICITEMBUY_REQ;
     const bool repair_items=message==MessageId::CS_DURATIONREP_REQ;
@@ -535,6 +544,8 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry||mail_poll) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(revival) {
+        if(body.size()!=13)throw std::runtime_error("Invalid REVIVAL request length");
     } else if(soulmate) {
         if(body.size()>65527)throw std::runtime_error("Invalid soulmate request length");
     } else if(mail_send||protected_change) {
@@ -594,7 +605,10 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     bool other_state_changed=false;
     std::optional<SoulmateOfferCommit> soulmate_offer;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
-    if(soulmate) {
+    if(revival) {
+        other_state_changed=ReviveNative(sql,c,after,body,facts,committed.packets);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(soulmate) {
         other_state_changed=ChangeNativeSoulmate(sql,c,after,opcode,body,facts,committed.packets,soulmate_offer);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
     }else if(mail_poll) {
@@ -1139,7 +1153,16 @@ SkillActionCommit PostgreSQLMapService::CommitSkillAction(const MapSessionClaim&
             charge=definition->action_time;
         }
     }
-    SkillActionCommit committed;committed.acknowledgement=EncodeActionAck(result,c.char_id,1,request.action,request.act,request.animation,request.skill);
+    SkillActionCommit committed;
+    if(result==SKILL_SUCCESS&&request.skill) {
+        QuestPackets erased;const auto old_effects=after.payload->effects->size();
+        EraseRevivalByAction(sql,c,after,request.skill,false,erased);
+        if(after.payload->effects->size()!=old_effects) {
+            committed.ended.push_back({false,800,std::make_shared<const CharSnapshot>(after)});
+            if(!graph)WriteMaintainedEffects(sql,c,after);
+        }
+    }
+    committed.acknowledgement=EncodeActionAck(result,c.char_id,1,request.action,request.act,request.animation,request.skill);
     const auto hex=[](auto bytes){constexpr char digits[]="0123456789abcdef";std::string out;
         for(auto v:bytes){const auto b=std::to_integer<unsigned>(v);out+=digits[b>>4];out+=digits[b&15];}return out;};
     const auto request_hex=hex(body),ack_hex=hex(committed.acknowledgement),fingerprint=Fingerprint(c,after);

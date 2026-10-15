@@ -21,7 +21,7 @@ inline bool SupportedPostures(const CharacterPayload& p) {
         // with a forced duration. Accepting arbitrary IDs would hide effects.
         return e.level==1&&std::any_of(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),
             [&](const auto& def){return def.skill==e.skill&&(e.remaining||
-                ((e.skill==903||IsNativeItemProbabilitySkill(e.skill))&&!def.duration));});
+                ((e.skill==800||e.skill==903||IsNativeItemProbabilitySkill(e.skill))&&!def.duration));});
     });
 }
 // ForceMaintain -> UpdateBuffSkill -> ChangeEquipItem -> CheckEquipSkill.

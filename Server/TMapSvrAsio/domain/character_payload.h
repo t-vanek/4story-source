@@ -94,6 +94,10 @@ struct CharacterPayload {
     // Absent for active-effect/companion/guild states whose stat semantics are
     // not yet implemented. Never synthesize a successful zero-filled sheet.
     std::optional<CharacterStatistics> statistics;
+    // Source SetAftermath rebases this DWORD clock on real load/transfer.
+    // Only bAftermath is persisted/encoded; checkpoints preserve this clock.
+    std::uint32_t aftermath_tick{},aftermath_item_bonus{};
+    bool revival_effect_exists{},revival_effect_supported{};
     std::uint32_t pure_max_hp{},pure_max_mp{}; // original GetPureMaxHP/MP cost bases
     std::vector<CharacterHotkeys> hotkeys;
     std::vector<CharacterTitle> titles;

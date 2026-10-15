@@ -5,6 +5,8 @@
 // That non-native prototype is not evidence of complete gameplay compatibility.
 
 #include "handlers.h"
+#include "config.h"
+#include "services/player_service.h"
 
 #include "domain/character.h"
 #include "domain/monster.h"
@@ -458,6 +460,17 @@ OnRevivalReq(std::shared_ptr<tnetlib::AsioSession> sess,
 {
     using tnetlib::protocol::MessageId;
 
+    // Native PCs cannot enter the historical cache-only/full-refill prototype.
+    if(ctx.session_reg&&ctx.char_state)
+        if(const auto identity=ctx.session_reg->Identity(sess.get())) {
+            // A partial native replica must not fall through to a full refill.
+            // Its source movement/status projection remains a separate producer.
+            if(identity->role==MapSessionRole::Replica)co_return;
+            if(const auto state=ctx.char_state->Get(identity->char_id);state&&state->payload) {
+                if(ctx.mode!=Mode::PvE)co_return;
+                co_await OnNativeQuestReq(sess,static_cast<std::uint16_t>(MessageId::CS_REVIVAL_REQ),std::move(body),ctx);co_return;
+            }
+        }
     // Wire (legacy CSHandler.cpp:1076): FLOAT x, y, z, BYTE type
     // (REVIVAL_NPC → revive in place vs ghost-walk; the aftermath variant
     // rides the stat/aftermath wave).

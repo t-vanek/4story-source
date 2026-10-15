@@ -11,6 +11,15 @@ is a modern extension; original MW_CONNECT_ACK, its exact source channel bytes
 and full World bootstrap remain **OPEN**. See the
 [framing contract](../../_rewrite/docs/modernization/evidence/phase-a-world-framing-20261014/map-framing.md).
 
+Native ordinary PvE revival now commits actual same-cell coordinates, source
+30/40-percent resources, aftermath and the supported published skill800 marker
+through the existing fenced quest/checkpoint transaction. Aftermath keeps its
+stored step and rebases only its private clock on hydration; ordinary timer
+changes persist through the same authority. This is **IMPLEMENTED /
+INTEGRATED_UNVERIFIED**. Cross-cell movement, secondary revival projection,
+special modes and richer800 effects remain **OPEN**; see the
+[bounded revival contract](../../_rewrite/docs/modernization/evidence/phase-a-native-revival-20261015/map-revival.md).
+
 Native PostgreSQL now serves fresh normal-character admission through actual
 Login/World/Map processes, backup-derived bags/items/skills/hotkeys, maximum
 HP/MP and core movement save/reconnect. `postgresql_map_*` owns that path; the

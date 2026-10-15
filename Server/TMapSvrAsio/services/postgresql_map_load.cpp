@@ -114,6 +114,29 @@ void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
         if(count!=1)throw std::runtime_error("Progression effect has no source maintained row");
         p.progress_effect_templates.push_back(def);
     }
+    // ForceMaintain800 uses the actual published template, never a guessed
+    // duration or an empty replacement for an existing unsupported definition.
+    p.revival_effect_exists=p.revival_effect_supported=false;
+    const int id=800;soci::row chart;
+    sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
+    if(!sql.got_data())return; // original missing FindTSkill: revival still completes
+    p.revival_effect_exists=true;
+    if(U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||U8(chart,"bIsHideSkill")||
+       U8(chart,"bEraseHide")||U32(chart,"dwDurationInc")||U32(chart,"dwWeaponID")||U8(chart,"bIsDismount")||U8(chart,"bEraseAct")>3)return;
+    ProgressEffectTemplate def;def.skill=800;def.duration=U32(chart,"dwDuration");def.priority=U8(chart,"bPriority");
+    def.erase_at_zero_mp=U8(chart,"bIsuse")&&!def.duration;def.erase_act=U8(chart,"bEraseAct");
+    def.is_static=U8(chart,"bStatic")!=0;
+    unsigned count=0;
+    soci::rowset<soci::row> rows=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
+    for(const auto& row:rows) {
+        ++count;
+        if(U8(row,"bAction")!=3)return; // actual IsMaintainType requires SA_BUFF
+        if(U8(row,"bType")!=6||U8(row,"bExec")!=0)return; // actual STATUS_NONE marker only
+    }
+    // Ability/status-bearing800 needs a larger intermediate-stat, collision
+    // and attack/defend contract. Do not replace it with a fake inert marker.
+    if(!count)return;
+    p.revival_effect_supported=true;p.progress_effect_templates.push_back(std::move(def));
 }
 bool SupportedStatisticsContext(const CharSnapshot& s,const CharacterPayload& p) {
     // GetCON/MEN/GetMaxHP/MP and CalcAbilityValue do not read party metadata.
@@ -181,6 +204,11 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
     p.statistics.reset();
     ReadPostures(sql,p);
     ReadProgressEffects(sql,p);
+    if(!s.dwHP&&p.effects&&std::any_of(p.effects->begin(),p.effects->end(),[&](const auto& e){
+        if(e.skill!=800)return false;
+        const auto def=std::find_if(p.progress_effect_templates.begin(),p.progress_effect_templates.end(),[](const auto& d){return d.skill==800;});
+        return def==p.progress_effect_templates.end()||!def->is_static;
+    }))throw std::runtime_error("Dead revival800 hydration requires unsupported source effect filtering");
     for(const auto& skill:p.skills) {
         const int id=std::bit_cast<std::int16_t>(skill.wSkillID);soci::row chart;
         sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
@@ -269,11 +297,13 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         }
     }
     std::vector<AbilityEffect> active;
+    p.aftermath_item_bonus=equipment[113]; // NetCode MAGIC_TYPE::MTYPE_AFTERMATH
     const bool supported_effects=SupportedPostures(p);
     if(supported_effects)for(const auto& effect:*p.effects) {
-        if(!IsNativePosture(effect.skill))continue;
-        const auto& modifiers=p.posture_templates.at(effect.skill-131).abilities;
-        active.insert(active.end(),modifiers.begin(),modifiers.end());
+        if(IsNativePosture(effect.skill)) {
+            const auto& modifiers=p.posture_templates.at(effect.skill-131).abilities;
+            active.insert(active.end(),modifiers.begin(),modifiers.end());
+        }
     }
     const auto changes=[&](const auto& effects,std::uint32_t base,int target){
         long long total=0;
@@ -579,7 +609,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     HydratePvpBalance(sql,claim,p);
     HydrateItemCooldowns(sql,claim,s,p);
     p.security=ReadSecurity(sql,claim);
-    DeriveStats(sql,s,p);s.payload=std::move(payload);
+    RebaseAftermath(s,p,SkillClockMs());DeriveStats(sql,s,p);s.payload=std::move(payload);
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
     tx->commit();return s;
 }
@@ -641,7 +671,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
          soci::use(cast_world,"w"),soci::use(cast_character,"c"),soci::into(head);
      p.last_title_selection_id=static_cast<std::uint64_t>(head);
 }
-    DeriveStats(sql,s,p);
+    RebaseAftermath(s,p,SkillClockMs());DeriveStats(sql,s,p);
     // Never silently clamp unsaved transferred core to an incomplete derived
     // stat model. Active-effect stat derivation remains a gameplay dependency.
     if(s.dwHP!=t.character.dwHP||s.dwMP!=t.character.dwMP)throw std::runtime_error("Transferred vitals exceed derived state");

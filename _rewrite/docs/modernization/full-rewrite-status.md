@@ -12,7 +12,12 @@ gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–069 are **written, not applied**.
-Latest local increment is based on `199fa5e`: native Login account/key guards
+Latest local increment is based on `1c83b5f`: PostgreSQL-backed same-cell native
+revival, source30/40% bars and ordinary aftermath decay, source step-preserving
+load/transfer clock reconstruction and validated protection800 lifecycle.
+No schema change or execution; unsupported variants/data/underflow and full
+combat/death/SoulHP/bootstrap remain OPEN.
+Previous code `1c83b5f`, based on `199fa5e`: native Login account/key guards
 and signed INTEGER binds across Map admission/replicas/load/checkpoints/transfer/
 release; mixed gameplay checks preserve unsigned BIGINT receipt/unlock keys.
 No schema/sequence change or execution. Positive-only character allocation and
@@ -53,9 +58,22 @@ Previous code increment: `3bc3bd1` (native NPC shops and PvP balances), based on
 `f2a7060`. Earlier `0fe24d2` adds item gambling/upgrades and probability consumables. Earlier code `0457d3d` and `750c797` and all
 historical evidence retain their original scope.
 
+## Native revival and aftermath — source review, 2026-10-15
+
+Latest local Phase A work (2026-10-15), based on `1c83b5f`, moves native
+REVIVAL out of the cache-only full-heal prototype and into the current PostgreSQL
+mutation/checkpoint path. The bounded same-cell primary path uses actual source
+30/40% bars, aftermath/stat/mode replies and validated protection800. Stored
+penalty steps survive hydration; the local decay clock is reconstructed without
+new wire fields. **INTEGRATED_UNVERIFIED**: static review only, no build/test/SQL/
+service/client/container run, migration (next070), push or deployment. Cross-cell
+AOI/replica/mode variants, unsupported800 data and BYTE decay underflow remain
+OPEN, together with full death/combat/SoulHP/rewards/bootstrap and client acceptance.
+[Source contracts, supported scope and deferred acceptance](evidence/phase-a-native-revival-20261015/README.md).
+
 ## Native Login/Map identity domains — source review, 2026-10-15
 
-Latest local Phase A work (2026-10-15), based on `199fa5e`, repairs native
+Code `1c83b5f` (2026-10-15), based on `199fa5e`, repairs native
 Login/Map account and session identity binding. Source INTEGER columns preserve
 DWORD bits as signed32 values; operational BIGINT receipt/unlock keys retain
 positive wire values. Actual authenticated character lobby and START, Map claim,
@@ -762,7 +780,11 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `199fa5e`: original DWORD account/key definitions,
+Latest local work based on `1c83b5f`: original revival/aftermath/protection,
+client consumers and native authority/persistence/caller/diff review only. See
+[current evidence](evidence/phase-a-native-revival-20261015/README.md). No build,
+test, SQL, server, client, service or container executed. Previous local work
+based on `199fa5e`: original DWORD account/key definitions,
 Login/Map call paths, migration column types and diff review only. Source INT
 keys and unsigned operational BIGINT keys were reviewed separately. See
 [current evidence](evidence/phase-a-native-identity-20261015/README.md). No build,

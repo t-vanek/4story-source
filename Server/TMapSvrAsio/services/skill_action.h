@@ -1,4 +1,5 @@
 #pragma once
+#include "domain/inventory.h"
 #include "services/client_senders.h"
 #include "wire_codec.h"
 #include <stdexcept>
@@ -20,5 +21,6 @@ inline SkillActionRequest DecodeSkillAction(std::span<const std::byte> bytes) {
 struct SkillActionCommit {
     std::shared_ptr<const CharSnapshot> snapshot;
     std::vector<std::byte> acknowledgement;
+    std::vector<EquipmentEffectEvent> ended;
 };
 }

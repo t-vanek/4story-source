@@ -75,6 +75,17 @@ boost::asio::awaitable<void> OnNativeAction(std::shared_ptr<tnetlib::AsioSession
             std::abs(cell(entry.pos.x)-cell(after.fPosX))<=1&&std::abs(cell(entry.pos.z)-cell(after.fPosZ))<=1;
         if(nearby)neighbors.push_back(std::move(client));
     });
+    std::vector<std::shared_ptr<tnetlib::AsioSession>> effect_neighbors{sess};
+    if(!committed.ended.empty()&&ctx.presence)ctx.presence->ForEachInChannel(identity->channel,cid,[&](const ChannelPresenceEntry& entry,auto client){
+        if(entry.map_id==after.wMapID&&std::abs(cell(entry.pos.x)-cell(after.fPosX))<=1&&
+           std::abs(cell(entry.pos.z)-cell(after.fPosZ))<=1)effect_neighbors.push_back(std::move(client));
+    });
+    for(const auto& event:committed.ended) {
+        if(!event.state||!event.state->payload||!event.state->payload->statistics)throw std::runtime_error("Action erase lost source statistics");
+        for(auto& client:effect_neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_SKILLEND_ACK),EncodeSkillEnd(cid,event.skill));
+        co_await sess->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_CHARSTATINFO_ACK),
+            EncodeCharacterStatistics(*event.state,*event.state->payload->statistics));
+    }
     for(auto& client:neighbors)co_await client->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ACTION_ACK),committed.acknowledgement);
 }
 boost::asio::awaitable<void> OnFinishSkill(std::shared_ptr<tnetlib::AsioSession> sess,

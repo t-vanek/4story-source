@@ -1,6 +1,17 @@
 # Modern server implementation status
 
-Latest local Phase A work (2026-10-15), based on `199fa5e`, repairs native
+Latest local Phase A work (2026-10-15), based on `1c83b5f`, moves native
+REVIVAL out of the cache-only full-heal prototype and into the current PostgreSQL
+mutation/checkpoint path. The bounded same-cell primary path uses actual source
+30/40% bars, aftermath/stat/mode replies and validated protection800. Stored
+penalty steps survive hydration; the local decay clock is reconstructed without
+new wire fields. **INTEGRATED_UNVERIFIED**: static review only, no build/test/SQL/
+service/client/container run, migration (next070), push or deployment. Cross-cell
+AOI/replica/mode variants, unsupported800 data and BYTE decay underflow remain
+OPEN, together with full death/combat/SoulHP/rewards/bootstrap and client acceptance.
+[Source contracts, supported scope and deferred acceptance](evidence/phase-a-native-revival-20261015/README.md).
+
+Previous code `1c83b5f` (2026-10-15), based on `199fa5e`, repairs native
 Login/Map account and session identity binding. Source INTEGER columns preserve
 DWORD bits as signed32 values; operational BIGINT receipt/unlock keys retain
 positive wire values. Actual authenticated character lobby and START, Map claim,

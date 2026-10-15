@@ -52,6 +52,7 @@ void PostgreSQLMapService::AdvanceProgressEffects(soci::session& sql,const MapSe
         ++i;
     }
     if(exp_expired)HangExpBenefit(sql,c,s,packets);
+    AdvanceAftermath(sql,c,s,now,packets);
 }
 void PostgreSQLMapService::GainQuestExperience(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::uint32_t gain,const QuestEvent& event,QuestPackets& packets) {

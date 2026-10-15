@@ -11,7 +11,18 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Latest local Phase A work (2026-10-15), based on `199fa5e`, repairs native
+Latest local Phase A work (2026-10-15), based on `1c83b5f`, moves native
+REVIVAL out of the cache-only full-heal prototype and into the current PostgreSQL
+mutation/checkpoint path. The bounded same-cell primary path uses actual source
+30/40% bars, aftermath/stat/mode replies and validated protection800. Stored
+penalty steps survive hydration; the local decay clock is reconstructed without
+new wire fields. **INTEGRATED_UNVERIFIED**: static review only, no build/test/SQL/
+service/client/container run, migration (next070), push or deployment. Cross-cell
+AOI/replica/mode variants, unsupported800 data and BYTE decay underflow remain
+OPEN, together with full death/combat/SoulHP/rewards/bootstrap and client acceptance.
+[Source contracts, supported scope and deferred acceptance](evidence/phase-a-native-revival-20261015/README.md).
+
+Previous code `1c83b5f` (2026-10-15), based on `199fa5e`, repairs native
 Login/Map account and session identity binding. Source INTEGER columns preserve
 DWORD bits as signed32 values; operational BIGINT receipt/unlock keys retain
 positive wire values. Actual authenticated character lobby and START, Map claim,
@@ -35,13 +46,14 @@ container run or new migration (next070). Full roster/bootstrap, high-bit identi
 party rewards/combat and other unported gameplay remain OPEN. Local Git only;
 no push. [Source contracts, changes and deferred acceptance](evidence/phase-a-party-stats-20261015/README.md).
 
-Next dependencies include separate source SoulHP/XP producers, complete client
-roster and source Map admission/bootstrap. Native stored account/session binding
-is now integrated, unverified; full high-bit character allocation still needs an
-explicit source/schema/sequence policy for the positive-only012 allocator. Keep
-source INTEGER key bits distinct from operational unsigned BIGINT receipt keys.
-Known unsent DEL recovery does not authorize replay of attempted/unknown output
-or fake roster clearing.
+Next dependencies include full source movement/AOI and replica/mode revival,
+unsupported800 templates and aftermath underflow/normalization. Implement the
+actual positive-PC-damage/death producer before cross-actor SoulHP; it is not a
+revival bonus. Party/monster XP, complete client roster and source Map admission/
+bootstrap remain required. Full high-bit character allocation still needs a
+source/schema/sequence policy for the positive-only012 allocator. Preserve both
+INTEGER identity and unsigned BIGINT receipt key domains; do not replay unknown
+writes or fake roster clearing.
 
 Previous code `b251cdf` (2026-10-14), based on `622fb2e`, connects manual
 party chief/type changes and repairs post-ready attributes for both primary and

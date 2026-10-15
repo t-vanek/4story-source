@@ -522,10 +522,12 @@ int main(int argc, char** argv)
                         const auto state=char_state.Get(identity.char_id);
                         if(!state||!state->payload||!state->payload->effects)continue;
                         if(state->payload->during&&state->payload->during->pending_entry)continue;
-                        const bool inactive=!tmapsvr::ItemExpirationDue(*state->payload,std::time(nullptr))&&
+                        const bool inactive=!state->bAftermath&&
+                           !tmapsvr::ItemExpirationDue(*state->payload,std::time(nullptr))&&
                            (!state->payload->during||state->payload->during->items.empty())&&
                            std::none_of(state->payload->effects->begin(),state->payload->effects->end(),
-                            [](const auto& effect){return effect.skill==820||effect.skill==903||effect.skill==918||effect.skill==923||
+                            [](const auto& effect){return (effect.skill==800&&effect.remaining)||
+                                effect.skill==820||effect.skill==903||effect.skill==918||effect.skill==923||
                                 (tmapsvr::IsNativeItemProbabilitySkill(effect.skill)&&effect.remaining);});
                         if(!session_reg.BeginCheckpoint(client.get()))continue;
                         tmapsvr::SessionOperation operation(session_reg,client.get());

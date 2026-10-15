@@ -47,5 +47,7 @@ struct ProgressEffectTemplate {
     std::uint8_t status{},priority{};
     std::uint32_t duration{};
     bool erase_at_zero_mp{}; // original bIsuse && !dwDuration, even for a forced timed effect
+    std::uint8_t erase_act{}; // validated BEA_ATTACK / BEA_DEFEND, revival800 only
+    bool is_static{true}; // source PushMaintainSkill refuses nonstatic skills on a corpse
 };
 }

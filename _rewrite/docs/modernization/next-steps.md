@@ -11,7 +11,19 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-16), baseline `99d029f`: the original
+Local Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
+battle/time charts, explicit source calendar, defined normal-battle timer branches
+and a bounded timer-to-batch FIFO are wired into native startup and one-second
+processing, **INTEGRATED_UNVERIFIED** within World. Enable output includes
+SkyGarden; non-mission peace trims real cached guild records and clears castle
+scores. The guild reader now emits actual conditional last records. Written077,
+grants and publisher are unexecuted;044–077 remain unapplied, next078. Actual
+Map regions/spawns/switches/occupation/rewards and full source bootstrap remain
+**IMPLEMENTING**. Map rejects those unported enable paths explicitly; no flag-only
+success. No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-world-battles-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `99d029f`: the original
 server-only physical/logical channel projection now fences native Map ownership
 and World peer authorization, **INTEGRATED_UNVERIFIED** within the documented
 single-source-group/at-most255-key scope. Routing activation now has offline
@@ -503,17 +515,20 @@ ITEMUSE/quest credit, original thresholds/next-key lookup and actual constructor
 lifetime. Continue late World decisions during replica/main transfer using real
 role/result authority; then BR mode. Do not mark these variants implemented or
 invent a successful decision/refund. Full source-bootstrap prerequisite below
-remains the next cross-system dependency. Written075 and076/grants are unexecuted; next077.
+remains the next cross-system dependency. Written075–077/grants are unexecuted; next078.
 
-The076 continuation implements bounded CTBLServerChart/CTBLChannelChart
-projection in native Map process ownership and World authorization. It does not
-change RW-as-Map admission. Next implement original TBATTLETIMECHART and
-TCUSTOMTIMECHART loading/timer state, including the active SKYGARDEN profile,
-and native Map LOCAL/MISSION/SKYGARDEN consumers. Use actual BATTLE_TYPE values;
-mission3 and sky4 are now corrected. Then complete guild/tactics expiry, rank,
-tournament and remaining ordered startup dependencies before switching the wire.
-Never send a partial-success bootstrap or invent a registration ACK.
-Written076/grants/publisher are unexecuted; next077.
+The076 topology and077 World battle/time publication, timer and batch paths now
+exist. Next port actual Map TLOCAL construction from TMapSvr.cpp3150–3440 and
+its real zone ownership, monster/spawn/AI, switch, occupation persistence and
+reward dependencies, then LOCAL/CASTLE/MISSION/SKYGARDEN enable consumers.
+The Map dispatcher currently refuses these paths explicitly; a scheduled battle
+can retire the partial World link and drain clients. This is a missing feature,
+not completed support. Do not replace real regions with empty vectors or accept
+only status flags. Source mission undefined branches/order profiles remain
+explicit limitations. Written077/grants/publisher are unexecuted; next078.
+Then complete guild/tactics history/expiry, native rank/tournament and the other
+ordered initial states before switching RW-as-Map to source MW_CONNECT_ACK.
+Never synthesize a registration ACK or claim full OnTimer/bootstrap parity.
 
 Cross-cutting bootstrap prerequisite: original Map MW_CONNECT_ACK admission and native
 World bootstrap. Continue from Server/TMapSvr/{TMapSvr.cpp::LoadData/InitNetwork;

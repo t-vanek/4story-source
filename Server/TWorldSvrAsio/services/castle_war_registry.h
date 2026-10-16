@@ -95,6 +95,7 @@ public:
     // SSHandler.cpp:9656). Only id / guild_points / occupy matter;
     // computed fields reset on the next Recompute.
     void Store(CastleWarInfo report);
+    void Clear(); // source OnSM_BATTLESTATUS_REQ castle PEACE
 
     // The full legacy NotifyCastleWarInfo pipeline: reset scratch,
     // country points + top-3, per-castle defender pass (with the

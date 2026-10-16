@@ -22,6 +22,7 @@
 #include "services/guild_constants.h"
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <ctime>
 #include <memory>
@@ -412,6 +413,9 @@ public:
 
     std::size_t Size() const;
     std::vector<std::uint32_t> SnapshotIds() const;
+    std::uint32_t RecentRecordDate() const {return m_recent_record_date.load();}
+    void SetRecentRecordDate(std::uint32_t day) {m_recent_record_date.store(day);}
+    void InitializeRecentRecordDate(); // actual loaded history max, then source trim
 
 private:
     struct Shard
@@ -428,6 +432,7 @@ private:
     }
 
     std::array<Shard, kShardCount> m_shards;
+    std::atomic<std::uint32_t> m_recent_record_date{0}; // original module ctor0
 };
 
 } // namespace tworldsvr

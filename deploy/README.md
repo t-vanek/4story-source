@@ -1,4 +1,10 @@
-> Current Phase A: `sql/map-topology-runtime-grants.sql` is written for076.
+> Current Phase A: `sql/world-battle-runtime-grants.sql` is written for077,
+> alongside `tools/database/import_world_battles.py` and explicit calendar/order
+> profile. Nothing was run. Map battle regions/full bootstrap remain unfinished;
+> scheduled enable packets currently retire the partial Map link. Next078.
+> [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-world-battles-20261016/README.md).
+
+> Previous Phase A: `sql/map-topology-runtime-grants.sql` is written for076.
 > Native Map ownership/World authorization need source-view reads and World
 > endpoint reads. No SQL/grants/import/build/test/runtime ran; next077.
 > Source registration/full bootstrap remain incomplete.

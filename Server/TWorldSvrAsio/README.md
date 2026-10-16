@@ -1,4 +1,12 @@
-> Current Phase A, baseline `99d029f`: World validates a native Map's exact
+> Current Phase A, baseline `8c0b11e`: native battle/time publication and source
+> calendar feed actual timer transitions and a bounded timer-to-batch FIFO.
+> Original enable bodies, SkyGarden output, peace effects and actual conditional
+> guild last records are connected, **INTEGRATED_UNVERIFIED** within World.
+> Written077/grants/publisher unexecuted; next078. Full native guild/history,
+> BOW/BR/other timers, Map war consumers and source admission remain unfinished.
+> [Source contracts and handoff](../../_rewrite/docs/modernization/evidence/phase-a-world-battles-20261016/README.md).
+
+> Previous Phase A, baseline `99d029f`: World validates a native Map's exact
 > process-pinned source channel topology as well as its live advisory owner.
 > Source battle selectors now retain tournament2/mission3/sky4.
 > **INTEGRATED_UNVERIFIED**;076/grants/publisher unexecuted, next077.

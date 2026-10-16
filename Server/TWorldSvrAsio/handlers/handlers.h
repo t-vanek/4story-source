@@ -56,10 +56,12 @@
 #include "../services/postgresql_soulmate_offers.h"
 #include "../services/server_messages.h"
 #include "../services/postgresql_chat_repository.h"
+#include "../services/postgresql_battle_repository.h"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/thread_pool.hpp>
+#include <boost/asio/experimental/channel.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -108,6 +110,12 @@ struct HandlerContext
     const ServerMessages*     server_messages = nullptr;
     const std::vector<std::uint32_t>* operators = nullptr;
     PostgreSQLChatRepository* chat_repo = nullptr;
+    BattleScheduler* battles = nullptr;
+    PostgreSQLBattleRepository* native_battles = nullptr;
+    using BattleQueue=boost::asio::experimental::channel<void(boost::system::error_code,BattleSignal)>;
+    std::shared_ptr<BattleQueue> battle_queue;
+    const std::int64_t* battle_clock = nullptr; // current TimerThread observation; one reactor
+    std::shared_ptr<SocialOperationGate> battle_operations=std::make_shared<SocialOperationGate>();
     std::shared_ptr<SocialOperationGate> communication_operations=std::make_shared<SocialOperationGate>();
     std::shared_ptr<SocialOperationGate> party_operations=std::make_shared<SocialOperationGate>();
 
@@ -675,10 +683,9 @@ boost::asio::awaitable<void> OnGuildUpdateReq(
 // Pairs with W3a-21 (OnPvPRecordReq) which persists the per-row
 // audit log. The aggregate that this handler returns is fed by
 // CalcWeekRecord summing the last 7 days of vRecord entries in
-// legacy; our port hasn't ported the per-day fan-in (war-result
-// path) yet, so weekrecord is zero-initialized at member load
-// time and stays that way. The reader still works — clients
-// just see an empty record per member until the fan-in lands.
+// source. Current cached war-result fan-in, battle PEACE and this reader share
+// the battle gate; the last slot uses the actual recent-date cursor. Complete
+// native historical guild/record loading and tactics remain unported.
 //
 // Wire layout (SSHandler.cpp:10379):
 //   DWORD dwCharID, DWORD dwKey
@@ -710,11 +717,8 @@ boost::asio::awaitable<void> OnGuildPvPRecordAck(
 //   award path for winning B-country tactics-guilds) are read
 //   and logged but not acted on — also tactics-subsystem
 //   dependent.
-// - No per-day vRecord history. weekrecord just accumulates;
-//   `CalcWeekRecord`'s 7-day trim doesn't run. A production
-//   deployment will want a periodic weekly clear (similar to
-//   the W3a-19 wanted-board sweep) — deferred until per-day
-//   vRecord lands or operators ask for it explicitly.
+// - Cached per-day history exists; source battle PEACE performs the weekly
+//   trim. Native historical persistence/hydration still requires its full port.
 //
 // Reply: none.
 boost::asio::awaitable<void> OnLocalRecordAck(
@@ -1735,13 +1739,12 @@ boost::asio::awaitable<void> OnCastleApplyAck(
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
 
-// --- W5-4: war-window enable broadcast (handlers_occupy.cpp) -------
+// --- Source battle timer/batch (handlers_battle.cpp) --------------
 //
 // SM_BATTLESTATUS_REQ — the scheduler opens/closes a war window;
-// world fans the matching LOCAL / CASTLE / MISSION enable packet to
-// every map peer. The BS_PEACE peace-time bookkeeping (record-date
-// reset + CalcWeekRecord + castle-war-info clear) and SKYGARDEN are
-// deferred.
+// world fans the source LOCAL/CASTLE/MISSION/SKYGARDEN enable packet, then
+// performs the non-mission PEACE record trim and castle-scoreboard clear.
+// Native periodic ticks use the same serialized output/effect path.
 //
 // Wire (SSHandler.cpp:9870): BYTE type, BYTE status, DWORD start,
 //   DWORD second
@@ -1749,6 +1752,8 @@ boost::asio::awaitable<void> OnBattleStatusReq(
     std::shared_ptr<PeerSession>  peer,
     std::vector<std::byte>        body,
     const HandlerContext&         ctx);
+boost::asio::awaitable<void> RunBattleTick(const HandlerContext&,std::int64_t observed);
+boost::asio::awaitable<void> RunBattleDelivery(const HandlerContext&);
 
 // --- W6-1: timed-event broadcast (handlers_event.cpp) --------------
 //

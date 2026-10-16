@@ -961,6 +961,8 @@ struct GuildPvPRecordRow
     // for parity with the W3a-21 audit-log; this struct uses 6
     // to match the wire exactly.
     std::array<std::uint32_t, 6> points{};
+    std::uint16_t last_kill_count{},last_die_count{};
+    std::array<std::uint32_t,6> last_points{};
 };
 
 // --- W3a-31 — tactics wanted board --------------------------------
@@ -1289,8 +1291,7 @@ boost::asio::awaitable<void> SendMwGuildCabinetListReq(
 
 // MW_GUILDPVPRECORD_REQ — reply to OnGuildPvPRecordAck. Returns
 // every member's rolling weekly PvP outcome aggregate plus a
-// per-member "last record" slot (currently always zeros — see
-// note above).
+// per-member last record when its actual date reaches RecentRecordDate.
 //
 // Wire layout (SSSender.cpp:3184):
 //   DWORD dwCharID
@@ -2068,6 +2069,9 @@ boost::asio::awaitable<void> SendMwMissionEnableReq(
     std::uint8_t                 status,
     std::uint32_t                start,
     std::uint32_t                second);
+// Source SKYGARDEN is enabled in original Map/World stdafx.h.
+boost::asio::awaitable<void> SendMwSkyGardenEnableReq(std::shared_ptr<PeerSession>,
+    std::uint8_t status,std::uint32_t second,std::uint8_t day,std::uint32_t start);
 
 // --- W6-1 timed-event broadcast (senders_event.cpp) ---------------
 

@@ -4,6 +4,12 @@
 #include "MessageId.h"
 
 namespace tworldsvr::senders {
+boost::asio::awaitable<void> SendMwSkyGardenEnableReq(std::shared_ptr<PeerSession> peer,
+    std::uint8_t status,std::uint32_t second,std::uint8_t day,std::uint32_t start) {
+    std::vector<std::byte> body;wire::WritePOD(body,status);wire::WritePOD(body,second);
+    wire::WritePOD(body,day);wire::WritePOD(body,start);
+    co_await peer->Wire()->SendPacket(static_cast<std::uint16_t>(tnetlib::protocol::MessageId::MW_SKYGARDENENABLE_REQ),std::move(body));
+}
 
 boost::asio::awaitable<void>
 SendMwCastleOccupyReq(std::shared_ptr<PeerSession> peer,

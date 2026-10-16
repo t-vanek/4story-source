@@ -1,4 +1,5 @@
 #include "services/soci_bow_repository.h"
+#include "services/battle_constants.h"
 
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
@@ -11,7 +12,7 @@ namespace tworldsvr {
 namespace {
 
 // BT_BOW (TWorldType.h:238).
-constexpr int kBtBow = 5;
+constexpr int kBtBow = battle::kTypeBow;
 
 std::int64_t NumCol(const soci::row& row, std::size_t i)
 {

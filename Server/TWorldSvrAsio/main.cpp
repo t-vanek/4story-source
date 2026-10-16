@@ -74,6 +74,7 @@
 #include <ctime>
 #include <memory>
 #include <string>
+#include <exception>
 
 namespace {
 void Usage()
@@ -156,6 +157,10 @@ int main(int argc, char** argv)
         tworldsvr::ServerMessages server_messages;
         std::vector<std::uint32_t> operators;
         std::unique_ptr<tworldsvr::PostgreSQLChatRepository> chat_repo;
+        tworldsvr::BattleScheduler battle_scheduler;
+        std::unique_ptr<tworldsvr::PostgreSQLBattleRepository> battle_repo;
+        std::int64_t battle_observed=static_cast<std::int64_t>(std::time(nullptr));
+        auto battle_queue=std::make_shared<tworldsvr::HandlerContext::BattleQueue>(io,256);
         std::atomic<bool> friend_persistence_failed{false};
         std::unique_ptr<tworldsvr::IItemStateRepository> item_state_repo;
         std::unique_ptr<tworldsvr::ICashSaleRepository>  cash_sale_repo;
@@ -198,6 +203,9 @@ int main(int argc, char** argv)
             if(backend==fourstory::db::Backend::PostgreSQL) {
                 if(!worker_pool)throw std::runtime_error("Native World mail requires database.worker_threads>0");
                 world_owner=std::make_unique<tworldsvr::PostgreSQLWorldOwner>(cfg.database.connection_string,cfg.group_id);
+                battle_repo=std::make_unique<tworldsvr::PostgreSQLBattleRepository>(*db_pool_owner,cfg.group_id,
+                    world_owner->Token(),battle_scheduler);
+                cfg.castle_war_day=battle_scheduler.Castle().day; // actual chart, including legitimate0
                 friend_repo=std::make_unique<tworldsvr::PostgreSQLFriendRepository>(*db_pool_owner,cfg.group_id,
                     world_owner->Token(),cfg.native_world_client_text_encoding,[&io,&friend_persistence_failed] {
                         if(!friend_persistence_failed.exchange(true))
@@ -404,6 +412,7 @@ int main(int argc, char** argv)
             const auto preloaded = guild_repo->LoadAll();
             for (auto& g : preloaded)
                 guilds.Insert(g);
+            guilds.InitializeRecentRecordDate();
             spdlog::info("guild registry: {} guild(s) preloaded",
                 guilds.Size());
         }
@@ -425,6 +434,10 @@ int main(int argc, char** argv)
         ctx.server_messages = &server_messages;
         ctx.operators = &operators;
         ctx.chat_repo = chat_repo.get();
+        ctx.battles = battle_repo?&battle_scheduler:nullptr;
+        ctx.native_battles = battle_repo.get();
+        ctx.battle_queue = battle_repo?battle_queue:nullptr;
+        ctx.battle_clock = battle_repo?&battle_observed:nullptr;
         ctx.guild_wanted = &guild_wanted;
         ctx.guild_tactics_wanted = &guild_tactics_wanted;
         ctx.parties      = &party;
@@ -542,6 +555,31 @@ int main(int argc, char** argv)
         }
 
         std::shared_ptr<fourstory::ops::RegistryRefresher> world_owner_sweeper;
+        std::shared_ptr<fourstory::ops::RegistryRefresher> battle_sweeper;
+        if(battle_repo) {
+            battle_observed=static_cast<std::int64_t>(std::time(nullptr));
+            boost::asio::co_spawn(io,tworldsvr::handlers::RunBattleDelivery(ctx),
+                [&io,&friend_persistence_failed](std::exception_ptr failure) {
+                    if(failure) {
+                        friend_persistence_failed.store(true);
+                        spdlog::critical("native battle batch failed; World stopped without output replay");io.stop();
+                    }
+                });
+            battle_sweeper=fourstory::ops::RegistryRefresher::Make(io,std::chrono::seconds(1));
+            battle_sweeper->AddCoroutineHook([ctx,&battle_observed,&io,&friend_persistence_failed]()
+                ->boost::asio::awaitable<void> {
+                try {
+                    // Source TimerThread samples before its WORLD_TIMER wait.
+                    co_await tworldsvr::handlers::RunBattleTick(ctx,battle_observed);
+                    battle_observed=static_cast<std::int64_t>(std::time(nullptr));
+                } catch(...) {
+                    friend_persistence_failed.store(true);
+                    spdlog::critical("native battle clock/state unavailable; World stopped without replay or guessed mission time");
+                    io.stop();
+                }
+            });
+            battle_sweeper->Start();
+        }
         if(world_owner) {
             world_owner_sweeper=fourstory::ops::RegistryRefresher::Make(io,std::chrono::seconds(1));
             world_owner_sweeper->AddCoroutineHook(
@@ -727,6 +765,8 @@ int main(int argc, char** argv)
         if (reserved_mail_sweeper) reserved_mail_sweeper->Stop();
         if(world_owner_sweeper)world_owner_sweeper->Stop();
         if(soulmate_sweeper)soulmate_sweeper->Stop();
+        if(battle_sweeper)battle_sweeper->Stop();
+        battle_queue->cancel();
 
         // Drain in-flight SOCI work before tearing the pool down so
         // a query doesn't keep a session reference alive past the

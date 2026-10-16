@@ -1,4 +1,11 @@
-> Current Phase A, baseline `99d029f`: native Map startup now loads original
+> Current Phase A: World now produces actual source battle enable packets.
+> Native Map TLOCAL/spawn/switch/occupation/reward consumers remain unimplemented;
+> the dispatcher explicitly retires that link instead of silently ignoring flags.
+> A scheduled battle can drain current partial Map sessions. This protective
+> refusal is not implemented gameplay. No build/test/SQL/runtime ran.
+> [Exact source dependencies](../../_rewrite/docs/modernization/evidence/phase-a-world-battles-20261016/README.md).
+
+> Previous Phase A, baseline `99d029f`: native Map startup now loads original
 > server-only physical/logical channel topology before ownership/recovery and
 > pins it in the process record. Catalog/health checks fence changed routing.
 > **INTEGRATED_UNVERIFIED**;076/grants/publisher unexecuted, next077.

@@ -28,7 +28,14 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-16): source channel topology now fences
+Current Phase A continuation (2026-10-16): native World loads source battle
+charts/calendar and runs the original defined timer branches through a bounded
+batch queue. Peace effects and conditional guild last-record output are wired,
+**INTEGRATED_UNVERIFIED** within World. Actual Map battle regions and full source
+bootstrap remain incomplete. Written077/grants/publisher are unexecuted; next078.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-world-battles-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16): source channel topology now fences
 native Map startup and World authorization; offline routing publication retires
 stale process tokens. Source battle selectors are corrected. These paths are
 **INTEGRATED_UNVERIFIED**; source registration/full bootstrap remain incomplete.

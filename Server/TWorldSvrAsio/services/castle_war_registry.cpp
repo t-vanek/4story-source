@@ -1,4 +1,5 @@
 #include "castle_war_registry.h"
+#include <stdexcept>
 
 namespace tworldsvr {
 
@@ -21,6 +22,7 @@ std::size_t CastleWarRegistry::Size() const
     std::lock_guard g(m_mtx);
     return m_castles.size();
 }
+void CastleWarRegistry::Clear() {std::lock_guard guard(m_mtx);m_castles.clear();}
 
 // Legacy CompareGuildRank (TWorldSvr.cpp:7558): PvP total desc,
 // member count desc, establish time asc.
@@ -218,6 +220,7 @@ std::vector<CastleWarBroadcastRow>
 CastleWarRegistry::Recompute(const CastleGuildFactsFn& facts,
                              std::uint8_t castle_war_day)
 {
+    if(castle_war_day<1||castle_war_day>7)throw std::runtime_error("Source castle weekday indexing unavailable");
     std::lock_guard g(m_mtx);
 
     // Phase 1 — reset scratch (legacy TWorldSvr.cpp:7315).

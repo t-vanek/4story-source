@@ -1,8 +1,28 @@
 #include "services/guild_registry.h"
+#include "services/pvp_aggregate.h"
+#include <algorithm>
+#include <limits>
+#include <stdexcept>
 
 #include "services/guild_constants.h"
 
 namespace tworldsvr {
+void GuildRegistry::InitializeRecentRecordDate() {
+    std::uint32_t recent=0;auto ids=SnapshotIds();std::sort(ids.begin(),ids.end());
+    for(auto id:ids)if(auto guild=Find(id)) {
+        std::lock_guard guard(guild->lock);
+        for(const auto& member:guild->members)for(const auto& row:member.vRecord) {
+            if(row.day_index<0||row.day_index>std::numeric_limits<std::uint32_t>::max())
+                throw std::runtime_error("Source guild record DWORD date unavailable");
+            recent=std::max(recent,static_cast<std::uint32_t>(row.day_index));
+        }
+    }
+    SetRecentRecordDate(recent);
+    for(auto id:ids)if(auto guild=Find(id)) {
+        std::lock_guard guard(guild->lock);
+        for(auto& member:guild->members)CalcWeekRecord(member,recent);
+    }
+}
 
 bool TGuild::RemoveTactics(std::uint32_t char_id, bool refund)
 {

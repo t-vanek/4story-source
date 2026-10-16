@@ -26,6 +26,7 @@
 
 #include <chrono>
 #include <span>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -816,6 +817,14 @@ DispatchWorld(std::uint16_t          wId,
     const auto id = ToMessageId(wId);
     switch (id)
     {
+    case MessageId::MW_LOCALENABLE_REQ:
+    case MessageId::MW_CASTLEENABLE_REQ:
+    case MessageId::MW_MISSIONENABLE_REQ:
+    case MessageId::MW_SKYGARDENENABLE_REQ:
+        // Source loops change real local/mission/castle/SkyGarden ownership,
+        // monsters, switches, rewards and client notices. Accepting just flags
+        // would conceal those missing native producers/consumers.
+        throw std::runtime_error("Map battle-region runtime is not implemented; World link retired");
     case MessageId::MW_RPSGAME_REQ:
     case MessageId::MW_RPSGAMECHANGE_REQ:
         co_await OnWorldRpsPacket(wId,std::move(body),ctx);break;

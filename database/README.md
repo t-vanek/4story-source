@@ -5,7 +5,14 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `99d029f`:** written076 adds source channel views,
+**Current Phase A, baseline `8c0b11e`:** written077 publishes actual source
+World battle/time charts with an explicit IANA calendar and source-order profile.
+New native World loading/tick/delivery reads use this publication; timer fields
+remain original process-local state. No invented saved battle/player records.
+No SQL/import/grants/publisher execution;044–077 remain unapplied, next078.
+[Source contracts and acceptance](../_rewrite/docs/modernization/evidence/phase-a-world-battles-20261016/README.md).
+
+**Previous Phase A, baseline `99d029f`:** written076 adds source channel views,
 nullable Map process provenance and offline routing-owner retirement audit.
 Map startup and World authorization use the same original query projection;
 the modified routing publisher refuses live owners and incompatible graphs.

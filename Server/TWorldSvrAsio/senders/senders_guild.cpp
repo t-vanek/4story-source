@@ -588,15 +588,9 @@ SendMwGuildPvPRecordReq(std::shared_ptr<PeerSession>           peer,
         WritePOD<std::uint16_t>(body, m.die_count);
         for (std::size_t i = 0; i < m.points.size(); ++i)
             WritePOD<std::uint32_t>(body, m.points[i]);
-        // "Last record" slot — always zeros until per-day
-        // vRecord history ports. Legacy emits the last vRecord
-        // entry when its dwDate >= dwRecentRecordDate; the
-        // structure is the same as the weekrecord slot above
-        // (WORD kill / WORD die / DWORD points[6]).
-        WritePOD<std::uint16_t>(body, 0);
-        WritePOD<std::uint16_t>(body, 0);
-        for (std::size_t i = 0; i < m.points.size(); ++i)
-            WritePOD<std::uint32_t>(body, 0);
+        WritePOD<std::uint16_t>(body, m.last_kill_count);
+        WritePOD<std::uint16_t>(body, m.last_die_count);
+        for (auto point : m.last_points) WritePOD<std::uint32_t>(body, point);
     }
     co_await peer->Wire()->SendPacket(
         tnetlib::protocol::ToUint16(

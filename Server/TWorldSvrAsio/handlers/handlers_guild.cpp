@@ -12,6 +12,7 @@
 #include "fourstory/db/co_offload.h"
 
 #include <spdlog/spdlog.h>
+#include <algorithm>
 
 #include <cstdint>
 #include <ctime>
@@ -2402,17 +2403,16 @@ OnGuildUpdateReq(std::shared_ptr<PeerSession> peer,
 //
 // Read-side counterpart to W3a-21's OnPvPRecordReq. Returns
 // every member's rolling weekly PvP outcome aggregate.
-// Currently weekrecord stays zero-initialized at member load
-// time (the per-day vRecord fan-in path lives in legacy
-// SSHandler.cpp:10155 and hasn't ported yet), so the reply just
-// carries zeros. That's wire-compat — the client UI shows an
-// empty record table.
+// Uses actual cached weekly history and the conditional source last-record
+// slot. Complete native historical guild/record hydration remains separate.
 
 boost::asio::awaitable<void>
 OnGuildPvPRecordAck(std::shared_ptr<PeerSession> peer,
                     std::vector<std::byte>       body,
                     const HandlerContext&        ctx)
 {
+    auto battle_operation=co_await ctx.battle_operations->Acquire();
+    if(ctx.native_battles&&(!ctx.peers||!ctx.peers->IsCurrentMap(peer)))co_return;
     const std::string& ip = peer->Wire()->RemoteIPv4();
     if (!ctx.chars || !ctx.guilds)
     {
@@ -2461,6 +2461,7 @@ OnGuildPvPRecordAck(std::shared_ptr<PeerSession> peer,
     // Snapshot the member list under the guild lock. Wire emits
     // only 6 of the 8 storage point buckets — slice on copy.
     std::vector<senders::GuildPvPRecordRow> rows;
+    const auto recent=ctx.guilds->RecentRecordDate();
     {
         std::lock_guard gl(guild->lock);
         rows.reserve(guild->members.size());
@@ -2472,15 +2473,18 @@ OnGuildPvPRecordAck(std::shared_ptr<PeerSession> peer,
             row.die_count  = m.weekrecord.die_count;
             for (std::size_t i = 0; i < row.points.size(); ++i)
                 row.points[i] = m.weekrecord.points[i];
+            if(!m.vRecord.empty()&&m.vRecord.back().day_index>=recent) {
+                const auto& last=m.vRecord.back();row.last_kill_count=last.kill_count;row.last_die_count=last.die_count;
+                for(std::size_t i=0;i<row.last_points.size();++i)row.last_points[i]=last.points[i];
+            }
             rows.push_back(std::move(row));
         }
     }
 
+    std::sort(rows.begin(),rows.end(),[](const auto& a,const auto& b){return a.char_id<b.char_id;});
     co_await senders::SendMwGuildPvPRecordReq(peer, char_id, key, rows);
 
-    spdlog::info("OnGuildPvPRecordAck[{}]: char_id={} guild_id={} "
-                 "members={} (weekrecord zero-init until per-day "
-                 "fan-in ports)",
+    spdlog::info("OnGuildPvPRecordAck[{}]: char_id={} guild_id={} members={}",
         ip, char_id, guild_id, rows.size());
 }
 
@@ -2497,6 +2501,8 @@ OnLocalRecordAck(std::shared_ptr<PeerSession> peer,
                  std::vector<std::byte>       body,
                  const HandlerContext&        ctx)
 {
+    auto battle_operation=co_await ctx.battle_operations->Acquire();
+    if(ctx.native_battles&&(!ctx.peers||!ctx.peers->IsCurrentMap(peer)))co_return;
     const std::string& ip = peer->Wire()->RemoteIPv4();
     if (!ctx.guilds)
     {

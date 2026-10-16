@@ -11,9 +11,21 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–076 are **written, not applied**; next077.
+evidence remain unchanged. New migrations044–077 are **written, not applied**; next078.
 
-Local Phase A continuation (2026-10-16), baseline `99d029f`: the original
+Local Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
+battle/time charts, explicit source calendar, defined normal-battle timer branches
+and a bounded timer-to-batch FIFO are wired into native startup and one-second
+processing, **INTEGRATED_UNVERIFIED** within World. Enable output includes
+SkyGarden; non-mission peace trims real cached guild records and clears castle
+scores. The guild reader now emits actual conditional last records. Written077,
+grants and publisher are unexecuted;044–077 remain unapplied, next078. Actual
+Map regions/spawns/switches/occupation/rewards and full source bootstrap remain
+**IMPLEMENTING**. Map rejects those unported enable paths explicitly; no flag-only
+success. No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-world-battles-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `99d029f`: the original
 server-only physical/logical channel projection now fences native Map ownership
 and World peer authorization, **INTEGRATED_UNVERIFIED** within the documented
 single-source-group/at-most255-key scope. Routing activation now has offline

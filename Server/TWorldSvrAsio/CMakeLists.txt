@@ -48,6 +48,7 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/handlers/handlers_tms.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_post.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_occupy.cpp
+    ${TWORLD_ASIO_SRC}/handlers/handlers_battle.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_event.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_combat.cpp
     ${TWORLD_ASIO_SRC}/handlers/handlers_item.cpp
@@ -98,6 +99,8 @@ add_library(tworldsvr_asio_core STATIC
     ${TWORLD_ASIO_SRC}/services/bow_registry.cpp
     ${TWORLD_ASIO_SRC}/services/br_registry.cpp
     ${TWORLD_ASIO_SRC}/services/rps_registry.cpp
+    ${TWORLD_ASIO_SRC}/services/battle_scheduler.cpp
+    ${TWORLD_ASIO_SRC}/services/postgresql_battle_repository.cpp
     ${TWORLD_ASIO_SRC}/services/event_registry.cpp
     ${TWORLD_ASIO_SRC}/services/cash_item_sale_registry.cpp
     ${TWORLD_ASIO_SRC}/services/ctrl_svr_slot.cpp

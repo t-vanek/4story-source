@@ -13,9 +13,10 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
     if(pool.GetBackend()!=fourstory::db::Backend::PostgreSQL||!Hash(m_config.owner_token)||
        !Hash(m_config.character_manifest)||!Hash(m_config.routing_manifest)||!Hash(m_config.actor_manifest))
         throw std::runtime_error("Native Map requires owned PostgreSQL and all verified catalog hashes");
-    try{auto lease=pool.Acquire();soci::transaction tx(*lease);*lease<<"SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY";
+    try{auto lease=pool.Acquire();auto tx=BeginMapTransaction(*lease,m_config.world,m_config.server,m_config.owner_token,true);
         CheckCatalogs(*lease);
         LoadNativeRps(*lease);
+        LoadNativeBattleRegions(*lease);
         // These native paths require migration 067. Keep all existing catalog
         // checks and reject a missing social/offer schema before accepting TCP.
         int columns=0;
@@ -32,7 +33,7 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
             "source_map_token,source_connection_id,source_authority_epoch FROM app_world.chat_ban_mutations WHERE false) required",soci::into(columns);
         // Migration071 is required by every new cast writer, not just ACT.
         *lease<<"SELECT count(*) FROM (SELECT request_opcode,actual_channel,actual_map FROM app_world.accepted_skill_casts WHERE false) required",soci::into(columns);
-        tx.commit();}
+        tx->commit();}
     catch(...){throw std::runtime_error("Native Map schema/catalog validation failed");}
 }
 void PostgreSQLMapService::CheckCatalogs(soci::session& sql) const {

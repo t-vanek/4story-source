@@ -1,6 +1,19 @@
 # Modern server implementation status
 
-Local Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
+Local Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
+loads original battle-zone and local/castle/mission/SkyGarden boot state from an
+explicit PostgreSQL projection. Source boss-template validity, logical default
+channel/instance-map binding, weekly ownership and actual ANSI hero bytes feed
+HEROLIST and NPC talk/trainer/ordinary-shop access, **INTEGRATED_UNVERIFIED**
+within that boot/read scope. Written078/grants/publisher are unexecuted;
+044–078 remain unapplied, next079. Real monster realization/AI, switches,
+GodBall, occupation/rewards, hero mutations and full source bootstrap remain
+**IMPLEMENTING**. Unsupported World mutations retire the boot authority and
+link; this is protective refusal, not battle support. No build, test, SQL,
+import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches
 and a bounded timer-to-batch FIFO are wired into native startup and one-second
 processing, **INTEGRATED_UNVERIFIED** within World. Enable output includes

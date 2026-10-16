@@ -3,11 +3,13 @@
 #include "player_service.h"
 #include "session_validator.h"
 #include "server_route_resolver.h"
+#include "battle_regions.h"
 #include "fourstory/db/session_pool.h"
 #include <string>
 #include <map>
 #include <mutex>
 #include <optional>
+#include <atomic>
 
 namespace tmapsvr {
 namespace transfer {struct State;struct Item;}
@@ -54,6 +56,9 @@ public:
     std::optional<std::string> NoticeOperatorName(const MapSessionClaim&) override;
     QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) override;
     void UpdateRpsChart(std::span<const std::byte>) override;
+    std::vector<std::byte> BattleHeroList(const MapSessionClaim&) override;
+    void RetireBattleRegions() override {m_battle_current=false;}
+    bool BattleRegionsCurrent() const override {return m_battle_current;}
     TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillActionCommit CommitSkillAction(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
@@ -138,6 +143,9 @@ private:
     static void DebitNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,std::uint8_t,std::uint64_t,std::uint8_t,QuestPackets&);
     void LoadNativeRps(soci::session&);
     void CheckNativeRpsRelease(soci::session&) const;
+    void LoadNativeBattleRegions(soci::session&);
+    void CheckNativeBattleRelease(soci::session&) const;
+    bool NativeNpcCanTalk(soci::session&,const CharSnapshot&,std::uint8_t,std::uint16_t) const;
     std::optional<NativeRpsGame> FindNativeRps(std::uint8_t,std::uint8_t) const;
     bool ChangeNativeRps(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,
                          std::span<const std::byte>,const QuestMapFacts&,QuestPackets&,std::string&);
@@ -146,8 +154,8 @@ private:
     static void HydratePvpBalance(soci::session&,const MapSessionClaim&,CharacterPayload&);
     static void CheckPvpBalance(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static void SpendNativePvp(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint32_t,QuestPackets&);
-    static void ListNativeNpcItems(soci::session&,const CharSnapshot&,std::uint16_t,QuestPackets&);
-    static bool BuyNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,std::span<const std::byte>,const IQuestChart&,const QuestEvent&,QuestPackets&);
+    void ListNativeNpcItems(soci::session&,const CharSnapshot&,std::uint16_t,QuestPackets&) const;
+    bool BuyNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,bool,std::span<const std::byte>,const IQuestChart&,const QuestEvent&,QuestPackets&) const;
     static bool SellNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,std::uint16_t&,QuestPackets&);
     static bool RepairNativeItems(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,QuestPackets&);
     static bool RefineNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::span<const std::byte>,const QuestMapFacts&,QuestPackets&);
@@ -197,6 +205,8 @@ private:
     mutable std::mutex m_rps_mutex;
     std::map<std::uint16_t,NativeRpsGame> m_rps;
     std::string m_rps_manifest;
+    BattleRegions m_battles;
+    std::atomic<bool> m_battle_current{true};
     PostgreSQLMapConfig m_config;
 };
 }

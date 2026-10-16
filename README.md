@@ -28,7 +28,15 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-16): native World loads source battle
+Current Phase A continuation (2026-10-16): native Map battle-region boot now
+feeds actual HEROLIST and source territory-based NPC access. The explicit078
+PostgreSQL projection preserves source order, bytes, times and map/spawn bindings,
+**INTEGRATED_UNVERIFIED**. Battle effects/native guild mutations/full bootstrap
+remain incomplete; unsupported World changes retire cached authority and the
+link. Written078/grants/publisher unexecuted; next079.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-battle-regions-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16): native World loads source battle
 charts/calendar and runs the original defined timer branches through a bounded
 batch queue. Peace effects and conditional guild last-record output are wired,
 **INTEGRATED_UNVERIFIED** within World. Actual Map battle regions and full source

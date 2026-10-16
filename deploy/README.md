@@ -1,4 +1,11 @@
-> Current Phase A: `sql/world-battle-runtime-grants.sql` is written for077,
+> Current Phase A:078 and `sql/map-battle-runtime-grants.sql` are written for
+> actual Map battle boot/readers, with SELECT-only access and the offline
+> `tools/database/import_map_battles.py` source-order projection. Nothing ran.
+> Runtime battles/native guild/hero mutations/full bootstrap remain unfinished;
+> unsupported World changes retire boot authority and the link. Next079.
+> [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-battle-regions-20261016/README.md).
+
+> Previous Phase A: `sql/world-battle-runtime-grants.sql` is written for077,
 > alongside `tools/database/import_world_battles.py` and explicit calendar/order
 > profile. Nothing was run. Map battle regions/full bootstrap remain unfinished;
 > scheduled enable packets currently retire the partial Map link. Next078.

@@ -112,6 +112,7 @@ boost::asio::awaitable<void> Dispatch(
 // dispatch call.
 boost::asio::awaitable<void> OnSecureCodeReq(std::shared_ptr<tnetlib::AsioSession>,std::uint16_t,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnTitleListReq(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
+boost::asio::awaitable<void> OnHeroListReq(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnChangeTitleReq(std::shared_ptr<tnetlib::AsioSession>,std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnWorldTitleChanged(std::vector<std::byte>,const HandlerContext&);
 boost::asio::awaitable<void> OnSkillEndReq(std::shared_ptr<tnetlib::AsioSession> sess,

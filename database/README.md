@@ -5,7 +5,15 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `8c0b11e`:** written077 publishes actual source
+**Current Phase A, baseline `81191cc`:** written078 adds the source-bound Map
+battle boot release and operational region/weekly ownership projection. The
+new offline `import_map_battles.py` requires complete pinned values/ANSI bytes,
+explicit original-query order and the077 calendar; native readers use these
+rows without archive writes or an invented guild-ID map. Map grants are SELECT
+only. No SQL/import/grants/publisher execution;044–078 unapplied, next079.
+[Source contracts and acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-battle-regions-20261016/README.md).
+
+**Previous Phase A, baseline `8c0b11e`:** written077 publishes actual source
 World battle/time charts with an explicit IANA calendar and source-order profile.
 New native World loading/tick/delivery reads use this publication; timer fields
 remain original process-local state. No invented saved battle/player records.

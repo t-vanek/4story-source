@@ -11,7 +11,26 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
+Local Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
+loads original battle-zone and local/castle/mission/SkyGarden boot state from an
+explicit PostgreSQL projection. Source boss-template validity, logical default
+channel/instance-map binding, weekly ownership and actual ANSI hero bytes feed
+HEROLIST and NPC talk/trainer/ordinary-shop access, **INTEGRATED_UNVERIFIED**
+within that boot/read scope. Written078/grants/publisher are unexecuted;
+044–078 remain unapplied, next079. Real monster realization/AI, switches,
+GodBall, occupation/rewards, hero mutations and full source bootstrap remain
+**IMPLEMENTING**. Unsupported World mutations retire the boot authority and
+link; this is protective refusal, not battle support. No build, test, SQL,
+import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
+
+Immediate implementation dependency: source monster realization in
+`TMap.cpp::AddMonSpawn/InitMonster` and `TAICmdRegen::ExecAI`, including actual
+group/party/event/AI/regen producers and source instance IDs. Then wire
+switches/GodBall and all four enable consumers with native occupation/reward
+persistence. Boot readers above do not permit removing the protective refusal.
+
+Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches
 and a bounded timer-to-batch FIFO are wired into native startup and one-second
 processing, **INTEGRATED_UNVERIFIED** within World. Enable output includes
@@ -631,7 +650,9 @@ Code `3bc3bd1` connects NPC item/trainer lists and ordinary, quest, magic and Pv
 purchases to the native transaction. Migration058 adds fenced PvP balances and
 an explicit offline archival importer; CHARINFO and transfer retain the original
 three point fields. Unknown-quest free purchases are explicitly rejected. BOW,
-portal/monster shops, territory rules, expiration and full PvP remain open.
+portal/monster shops, dynamic territory/discount rules, expiration and full PvP
+remain open. The current078 boot continuation above supplies bounded actual
+territory-country access; it does not implement ownership changes.
 [Source scope and compile-only evidence](evidence/phase-a-npc-shops-20261011/README.md).
 Continue the remaining mail producers above, remaining NPC variants,
 full PvP records/rewards/rollover and broader World/social persistence. The balance
@@ -649,8 +670,9 @@ World numeric events and source CalcProb effect consumption to native persistenc
 `750c797` orders Control frame writes and CRUD/tick/replay, restricts direct pushes
 and prevents old peer cleanup from removing a successor. These are unverified;
 see [source contracts and acceptance backlog](evidence/phase-a-refine-events-20261011/README.md).
-Continue conditional economy discounts/probability bonuses and the territory
-registry, shop/deal/tournament producers and general item skills. Native ordinary
+Continue conditional economy discounts/probability bonuses and dynamic territory
+mutations beyond the current078 boot registry, shop/deal/tournament producers
+and general item skills. Native ordinary
 gambling/upgrade branches and905/911/919/921/922/939 are now connected at0fe24d2;
 see [contracts and exact remaining dependencies](evidence/phase-a-item-upgrades-20261011/README.md).
 Complete their conditional territory/PCBang/BOW integration and broader economy

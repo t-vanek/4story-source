@@ -1,4 +1,13 @@
-> Current Phase A: World now produces actual source battle enable packets.
+> Current Phase A, baseline `81191cc`: native boot projects actual battle zones,
+> local/castle/mission/SkyGarden records, source spawn validity and logical
+> default-map bindings. HEROLIST and territory-based NPC talk/trainer/ordinary
+> shops consume this state, **INTEGRATED_UNVERIFIED**.078/grants/publisher are
+> written only, next079. Runtime battle effects and hero/ownership mutations
+> remain missing; unported World changes permanently retire cached authority
+> and the link, potentially draining clients. No build/test/SQL/runtime ran.
+> [Contracts and exact next dependencies](../../_rewrite/docs/modernization/evidence/phase-a-map-battle-regions-20261016/README.md).
+
+> Previous Phase A: World now produces actual source battle enable packets.
 > Native Map TLOCAL/spawn/switch/occupation/reward consumers remain unimplemented;
 > the dispatcher explicitly retires that link instead of silently ignoring flags.
 > A scheduled battle can drain current partial Map sessions. This protective

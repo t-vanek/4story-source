@@ -56,6 +56,9 @@ public:
     }
     virtual QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) {throw std::runtime_error("Native quest persistence unavailable");}
     virtual void UpdateRpsChart(std::span<const std::byte>) {throw std::runtime_error("Native RPS catalog unavailable");}
+    virtual std::vector<std::byte> BattleHeroList(const MapSessionClaim&) {throw std::runtime_error("Native battle-region state unavailable");}
+    virtual void RetireBattleRegions() {throw std::runtime_error("Native battle-region retirement unavailable");}
+    virtual bool BattleRegionsCurrent() const {return false;}
     virtual SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Secure code persistence unavailable");}
 
     // Load the snapshot for `char_id`, or nullopt when the row is

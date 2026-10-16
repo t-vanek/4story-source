@@ -117,6 +117,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/inventory.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/title.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/battle.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/secure_code.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/maintained_effect.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/character_statistics.cpp
@@ -153,6 +154,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_checkpoint.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_quest.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_rps.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_battles.cpp
+    ${TMAPSVR_ASIO_SRC}/services/battle_regions.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/rps.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_quest_items.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_quest_mail.cpp

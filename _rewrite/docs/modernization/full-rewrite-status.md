@@ -11,9 +11,22 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–077 are **written, not applied**; next078.
+evidence remain unchanged. New migrations044–078 are **written, not applied**; next079.
 
-Local Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
+Local Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
+loads original battle-zone and local/castle/mission/SkyGarden boot state from an
+explicit PostgreSQL projection. Source boss-template validity, logical default
+channel/instance-map binding, weekly ownership and actual ANSI hero bytes feed
+HEROLIST and NPC talk/trainer/ordinary-shop access, **INTEGRATED_UNVERIFIED**
+within that boot/read scope. Written078/grants/publisher are unexecuted;
+044–078 remain unapplied, next079. Real monster realization/AI, switches,
+GodBall, occupation/rewards, hero mutations and full source bootstrap remain
+**IMPLEMENTING**. Unsupported World mutations retire the boot authority and
+link; this is protective refusal, not battle support. No build, test, SQL,
+import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches
 and a bounded timer-to-batch FIFO are wired into native startup and one-second
 processing, **INTEGRATED_UNVERIFIED** within World. Enable output includes

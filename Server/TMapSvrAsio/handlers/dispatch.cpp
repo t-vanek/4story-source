@@ -136,6 +136,8 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnSecureCodeReq(sess,wId,std::move(body),ctx);break;
     case MessageId::CS_TITLELIST_REQ:
         co_await OnTitleListReq(sess,std::move(body),ctx); break;
+    case MessageId::CS_HEROLIST_REQ:
+        co_await OnHeroListReq(sess,std::move(body),ctx); break;
     case MessageId::CS_CHANGETITLE_REQ:
         co_await OnChangeTitleReq(sess,std::move(body),ctx); break;
     case MessageId::CS_SKILLBUY_REQ:

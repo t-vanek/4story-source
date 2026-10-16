@@ -691,18 +691,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
         sql << "SELECT \"bCountryID\",\"wLocalID\" FROM character_compat.\"TNPCCHART\" WHERE \"wID\"=:id",
             soci::use(id),soci::into(country),soci::into(local);
         if(!sql.got_data()){committed.snapshot=std::make_shared<const CharSnapshot>(before);tx->commit();return committed;}
-        if(country==3&&local)throw std::runtime_error("NPC territory authority is not integrated");
-        int disguise=0;
-        if(!payload->effects)throw std::runtime_error("NPC interaction requires hydrated effects");
-        for(const auto& effect:*payload->effects) {
-            const int skill=std::bit_cast<std::int16_t>(effect.skill);
-            sql << "SELECT \"bExec\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:s AND \"bType\"=3 "
-                "AND \"bExec\" BETWEEN 4 AND 6 ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\" LIMIT 1",soci::use(skill),soci::into(disguise);
-            if(sql.got_data())break;
-            disguise=0;
-        }
-        const bool friendly=country==before.bCountry||country==payload->aid_country;
-        if(country!=3&&(!friendly||(disguise&&disguise!=country+4))) {
+        if(!NativeNpcCanTalk(sql,after,static_cast<std::uint8_t>(country),static_cast<std::uint16_t>(local))) {
             committed.snapshot=std::make_shared<const CharSnapshot>(before);tx->commit();return committed;
         }
         const auto selected=quest_runtime::Talk(*payload,chart,npc,committed.packets);
@@ -1098,8 +1087,7 @@ SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c
         if(catalog.npc_exists)throw std::runtime_error("Duplicate source NPC");
         catalog.npc_exists=true;
         const auto country=r.get<int>(1),local=r.get<int>(2),condition=r.get<int>(3),discount=r.get<int>(4);
-        if(country==3&&local)throw std::runtime_error("Trainer territory ownership is not integrated");
-        catalog.can_talk=country==3||country==before.bCountry||country==before.payload->aid_country;
+        catalog.can_talk=NativeNpcCanTalk(sql,original,static_cast<std::uint8_t>(country),static_cast<std::uint16_t>(local));
         if(!catalog.can_talk)continue;
         catalog.discount=NpcDiscount(condition,discount,local);
         if(r.get<int>(0)==1||r.get<int>(0)==19){int found=0;

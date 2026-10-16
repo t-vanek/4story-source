@@ -2,7 +2,20 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Local Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
+Local Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
+loads original battle-zone and local/castle/mission/SkyGarden boot state from an
+explicit PostgreSQL projection. Source boss-template validity, logical default
+channel/instance-map binding, weekly ownership and actual ANSI hero bytes feed
+HEROLIST and NPC talk/trainer/ordinary-shop access, **INTEGRATED_UNVERIFIED**
+within that boot/read scope. Written078/grants/publisher are unexecuted;
+044–078 remain unapplied, next079. Real monster realization/AI, switches,
+GodBall, occupation/rewards, hero mutations and full source bootstrap remain
+**IMPLEMENTING**. Unsupported World mutations retire the boot authority and
+link; this is protective refusal, not battle support. No build, test, SQL,
+import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches
 and a bounded timer-to-batch FIFO are wired into native startup and one-second
 processing, **INTEGRATED_UNVERIFIED** within World. Enable output includes
@@ -484,7 +497,7 @@ in Debug and Release, with no tests or runtime. See [source scope](evidence/phas
 
 | Capability | Implemented runtime path | Remaining scope / acceptance |
 |---|---|---|
-| Item/trainer/magic lists | Original NPCITEMLIST → published catalogs → source filters, prices and descriptors | Portal/monster shops; territory/BOW; actual client/PG acceptance |
+| Item/trainer/magic lists | Original NPCITEMLIST → published catalogs → source filters, prices and descriptors; current078 boot territory-country access | Portal/monster shops; dynamic ownership and guild/hero discounts; BOW; actual client/PG acceptance |
 | NPC purchases | ITEMBUY/MAGICITEMBUY → primary transaction → caller/item/purse/title/PvP/quest/checkpoint → ACK | Native deal/tournament producers, expiry/mail; BOW; failure/concurrency acceptance |
 | PvP monetary state | Migration058, explicit historical import, CHARINFO/handoff/recovery and fenced available-point spending | Full records/ranks/rewards/rollover; importer not executed |
 

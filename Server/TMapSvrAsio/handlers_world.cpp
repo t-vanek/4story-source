@@ -821,10 +821,19 @@ DispatchWorld(std::uint16_t          wId,
     case MessageId::MW_CASTLEENABLE_REQ:
     case MessageId::MW_MISSIONENABLE_REQ:
     case MessageId::MW_SKYGARDENENABLE_REQ:
+    case MessageId::MW_LOCALOCCUPY_REQ:
+    case MessageId::MW_CASTLEOCCUPY_REQ:
+    case MessageId::MW_MISSIONOCCUPY_REQ:
+    case MessageId::MW_SKYGARDENOCCUPY_REQ:
+    case MessageId::MW_HEROSELECT_REQ:
+    case MessageId::MW_CASTLEGUILDCHG_REQ:
         // Source loops change real local/mission/castle/SkyGarden ownership,
         // monsters, switches, rewards and client notices. Accepting just flags
         // would conceal those missing native producers/consumers.
-        throw std::runtime_error("Map battle-region runtime is not implemented; World link retired");
+        // Retire cached boot authority permanently as well: a reconnect must
+        // not expose stale hero/NPC ownership after an unported mutation.
+        if(ctx.player_service)ctx.player_service->RetireBattleRegions();
+        throw std::runtime_error("Map battle-region transitions are not implemented; World link and boot authority retired");
     case MessageId::MW_RPSGAME_REQ:
     case MessageId::MW_RPSGAMECHANGE_REQ:
         co_await OnWorldRpsPacket(wId,std::move(body),ctx);break;

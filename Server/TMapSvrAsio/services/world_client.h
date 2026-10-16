@@ -85,6 +85,9 @@ public:
         SendPacket(std::uint16_t wId, std::vector<std::byte> body) override;
 
     bool IsConnected() const override;
+    // Lifecycle fact for the native disconnect callback. The registration ACK
+    // is consumed inside ReadConnection and never reaches the packet handler.
+    bool HasEverRegistered() const {return m_events.connection!=0;}
     bool IsRegistered() const override { return m_registered && IsConnected(); }
     std::optional<WorldEventSnapshot> EventSnapshot() const override {
         return IsRegistered()?std::optional{m_events}:std::nullopt;

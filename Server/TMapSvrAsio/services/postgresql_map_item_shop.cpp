@@ -24,21 +24,6 @@ std::optional<Npc> ReadNpc(soci::session& sql,std::uint16_t npc) {
         static_cast<std::uint8_t>(row.get<int>(2)),static_cast<std::uint8_t>(row.get<int>(3)),
         static_cast<std::uint8_t>(row.get<int>(4)),static_cast<std::uint8_t>(row.get<int>(5))};
 }
-bool CanTalk(soci::session& sql,const CharSnapshot& s,const Npc& npc) {
-    if(npc.country==3&&npc.local)throw std::runtime_error("Shop CanTalk needs live territory country");
-    if(npc.country==3)return true;
-    if(!s.payload->effects)throw std::runtime_error("Shop CanTalk requires hydrated disguise state");
-    int disguise=0;
-    for(const auto& effect:*s.payload->effects) {
-        const int skill=std::bit_cast<std::int16_t>(effect.skill);
-        sql << "SELECT \"bExec\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=3 "
-            "AND \"bExec\" BETWEEN 4 AND 6 ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\" LIMIT 1",
-            soci::use(skill),soci::into(disguise);
-        if(sql.got_data())break;
-        disguise=0;
-    }
-    return (s.bCountry==npc.country||s.payload->aid_country==npc.country)&&(!disguise||disguise==npc.country+4);
-}
 void RequireMerchandise(soci::session& sql,bool magic) {
     int compatible=0;
     sql << "SELECT count(*) FROM character_compat.trainer_release r JOIN character_compat.catalog_release c "
@@ -132,8 +117,8 @@ std::vector<std::pair<std::uint16_t,std::uint32_t>> TrainerOffers(soci::session&
 }
 }
 
-void PostgreSQLMapService::ListNativeNpcItems(soci::session& sql,const CharSnapshot& s,std::uint16_t id,QuestPackets& packets) {
-    const auto npc=ReadNpc(sql,id);if(!npc||!CanTalk(sql,s,*npc))return;
+void PostgreSQLMapService::ListNativeNpcItems(soci::session& sql,const CharSnapshot& s,std::uint16_t id,QuestPackets& packets) const {
+    const auto npc=ReadNpc(sql,id);if(!npc||!NativeNpcCanTalk(sql,s,npc->country,npc->local))return;
     if(npc->map==3000) {
         if(s.wMapID!=3000)return;
         throw std::runtime_error("BOW shop requires the BOW compile-mode currency contract");
@@ -168,7 +153,7 @@ void PostgreSQLMapService::ListNativeNpcItems(soci::session& sql,const CharSnaps
 }
 
 bool PostgreSQLMapService::BuyNativeItem(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,bool magic,
-    std::span<const std::byte> body,const IQuestChart& chart,const QuestEvent& event,QuestPackets& packets) {
+    std::span<const std::byte> body,const IQuestChart& chart,const QuestEvent& event,QuestPackets& packets) const {
     wire::Reader reader(body.data(),body.size());std::uint16_t npc_id=0,item_id=0;std::uint32_t quest_id=0;
     std::uint8_t count=0,caller_bag=0,caller_slot=0;
     if(!reader.Read(npc_id)||!reader.Read(quest_id)||(!magic&&!reader.Read(item_id))||!reader.Read(count)||
@@ -191,7 +176,7 @@ bool PostgreSQLMapService::BuyNativeItem(soci::session& sql,const MapSessionClai
         throw std::runtime_error("BOW shop requires the BOW compile-mode currency contract");
     }
     // MAGICITEMBUY intentionally has no CanTalk call in the original.
-    if(!magic&&!CanTalk(sql,s,*npc))return false;
+    if(!magic&&!NativeNpcCanTalk(sql,s,npc->country,npc->local))return false;
     if(magic||!quest_id)RequireMerchandise(sql,magic);
     std::optional<QuestMagicItem> template_item;
     if(magic) {

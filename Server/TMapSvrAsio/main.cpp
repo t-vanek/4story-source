@@ -422,11 +422,16 @@ int main(int argc, char** argv)
             auto on_world_packet = [&ctx, &world_operations](std::uint16_t wId, std::span<const std::byte> body)
                 -> boost::asio::awaitable<void> {
                 ++world_operations;
+                struct Release {std::size_t& count;~Release(){--count;}} release{world_operations};
                 try {
                     co_await tmapsvr::DispatchWorld(wId,
                         std::vector<std::byte>(body.begin(), body.end()), ctx);
-                } catch (...) { spdlog::error("world dispatch failed wId=0x{:04X}", wId); }
-                --world_operations;
+                } catch (...) {
+                    spdlog::error("world dispatch failed wId=0x{:04X}; retiring link", wId);
+                    // Run() owns socket closure and the native durable drain.
+                    // Swallowing this would leave unported mutations ignored.
+                    throw;
+                }
             };
             world_client = std::make_unique<tmapsvr::AsioWorldClient>(
                 io, cfg.world.host, cfg.world.port,
@@ -445,6 +450,7 @@ int main(int argc, char** argv)
             if (native_owner) {
                 world_client->SetDisconnectHandler([&]() -> boost::asio::awaitable<bool> {
                     ++world_operations;
+                    if(native_map&&world_client->HasEverRegistered())native_map->RetireBattleRegions();
                     spdlog::warn("native Map World link lost; closing clients and awaiting persistence");
                     if (server_ptr) server_ptr->CloseSessions();
                     boost::asio::steady_timer timer(io);

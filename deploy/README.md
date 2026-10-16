@@ -1,4 +1,12 @@
-> Current Phase A:078 and `sql/map-battle-runtime-grants.sql` are written for
+> Current Phase A:079, `sql/map-monster-runtime-grants.sql` and the offline
+> `tools/database/import_map_monsters.py` publisher are written, unexecuted.
+> Complete real source rows and original per-query order are required. Native
+> Map stops before listening at an unresolved synchronous monster Initialize;
+> this release is not a usable populated server. AI/regen/client-host/visibility
+> and full gameplay remain incomplete. Next080; no Phase B/C execution.
+> [Scope and handoff](../_rewrite/docs/modernization/evidence/phase-a-map-monster-allocation-20261016/README.md).
+
+> Previous Phase A:078 and `sql/map-battle-runtime-grants.sql` are written for
 > actual Map battle boot/readers, with SELECT-only access and the offline
 > `tools/database/import_map_battles.py` source-order projection. Nothing ran.
 > Runtime battles/native guild/hero mutations/full bootstrap remain unfinished;

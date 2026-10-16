@@ -50,6 +50,9 @@ struct SpawnPoint
     std::uint8_t   bLink       = 0;
     std::uint8_t   bProb       = 0;
     std::uint8_t   bRoamType   = 0;
+    std::uint32_t  dwRegion = 0, dwDelay = 0;
+    std::uint8_t   bEvent = 0;
+    std::uint16_t  wPartyID = 0;
 };
 
 struct MonsterInstance

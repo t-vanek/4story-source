@@ -1,6 +1,10 @@
 #pragma once
 
-// SpawnManager — realises the static monster population at boot.
+// Legacy/dev prototype ONLY. Native PostgreSQL must never call this path:
+// it does not implement source InitMonster/Initialize/Regen or instance IDs.
+// See native_monster_spawn.h and PostgreSQLMapService's startup guard.
+//
+// SpawnManager — realises the prototype static monster population at boot.
 //
 // Joins the three charts the data-model spike untangled:
 //   TMONSPAWNCHART (ISpawnChart)  — where + how many monsters spawn
@@ -15,7 +19,8 @@
 // respawn-on-death timer, the prob-weighted / essential / leader
 // selection semantics, and the roam / chase / attack AI tick are the
 // next phase (TAICmd* via a register table — see DISPATCH.md). A monster
-// with no TMONATTRCHART row is skipped, as in the legacy spawn/regen checks.
+// with no TMONATTRCHART row is skipped. The prototype's per-slot skip is
+// DIFFERENT from the source essential branch's whole-InitMonster return.
 
 #include "domain/monster.h"
 

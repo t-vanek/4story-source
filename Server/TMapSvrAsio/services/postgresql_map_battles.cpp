@@ -47,6 +47,7 @@ void PostgreSQLMapService::CheckNativeBattleRelease(soci::session& sql) const {
         soci::use(m_battles.content_manifest,"g"),soci::use(m_battles.order_sha256,"o"),
         soci::use(m_battles.source_timezone,"z"),soci::into(count);
     if(count!=1)throw std::runtime_error("Native Map battle publication changed or unavailable");
+    CheckNativeMonsterRelease(sql);
 }
 void PostgreSQLMapService::LoadNativeBattleRegions(soci::session& sql) {
     const int world=m_config.world,server=m_config.server;
@@ -91,21 +92,9 @@ void PostgreSQLMapService::LoadNativeBattleRegions(soci::session& sql) {
         if(r.get<int>("chief_present"))z.chief_item=Word(r,"wChiefItem");
         if(!m_battles.zones.emplace(z.id,std::move(z)).second)throw std::runtime_error("Duplicate source battle zone");
      }}
-    // CTBLMonSpawn uses independent server-only map and unit IN sets, not a
-    // correlated map/unit join. SQL Server CAST truncates FLOAT toward zero;
-    // PostgreSQL integer casts round, so trunc is explicit after FLOAT division.
-    // Out-of-SMALLINT casts fail rather than inventing wrap or safe coordinates.
-    std::map<std::uint16_t,std::uint16_t> spawns;
-    {soci::rowset<soci::row> rows=(sql.prepare<<
-        "SELECT \"wID\",\"wLocalID\" FROM game_compat.\"TMONSPAWNCHART\" WHERE \"wMapID\" IN "
-        "(SELECT \"wMapID\" FROM route_compat.source_map_regions WHERE \"bServerID\"=:s) AND "
-        "trunc((\"fPosZ\"/1024::real)::double precision)::smallint::integer*256+"
-        "trunc((\"fPosX\"/1024::real)::double precision)::smallint::integer IN "
-        "(SELECT \"wUnitID\" FROM route_compat.source_map_regions WHERE \"bServerID\"=:s)",soci::use(server,"s"));
-     for(const auto& r:rows)if(!spawns.emplace(Word(r,"wID"),Word(r,"wLocalID")).second)
-        throw std::runtime_error("Duplicate source Map spawn key");}
     // Source iterates std::map<WORD,spawn*> here, regardless of SQL load order.
-    for(const auto& [id,local]:spawns)if(auto z=m_battles.zones.find(local);z!=m_battles.zones.end())z->second.spawns.push_back(id);
+    for(const auto& [id,spawn]:m_monster_catalog.spawns)
+        if(auto z=m_battles.zones.find(spawn.wLocalID);z!=m_battles.zones.end())z->second.spawns.push_back(id);
     {soci::rowset<soci::row> rows=(sql.prepare<<
         "SELECT local_id::bigint,local_type,country,source_guild_id,encode(guild_name_bytes,'hex') AS guild_name,"
         "encode(hero_bytes,'hex') AS hero,hero_second,next_defend_second,occupied_second "
@@ -122,7 +111,7 @@ void PostgreSQLMapService::LoadNativeBattleRegions(soci::session& sql) {
         if(zone==m_battles.zones.end())throw std::runtime_error("Native region lost its source battle zone");
         local.can_battle=local.type!=LocalType::Castle;
         if(local.type==LocalType::Occupation) {
-            local.valid=spawns.contains(zone->second.boss);local.occupied=false;local.gate_opened=false;local.last_occupy_type=0;
+            local.valid=m_monster_catalog.spawns.contains(zone->second.boss);local.occupied=false;local.gate_opened=false;local.last_occupy_type=0;
             for(auto& day:local.occupation_days)day=OccupationDay{};
         }else {
             local.attack_guild=local.defend_guild=0;local.defend_point=local.contribution_point=0;

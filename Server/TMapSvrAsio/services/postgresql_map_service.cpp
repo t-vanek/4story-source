@@ -16,7 +16,9 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
     try{auto lease=pool.Acquire();auto tx=BeginMapTransaction(*lease,m_config.world,m_config.server,m_config.owner_token,true);
         CheckCatalogs(*lease);
         LoadNativeRps(*lease);
+        LoadNativeMonsterCatalog(*lease);
         LoadNativeBattleRegions(*lease);
+        AllocateNativeMonsters();
         // These native paths require migration 067. Keep all existing catalog
         // checks and reject a missing social/offer schema before accepting TCP.
         int columns=0;
@@ -34,6 +36,7 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
         // Migration071 is required by every new cast writer, not just ACT.
         *lease<<"SELECT count(*) FROM (SELECT request_opcode,actual_channel,actual_map FROM app_world.accepted_skill_casts WHERE false) required",soci::into(columns);
         tx->commit();}
+    catch(const NativeMonsterInitializationRequired&){throw;}
     catch(...){throw std::runtime_error("Native Map schema/catalog validation failed");}
 }
 void PostgreSQLMapService::CheckCatalogs(soci::session& sql) const {

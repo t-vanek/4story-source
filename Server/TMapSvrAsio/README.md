@@ -1,4 +1,13 @@
-> Current Phase A, baseline `81191cc`: native boot projects actual battle zones,
+> Current Phase A, baseline `0f37aef`: source monster publication079 and native
+> default-spawn allocation preserve query order, groups/parties, physical maps,
+> source IDs, anonymous/essential slots and synchronous Initialize boundaries.
+> **INTEGRATED_UNVERIFIED** for allocation only. Native startup now stops before
+> listening at the first unported `CTMonster::Initialize`; prototype population
+> cannot stand in for this source flow. AI/regen/cells/client hosts/full monster
+> lifecycle remain incomplete.079/grants/publisher are unexecuted; next080.
+> [Source contracts and exact handoff](../../_rewrite/docs/modernization/evidence/phase-a-map-monster-allocation-20261016/README.md).
+
+> Previous Phase A, baseline `81191cc`: native boot projects actual battle zones,
 > local/castle/mission/SkyGarden records, source spawn validity and logical
 > default-map bindings. HEROLIST and territory-based NPC talk/trainer/ordinary
 > shops consume this state, **INTEGRATED_UNVERIFIED**.078/grants/publisher are

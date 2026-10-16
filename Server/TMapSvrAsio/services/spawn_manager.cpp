@@ -48,10 +48,10 @@ std::size_t SpawnAllStatic(const ISpawnChart&   spawns,
                 continue;
             }
 
-            // Legacy TMap.cpp rejects an essential spawn without attributes;
-            // TAICmdRegen.cpp returns FALSE for the corresponding regen case.
-            // Preserve that refusal without the legacy whole-spawn early exit.
-            // Zero HP is quarantined as unusable live content, never invented.
+            // Prototype-only policy; NOT the source InitMonster/Regen rule.
+            // Native allocation returns from the whole essential InitMonster
+            // on missing attributes. Original GetMaxHP also clamps0 to1;
+            // this prototype's zero-HP quarantine has no native authority.
             const auto attr = attrs.Find(e.wMonID, tmpl->bLevel);
             if (!attr)
             {

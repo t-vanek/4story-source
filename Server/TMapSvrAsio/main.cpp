@@ -302,23 +302,18 @@ int main(int argc, char** argv)
                          "require mutable persistence; static catalogs may still be configured via [content]");
         }
 
-        // In-memory monster registry. Populated once at boot by the
-        // static SpawnManager (below) from the spawn / map-mon / monster
-        // charts; the respawn timer + roam/chase/attack AI tick land with
-        // the next phase. Empty when no DB is configured.
+        // Prototype registry is populated only by the legacy/dev backend.
+        // Native PostgreSQL allocates source slots in PostgreSQLMapService
+        // and refuses startup at an unresolved synchronous Initialize call.
         tmapsvr::InMemoryMonsterRegistry monster_reg;
 
         // Monster corpse loot — money + items a kill leaves behind, keyed
         // by the dead monster instance id, drained by the loot handlers.
         tmapsvr::InMemoryCorpseRegistry  corpse_reg;
 
-        // Static monster spawn — realise the world's standing monster
-        // population on channel 0. Needs all three charts (DB path only).
-        // The CS_CONREADY enter-map flood broadcasts these via the
-        // registry's ListInMap. Multi-channel replication + respawn + AI
-        // are the next increments.
+        // Never project prototype round-robin population into a native world.
         std::uint32_t monster_boot_seq = 1;
-        if (spawn_chart && map_mon_chart && monster_chart && mon_attr_chart)
+        if (!native_owner && spawn_chart && map_mon_chart && monster_chart && mon_attr_chart)
         {
             tmapsvr::SpawnAllStatic(*spawn_chart, *map_mon_chart,
                 *monster_chart, *mon_attr_chart, monster_reg,

@@ -1,6 +1,21 @@
 # Modern server implementation status
 
-Local Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
+Local Phase A continuation (2026-10-16), baseline `0f37aef`: native Map now
+loads the source server-scoped monster catalog with original per-query order,
+group/party membership and raw attribute-family identity. Source default-spawn
+allocation preserves physical maps/channels, anonymous and essential slots,
+instance IDs and synchronous Initialize boundaries, **INTEGRATED_UNVERIFIED**
+within allocation only. Battle spawn bindings consume the same catalog;
+round-robin prototype population is excluded from native ownership.
+**Native startup now refuses the first unported CTMonster::Initialize call,
+before listening.** This is a protective implementation barrier, not completed
+monster gameplay or a usable populated world. Written079/publisher/grants are
+unexecuted;044–079 remain unapplied, next080. AI graph/regen/cells/client hosts,
+full monster lifecycle/battles/bootstrap and full Phase A remain **IMPLEMENTING**.
+No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-allocation-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
 loads original battle-zone and local/castle/mission/SkyGarden boot state from an
 explicit PostgreSQL projection. Source boss-template validity, logical default
 channel/instance-map binding, weekly ownership and actual ANSI hero bytes feed

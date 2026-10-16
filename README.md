@@ -28,7 +28,15 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-16): native Map battle-region boot now
+Current Phase A continuation (2026-10-16): source Map monster catalog,
+group/party query order and default-spawn slot allocation now feed native boot
+and battle bindings, **INTEGRATED_UNVERIFIED** for allocation only. Native startup
+refuses the first unported synchronous `CTMonster::Initialize` before listening;
+round-robin prototype population is excluded. Full AI/monster/gameplay parity
+remains incomplete.079/grants/publisher are written only; next080.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-allocation-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16): native Map battle-region boot now
 feeds actual HEROLIST and source territory-based NPC access. The explicit078
 PostgreSQL projection preserves source order, bytes, times and map/spawn bindings,
 **INTEGRATED_UNVERIFIED**. Battle effects/native guild mutations/full bootstrap

@@ -2,7 +2,22 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Local Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
+Local Phase A continuation (2026-10-16), baseline `0f37aef`: native Map now
+loads the source server-scoped monster catalog with original per-query order,
+group/party membership and raw attribute-family identity. Source default-spawn
+allocation preserves physical maps/channels, anonymous and essential slots,
+instance IDs and synchronous Initialize boundaries, **INTEGRATED_UNVERIFIED**
+within allocation only. Battle spawn bindings consume the same catalog;
+round-robin prototype population is excluded from native ownership.
+**Native startup now refuses the first unported CTMonster::Initialize call,
+before listening.** This is a protective implementation barrier, not completed
+monster gameplay or a usable populated world. Written079/publisher/grants are
+unexecuted;044–079 remain unapplied, next080. AI graph/regen/cells/client hosts,
+full monster lifecycle/battles/bootstrap and full Phase A remain **IMPLEMENTING**.
+No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-allocation-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
 loads original battle-zone and local/castle/mission/SkyGarden boot state from an
 explicit PostgreSQL projection. Source boss-template validity, logical default
 channel/instance-map binding, weekly ownership and actual ANSI hero bytes feed
@@ -729,8 +744,8 @@ been verified.
 | Source-client email confirmation/retry | Existing auth/handler/registry path; private per-connection token, code digest, full LOGIN revalidation, no trusted-IP shortcut; SMTP runs on workers | Migration 010; five-minute challenges, five attempts, three issuances/account/five minutes, thirty-second verified retry; ownership fencing | login-security.json / login-security-asan.json: real PG, actual encrypted TCP, local SMTP, concurrency, replay, expiry, changed bans/agreement, duplicates, silent relay | VERIFIED for synthetic non-direct source 0x2918; disabled historical issuance branch, unknown executable/encoding and JP/TW/direct profiles remain explicit limits |
 | Character create/list/delete and ownership | Login char service, Map player service and World char registry/handoff | Character schema, ownership constraints, create/delete/save transactions | CS_CHARLIST/CREATECHAR/DELCHAR/START/CONNECT; existing lifecycle tests | VERIFIED for native normal-world lobby create/list/delete and process-restart persistence; VERIFIED for Login START/pending handoff; VERIFIED for native fresh single-owner Map claim/load/core save/reconnect; normal-character primary transfer/recovery VERIFIED in migration 020; full ancillary/social state IMPLEMENTING |
 | Player stats / progress / time | Native Map loader/core save, `SociStatChart`, `domain/stat.h` | Source-based fresh HP/MP and core progression persistence verified; reward transactions pending | Native Map/TCP evidence, stat/formula and char sender tests | VERIFIED fresh scope; active effects and complete progression pending; historical timestamps are not presumed UTC |
-| Spawn templates and combat attributes | `soci_*_chart`, `SpawnAllStatic` into actual monster registry | 3,495 mapped attrs; 39 explicit gaps | Native catalog test and spawn refusal unit test | VERIFIED values/refusal; weighted/essential/leader/ID semantics pending |
-| AI, movement, visibility, respawn (`TMap`, `TMonster`, `TAICmd*`) | Map presence/visibility, `monster_ai.cpp`, move/session handlers | Transient state in runtime; durable checkpoints TBD | Move/sender/AI tests | IMPLEMENTING; fixed AI timing/radii and original pathfinding not fully compared |
+| Spawn templates and combat attributes | Native079 source catalog and default-slot allocator;prototype `SpawnAllStatic` excluded from native ownership | Raw attribute-family/level keys and actual source existence;historical006 projection has3,495 mapped attrs/39 gaps | Static source/SQL-text/metadata/diff only for current code;old catalog/prototype results retain old scope | INTEGRATED_UNVERIFIED allocation only;source IDs/essential/leader boundaries implemented;Initialize/AI/weighted Regen remain missing and block populated native startup |
+| AI, movement, visibility, respawn (`TMap`, `TMonster`, `TAICmd*`) | Source allocation calls an explicit unported-initializer refusal;prototype `monster_ai.cpp` stays nonnative | Source process-local slots;no fake live/HP persistence | Original AI command/event/cell/host inventory and deferred scenarios;no current execution | IMPLEMENTING;native AI/regen/cell/client-host and full lifecycle missing;prototype tests do not certify them |
 | Damage, death, rewards | Existing combat/damage-formula, corpse/loot services | Durable reward/item/currency transactions pending | Combat, damage, corpse and loot tests | IMPLEMENTING; no complete original-client combat loop |
 | Skills/effects/buffs | Native learned ownership/rank, pinned cost/timing definitions, atomic HP/MP and same-kind gates | Native character hydration; live CHARINFO/readiness samples; learned-skill cooldown persistence via 021 | `skill-costs-contract.json`, `skill-timing-contract.json`, `admission-timers-contract.json`, `skill-loop-contract.json`, `skill-gates-contract.json` and `skill-reagents-contract.json` / `graph-reagents-contract.json` / `ammunition-contract.json` / `ammo-batch-contract.json` / `multi-attack-contract.json`: encrypted use, delayed admission/expiry, equipment/transfer hydration and persistence | VERIFIED normal native cost/ownership and rank/weapon/passive/item/shared-kind cooldown scope; native owned-PC loop gate/wire and ordinary map/previous-effect/non-consuming weapon gates also verified; active buff timing, cancellation, broader consumables, learning and effects pending; multi-attack uses pinned learned-rank budgets; fresh and transferred-primary single-reagent transactions via 022–023 and 1–16-target per-bag ammunition batches via 024–025 and source multi-attack expansion via 026 are verified |
 | Quest types and branches (`Quest*.cpp`) | Map quest engine/chart/service; original per-type sources all indexed | Native definitions, 62 orphan rewards visible; mutable progress/rewards pending | Quest engine/sender tests | IMPLEMENTING; retain unported original quest actions in file index |

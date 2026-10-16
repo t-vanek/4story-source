@@ -5,7 +5,17 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `81191cc`:** written078 adds the source-bound Map
+**Current Phase A, baseline `0f37aef`:** written079 binds the native source
+monster allocation catalog to078 and the active releases. Seven source receipts,
+raw attribute-family keys and per-server/per-spawn query-order tables preserve
+actual rows; `import_map_monsters.py` is an offline atomic publisher requiring
+complete pinned values/bytes and original result orders. No archive edits or
+invented saved monster state. Grants are SELECT-only; nothing was executed.
+044–079 remain unapplied, next080. Native startup refuses unported Initialize;
+publication/allocation do not complete AI or live monster realization.
+[Source contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-monster-allocation-20261016/README.md).
+
+**Previous Phase A, baseline `81191cc`:** written078 adds the source-bound Map
 battle boot release and operational region/weekly ownership projection. The
 new offline `import_map_battles.py` requires complete pinned values/ANSI bytes,
 explicit original-query order and the077 calendar; native readers use these

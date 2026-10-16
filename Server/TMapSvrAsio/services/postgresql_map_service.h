@@ -4,6 +4,7 @@
 #include "session_validator.h"
 #include "server_route_resolver.h"
 #include "battle_regions.h"
+#include "native_monster_spawn.h"
 #include "fourstory/db/session_pool.h"
 #include <string>
 #include <map>
@@ -144,6 +145,9 @@ private:
     void LoadNativeRps(soci::session&);
     void CheckNativeRpsRelease(soci::session&) const;
     void LoadNativeBattleRegions(soci::session&);
+    void LoadNativeMonsterCatalog(soci::session&);
+    void CheckNativeMonsterRelease(soci::session&) const;
+    void AllocateNativeMonsters();
     void CheckNativeBattleRelease(soci::session&) const;
     bool NativeNpcCanTalk(soci::session&,const CharSnapshot&,std::uint8_t,std::uint16_t) const;
     std::optional<NativeRpsGame> FindNativeRps(std::uint8_t,std::uint8_t) const;
@@ -206,6 +210,8 @@ private:
     std::map<std::uint16_t,NativeRpsGame> m_rps;
     std::string m_rps_manifest;
     BattleRegions m_battles;
+    NativeMonsterCatalog m_monster_catalog;
+    NativeMonsterMaps m_monster_maps;
     std::atomic<bool> m_battle_current{true};
     PostgreSQLMapConfig m_config;
 };

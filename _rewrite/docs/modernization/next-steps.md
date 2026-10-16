@@ -11,7 +11,22 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
+Local Phase A continuation (2026-10-16), baseline `0f37aef`: native Map now
+loads the source server-scoped monster catalog with original per-query order,
+group/party membership and raw attribute-family identity. Source default-spawn
+allocation preserves physical maps/channels, anonymous and essential slots,
+instance IDs and synchronous Initialize boundaries, **INTEGRATED_UNVERIFIED**
+within allocation only. Battle spawn bindings consume the same catalog;
+round-robin prototype population is excluded from native ownership.
+**Native startup now refuses the first unported CTMonster::Initialize call,
+before listening.** This is a protective implementation barrier, not completed
+monster gameplay or a usable populated world. Written079/publisher/grants are
+unexecuted;044–079 remain unapplied, next080. AI graph/regen/cells/client hosts,
+full monster lifecycle/battles/bootstrap and full Phase A remain **IMPLEMENTING**.
+No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-allocation-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `81191cc`: native Map now
 loads original battle-zone and local/castle/mission/SkyGarden boot state from an
 explicit PostgreSQL projection. Source boss-template validity, logical default
 channel/instance-map binding, weekly ownership and actual ANSI hero bytes feed
@@ -24,11 +39,15 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: source monster realization in
-`TMap.cpp::AddMonSpawn/InitMonster` and `TAICmdRegen::ExecAI`, including actual
-group/party/event/AI/regen producers and source instance IDs. Then wire
-switches/GodBall and all four enable consumers with native occupation/reward
-persistence. Boot readers above do not permit removing the protective refusal.
+Immediate implementation dependency: original AI command/condition/binding
+catalogs, then CTMonster::Initialize and the complete reachable Regen/event/
+timer/EnterMAP/client-host chain. Replace the actual throwing initializer in
+`PostgreSQLMapService::AllocateNativeMonsters` only when these consumers exist;
+never defer Initialize until after allocation or publish anonymous/dormant slots
+as live monsters. Preserve source per-invocation query order and synchronous
+boundaries. The detailed handoff above names the source symbols and unresolved
+branches. After monster realization, continue switches/GodBall, four battle
+enable consumers and native occupation/reward persistence. No Phase B/C work.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

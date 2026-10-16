@@ -11,9 +11,20 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–075 are **written, not applied**; next076.
+evidence remain unchanged. New migrations044–076 are **written, not applied**; next077.
 
-Local Phase A continuation (2026-10-16), baseline `c379231`: native Map RPS
+Local Phase A continuation (2026-10-16), baseline `99d029f`: the original
+server-only physical/logical channel projection now fences native Map ownership
+and World peer authorization, **INTEGRATED_UNVERIFIED** within the documented
+single-source-group/at-most255-key scope. Routing activation now has offline
+Map/World barriers and stale-token retirement. Source battle selectors are
+corrected to TOURNAMENT2/MISSION3/SKYGARDEN4. Written076/grants are unexecuted;
+recorded044–076 remain unapplied, next077. The network still uses the explicit
+RW-as-Map extension; source MW_CONNECT_ACK/full bootstrap and full Phase A remain
+**IMPLEMENTING**. No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact next dependencies](evidence/phase-a-map-topology-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `c379231`: native Map RPS
 start/item debit, source round calculation, real World limit request/result,
 giveup/terminal reward mail and transient Control cache updates are wired into
 the current PostgreSQL gameplay path, **INTEGRATED_UNVERIFIED** for ordinary

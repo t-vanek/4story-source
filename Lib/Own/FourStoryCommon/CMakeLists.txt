@@ -10,6 +10,7 @@
 set(FOURSTORY_COMMON_HEADERS
     fourstory/db/session_pool.h
     fourstory/db/schema_validator.h
+    fourstory/db/native_map_topology.h
     fourstory/db/co_offload.h
     fourstory/db/orm/sp_call.h
     fourstory/db/orm/entity_mapping.h
@@ -45,6 +46,7 @@ set(FOURSTORY_COMMON_HEADERS
 set(FOURSTORY_COMMON_SOURCES
     src/db/session_pool.cpp
     src/db/schema_validator.cpp
+    src/db/native_map_topology.cpp
     src/db/orm/sp_call.cpp
     src/security/hmac.cpp
     src/security/security_config.cpp

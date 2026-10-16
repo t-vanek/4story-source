@@ -238,7 +238,9 @@ int main(int argc, char** argv)
             if(backend==fourstory::db::Backend::PostgreSQL) {
                 if(cfg.mode!=tmapsvr::Mode::PvE||cfg.database.worker_threads==0||cfg.world.port==0)
                     throw std::runtime_error("Native Map requires normal mode, DB workers and World peer");
-                native_owner=std::make_unique<tmapsvr::PostgreSQLMapOwner>(cfg.database.connection_string,cfg.cluster.group_id,cfg.cluster.server_id);
+                native_owner=std::make_unique<tmapsvr::PostgreSQLMapOwner>(cfg.database.connection_string,cfg.cluster.group_id,cfg.cluster.server_id,cfg.routing_manifest);
+                spdlog::info("native Map source topology: physical_channels={}, logical_keys={}",
+                    native_owner->Topology().physical_channels.size(),native_owner->Topology().logical_channels.size());
                 native_map=std::make_unique<tmapsvr::PostgreSQLMapService>(*pool,tmapsvr::PostgreSQLMapConfig{
                     cfg.cluster.group_id,cfg.cluster.server_id,native_owner->Token(),cfg.character_manifest,cfg.routing_manifest,cfg.actor_manifest,cfg.client_text_encoding});
                 spdlog::info("native PostgreSQL Map ready; recovered checkpoints={}, orphaned prior sessions={}",native_owner->RecoveredSessions(),native_owner->OrphanedSessions());

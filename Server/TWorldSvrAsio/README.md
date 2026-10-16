@@ -1,3 +1,11 @@
+> Current Phase A, baseline `99d029f`: World validates a native Map's exact
+> process-pinned source channel topology as well as its live advisory owner.
+> Source battle selectors now retain tournament2/mission3/sky4.
+> **INTEGRATED_UNVERIFIED**;076/grants/publisher unexecuted, next077.
+> Source MW_CONNECT_ACK and full initial-state producers/consumers remain open;
+> current registration still uses the documented RW-as-Map extension.
+> [Source contracts and next dependencies](../../_rewrite/docs/modernization/evidence/phase-a-map-topology-20261016/README.md).
+
 > Map continuation (2026-10-16): ordinary native RPS now produces the actual
 > next-win-count request, consumes World results and writes reward mail. The
 > World gate below remains unverified; full World bootstrap/BR/late-replica

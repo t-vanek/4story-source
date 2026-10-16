@@ -28,7 +28,14 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-16): ordinary native Map RPS now includes
+Current Phase A continuation (2026-10-16): source channel topology now fences
+native Map startup and World authorization; offline routing publication retires
+stale process tokens. Source battle selectors are corrected. These paths are
+**INTEGRATED_UNVERIFIED**; source registration/full bootstrap remain incomplete.
+Written076/grants are unexecuted; next077.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-topology-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16): ordinary native Map RPS now includes
 start-item debit, source rounds, real World decisions and atomic reward mail,
 **INTEGRATED_UNVERIFIED**. BR/late replica parity, original admission and full
 World bootstrap remain incomplete. Written075/grants are unexecuted; next076.

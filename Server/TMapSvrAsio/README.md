@@ -1,4 +1,11 @@
-> Current Phase A, baseline `c379231`: original normal-primary RPS start/debit,
+> Current Phase A, baseline `99d029f`: native Map startup now loads original
+> server-only physical/logical channel topology before ownership/recovery and
+> pins it in the process record. Catalog/health checks fence changed routing.
+> **INTEGRATED_UNVERIFIED**;076/grants/publisher unexecuted, next077.
+> The network remains the RW-as-Map extension; original bootstrap is incomplete.
+> [Source contracts and next dependencies](../../_rewrite/docs/modernization/evidence/phase-a-map-topology-20261016/README.md).
+
+> Previous Phase A, baseline `c379231`: original normal-primary RPS start/debit,
 > source round thresholds/cards, actual World cap request/result, reward post
 > and Control cache update are connected, **INTEGRATED_UNVERIFIED**. Counters
 > remain local to the player object; written075/grants are unexecuted, next076.

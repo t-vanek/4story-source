@@ -2,9 +2,11 @@
 """Publish the explicit backup-derived routing charts without changing other releases."""
 import argparse
 import json
+import secrets
 from pathlib import Path
 import sys
 from activate_catalog import MAPPING, PINNED
+from activate_actor_catalog import offline_owner_barrier
 from generate_migrations import ROUTING_REFERENCE_KEYS
 from migrate import connect, digest, load_snapshot, read_target, table_hash, target_bytes_hash
 
@@ -20,8 +22,14 @@ def activate_routing_catalog(conn, manifest_path, mapping_path=MAPPING, pinned_p
         raise RuntimeError('COMPLETE_ROUTING_MANIFEST_REQUIRED')
     fingerprint = digest(json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode())
     with conn.transaction():
-        conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+        conn.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')
+        conn.execute("SET LOCAL lock_timeout='1s'")
         conn.execute('SELECT pg_advisory_xact_lock(418040005)')
+        # Match other native publishers: verify after acquiring stable source
+        # locks rather than retaining a snapshot from before an import wait.
+        conn.execute('LOCK TABLE reconstruction.import_runs,reconstruction.checkpoints,reconstruction.source_text_bytes, '
+                     'legacy_game."TMAPCHART",legacy_game."TUNITCHART",legacy_game."TCHANNELCHART",'
+                     'legacy_game."TSPAWNPOSCHART" IN SHARE MODE')
         run = conn.execute('SELECT id,status,source_manifest FROM reconstruction.import_runs '
                            'WHERE manifest_sha256=%s FOR UPDATE', (fingerprint,)).fetchone()
         if not run or run[1] != 'verified' or run[2] != manifest:
@@ -38,8 +46,24 @@ def activate_routing_catalog(conn, manifest_path, mapping_path=MAPPING, pinned_p
             if cp != (len(rows), t['value_sha256'], table_hash(actual, model['column_mapping']),
                       t['text_bytes_value_sha256'], target_bytes_hash(conn, key)) or len(actual) != len(rows):
                 raise RuntimeError('CHECKPOINT_TARGET_DRIFT')
-        previous = conn.execute('SELECT run_id FROM runtime_control.routing_catalog WHERE singleton').fetchone()
+        previous = conn.execute('SELECT run_id FROM runtime_control.routing_catalog WHERE singleton FOR UPDATE').fetchone()
         changed = not previous or previous[0] != run_id
+        has_owners=bool(conn.execute("SELECT to_regclass('app_world.map_runtime_owner')").fetchone()[0])
+        if changed and has_owners:
+            try:
+                offline_owner_barrier(conn)
+            except RuntimeError as error:
+                if str(error)=='ACTIVE_MAP_OR_WORLD_OWNER_BLOCKS_ACTOR_PUBLICATION':
+                    raise RuntimeError('ACTIVE_MAP_OR_WORLD_OWNER_BLOCKS_ROUTING_PUBLICATION') from error
+                raise
+            if not conn.execute("SELECT to_regclass('runtime_control.routing_owner_retirements')").fetchone()[0]:
+                raise RuntimeError('ROUTING_OWNER_RETIREMENT_SCHEMA_REQUIRED')
+            # Graph recovery and prepared handoffs pin this exact release.
+            # A new topology is not permission to strand/rewrite those graphs.
+            if conn.execute('SELECT 1 FROM app_world.map_checkpoints WHERE recovery_contract=2 AND routing_manifest<>%s '
+                            'UNION ALL SELECT 1 FROM app_world.map_transfers WHERE phase=\'prepared\' AND routing_manifest<>%s '
+                            'LIMIT 1',(fingerprint,fingerprint)).fetchone():
+                raise RuntimeError('ROUTING_GRAPH_RECONCILIATION_REQUIRED')
         if changed:
             conn.execute('INSERT INTO runtime_control.routing_catalog(singleton,run_id) VALUES (true,%s) '
                          'ON CONFLICT(singleton) DO UPDATE SET run_id=EXCLUDED.run_id,activated_at=CURRENT_TIMESTAMP', (run_id,))
@@ -57,12 +81,24 @@ def activate_routing_catalog(conn, manifest_path, mapping_path=MAPPING, pinned_p
             WHERE NOT EXISTS (SELECT 1 FROM route_compat."TSVRCHART" s
               WHERE s."bGroup"=c."bGroupID" AND s."bChannel"=c."bPhyChannel"
                 AND s."wMapID"=c."wMapID" AND s."wUnitID"=c."wUnitID")''').fetchone()[0]
+        owners=[]
         if changed:
-            conn.execute('INSERT INTO runtime_control.routing_catalog_activations(previous_run_id,run_id,manifest_sha256) '
-                         'VALUES (%s,%s,%s)', (previous[0] if previous else None, run_id, fingerprint))
+            activation=conn.execute('INSERT INTO runtime_control.routing_catalog_activations(previous_run_id,run_id,manifest_sha256) '
+                         'VALUES (%s,%s,%s) RETURNING id', (previous[0] if previous else None, run_id, fingerprint)).fetchone()[0]
+            if has_owners:
+                owners=conn.execute('SELECT world_id,server_id,owner_token FROM app_world.map_runtime_owner ORDER BY world_id,server_id').fetchall()
+                for world,server,token in owners:
+                    replacement=secrets.token_hex(32)
+                    conn.execute('INSERT INTO runtime_control.routing_owner_retirements '
+                                 '(activation_id,world_id,server_id,retired_token,replacement_token) VALUES(%s,%s,%s,%s,%s)',
+                                 (activation,world,server,token,replacement))
+                    conn.execute('UPDATE app_world.map_runtime_owner SET owner_token=%s,backend_pid=0,acquired_at=clock_timestamp(),'
+                                 'routing_manifest=NULL,routing_source_group=NULL,routing_topology=NULL '
+                                 'WHERE world_id=%s AND server_id=%s',(replacement,world,server))
         return dict(run_id=run_id, manifest_sha256=fingerprint, changed=changed,
                     reference_tables=len(loaded), verified_source_rows=sum(len(rows) for _, _, rows in loaded),
-                    unmapped_source_channel_cells=gaps, snapshot_values_and_original_text_bytes_verified=True)
+                    unmapped_source_channel_cells=gaps, snapshot_values_and_original_text_bytes_verified=True,
+                    retired_map_owners=len(owners))
 
 
 def main():

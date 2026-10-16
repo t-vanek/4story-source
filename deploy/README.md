@@ -1,4 +1,10 @@
-> Current Phase A: `sql/map-rps-runtime-grants.sql` is written for075. It
+> Current Phase A: `sql/map-topology-runtime-grants.sql` is written for076.
+> Native Map ownership/World authorization need source-view reads and World
+> endpoint reads. No SQL/grants/import/build/test/runtime ran; next077.
+> Source registration/full bootstrap remain incomplete.
+> [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-topology-20261016/README.md).
+
+> Previous Phase A: `sql/map-rps-runtime-grants.sql` is written for075. It
 > grants the source views and the existing diagnostic-column startup probe;
 > existing native Map item/mail/receipt privileges remain in use. No migration,
 > grants, import, service, container, build or test ran; next076.

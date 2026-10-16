@@ -11,7 +11,18 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-16), baseline `c379231`: native Map RPS
+Local Phase A continuation (2026-10-16), baseline `99d029f`: the original
+server-only physical/logical channel projection now fences native Map ownership
+and World peer authorization, **INTEGRATED_UNVERIFIED** within the documented
+single-source-group/at-most255-key scope. Routing activation now has offline
+Map/World barriers and stale-token retirement. Source battle selectors are
+corrected to TOURNAMENT2/MISSION3/SKYGARDEN4. Written076/grants are unexecuted;
+recorded044–076 remain unapplied, next077. The network still uses the explicit
+RW-as-Map extension; source MW_CONNECT_ACK/full bootstrap and full Phase A remain
+**IMPLEMENTING**. No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact next dependencies](evidence/phase-a-map-topology-20261016/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `c379231`: native Map RPS
 start/item debit, source round calculation, real World limit request/result,
 giveup/terminal reward mail and transient Control cache updates are wired into
 the current PostgreSQL gameplay path, **INTEGRATED_UNVERIFIED** for ordinary
@@ -492,16 +503,27 @@ ITEMUSE/quest credit, original thresholds/next-key lookup and actual constructor
 lifetime. Continue late World decisions during replica/main transfer using real
 role/result authority; then BR mode. Do not mark these variants implemented or
 invent a successful decision/refund. Full source-bootstrap prerequisite below
-remains the next cross-system dependency. Written075/grants are unexecuted; next076.
+remains the next cross-system dependency. Written075 and076/grants are unexecuted; next077.
+
+The076 continuation implements bounded CTBLServerChart/CTBLChannelChart
+projection in native Map process ownership and World authorization. It does not
+change RW-as-Map admission. Next implement original TBATTLETIMECHART and
+TCUSTOMTIMECHART loading/timer state, including the active SKYGARDEN profile,
+and native Map LOCAL/MISSION/SKYGARDEN consumers. Use actual BATTLE_TYPE values;
+mission3 and sky4 are now corrected. Then complete guild/tactics expiry, rank,
+tournament and remaining ordered startup dependencies before switching the wire.
+Never send a partial-success bootstrap or invent a registration ACK.
+Written076/grants/publisher are unexecuted; next077.
 
 Cross-cutting bootstrap prerequisite: original Map MW_CONNECT_ACK admission and native
-World bootstrap. Start with Server/TMapSvr/{TMapSvr.cpp::LoadData/InitNetwork;
+World bootstrap. Continue from Server/TMapSvr/{TMapSvr.cpp::LoadData/InitNetwork;
 SSSender.cpp::SendMW_CONNECT_ACK;DBAccess.h channel queries} and
 Server/TWorldSvr/SSHandler.cpp::OnMW_CONNECT_ACK, then existing AsioWorldClient,
 World OnRelaysvrReq/peer registry/main/schema_validator and Map bootstrap consumers.
-Use the actual pinned TCHANNELCHART/TSVRCHART/TMAPCHART projection to resolve
-MAKELONG map/channel keys versus BYTE serialized keys/counts, and the exact active
-build flags. No invented channel list or registration acknowledgement. The
+Use076's actual pinned TCHANNELCHART/TSVRCHART/TMAPCHART projection and the exact
+active build flags. Preserve MAKELONG map/channel keys versus BYTE serialized
+keys/counts; unresolved >255-key and cross-group profiles still require data proof.
+No invented channel list or registration acknowledgement. The
 source and preserved publication tools exist; a complete fingerprinted data
 release and topology are required to close any data-dependent ambiguity. Keep
 unavailable procedure bodies as specific blockers and implement independent

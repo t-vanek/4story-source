@@ -5,7 +5,14 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `c379231`:** written075 binds the full RPS chart to
+**Current Phase A, baseline `99d029f`:** written076 adds source channel views,
+nullable Map process provenance and offline routing-owner retirement audit.
+Map startup and World authorization use the same original query projection;
+the modified routing publisher refuses live owners and incompatible graphs.
+No SQL/import/grants/publisher execution;044–076 are unapplied, next077.
+[Source contracts and acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-topology-20261016/README.md).
+
+**Previous Phase A, baseline `c379231`:** written075 binds the full RPS chart to
 current source publications and adds nullable audit fields to quest_operations.
 The Map chain reuses existing item/mail IDs, ownership,061 diagnostics and
 notification tables. RPS counters are not loaded from those audit fields or

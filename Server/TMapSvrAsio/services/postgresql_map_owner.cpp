@@ -10,7 +10,8 @@ class OwnerBusy : public std::runtime_error {
 public: OwnerBusy():std::runtime_error("Another native Map owner is active for this world/server"){}
 };
 }
-PostgreSQLMapOwner::PostgreSQLMapOwner(const std::string& connection,std::uint8_t world,std::uint8_t server)
+PostgreSQLMapOwner::PostgreSQLMapOwner(const std::string& connection,std::uint8_t world,std::uint8_t server,
+    const std::string& routing_manifest)
     :m_control(fourstory::db::Backend::PostgreSQL,connection,1),m_lease(m_control.Acquire()),m_world(world),m_server(server) {
     try {
         auto& sql=*m_lease;
@@ -22,10 +23,23 @@ PostgreSQLMapOwner::PostgreSQLMapOwner(const std::string& connection,std::uint8_
         unsigned char bytes[32];if(RAND_bytes(bytes,sizeof(bytes))!=1)throw std::runtime_error("Random generation failed");
         constexpr char hex[]="0123456789abcdef";for(auto b:bytes){m_token+=hex[b>>4];m_token+=hex[b&15];}
         sql<<"SELECT pg_backend_pid()",soci::into(m_backend_pid);
+        // Prove the original server-only chart queries before replacing an
+        // owner or running any recovery. Missing data is not an empty world.
+        {soci::transaction snapshot(sql);sql<<"SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY";
+         m_topology=fourstory::db::ReadNativeMapTopology(sql,world,server,routing_manifest);snapshot.commit();}
         soci::transaction tx(sql);
-        sql<<"INSERT INTO app_world.map_runtime_owner(world_id,server_id,owner_token,backend_pid) VALUES(:w,:s,:t,:p) "
-             "ON CONFLICT(world_id,server_id) DO UPDATE SET owner_token=EXCLUDED.owner_token,backend_pid=EXCLUDED.backend_pid,acquired_at=clock_timestamp()",
-            soci::use(m_world,"w"),soci::use(m_server,"s"),soci::use(m_token,"t"),soci::use(m_backend_pid,"p");
+        const int source_group=m_topology.source_group;const auto topology=m_topology.Json();
+        sql<<"INSERT INTO app_world.map_runtime_owner(world_id,server_id,owner_token,backend_pid,routing_manifest,routing_source_group,routing_topology) "
+             "VALUES(:w,:s,:t,:p,:r,:g,CAST(:shape AS jsonb)) ON CONFLICT(world_id,server_id) DO UPDATE SET "
+             "owner_token=EXCLUDED.owner_token,backend_pid=EXCLUDED.backend_pid,acquired_at=clock_timestamp(),"
+             "routing_manifest=EXCLUDED.routing_manifest,routing_source_group=EXCLUDED.routing_source_group,routing_topology=EXCLUDED.routing_topology",
+            soci::use(m_world,"w"),soci::use(m_server,"s"),soci::use(m_token,"t"),soci::use(m_backend_pid,"p"),
+            soci::use(m_topology.manifest,"r"),soci::use(source_group,"g"),soci::use(topology,"shape");
+        // An offline publisher may have held the owner table while this
+        // process waited to claim it. Recheck AFTER that wait, before recovery.
+        const auto current=fourstory::db::ReadNativeMapTopology(sql,world,server,m_topology.manifest);
+        if(current.source_group!=m_topology.source_group||current.Json()!=topology)
+            throw std::runtime_error("Map topology changed during ownership claim");
         // Token replacement waits for old transaction FOR SHARE locks. Pre-ready
         // claims cannot contain gameplay writes. Recover those under account locks.
         std::vector<int> users;
@@ -94,8 +108,10 @@ PostgreSQLMapOwner::PostgreSQLMapOwner(const std::string& connection,std::uint8_
     }catch(const OwnerBusy&){throw;}catch(...){throw std::runtime_error("Native Map ownership claim failed");}
 }
 bool PostgreSQLMapOwner::Healthy(){
-    try{int found=0;*m_lease<<"SELECT count(*) FROM app_world.map_runtime_owner WHERE world_id=:w AND server_id=:s "
-        "AND owner_token=:t AND backend_pid=pg_backend_pid()",soci::use(m_world,"w"),soci::use(m_server,"s"),soci::use(m_token,"t"),soci::into(found);return found==1;}
+    try{int found=0;*m_lease<<"SELECT count(*) FROM app_world.map_runtime_owner o JOIN route_compat.map_topology_release r "
+        "ON r.world_id=o.world_id AND r.manifest_sha256=o.routing_manifest AND r.source_group=o.routing_source_group "
+        "WHERE o.world_id=:w AND o.server_id=:s AND o.owner_token=:t AND o.backend_pid=pg_backend_pid()",
+        soci::use(m_world,"w"),soci::use(m_server,"s"),soci::use(m_token,"t"),soci::into(found);return found==1;}
     catch(...){return false;}
 }
 std::unique_ptr<soci::transaction> BeginMapTransaction(soci::session& sql,int world,int server,const std::string& token,bool repeatable_read,bool world_fence){

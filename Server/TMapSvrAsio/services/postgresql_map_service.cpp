@@ -42,6 +42,13 @@ void PostgreSQLMapService::CheckCatalogs(soci::session& sql) const {
          "(SELECT count(*) FROM actor_compat.catalog_release WHERE manifest_sha256=:a AND status='verified')",
         soci::use(m_config.character_manifest,"c"),soci::use(m_config.routing_manifest,"r"),soci::use(m_config.actor_manifest,"a"),soci::into(n);
     if(n!=3)throw std::runtime_error("Native Map release changed or unavailable");
+    const int world=m_config.world,server=m_config.server;
+    sql<<"SELECT count(*) FROM app_world.map_runtime_owner o JOIN route_compat.map_topology_release r "
+        "ON r.world_id=o.world_id AND r.manifest_sha256=o.routing_manifest AND r.source_group=o.routing_source_group "
+        "WHERE o.world_id=:w AND o.server_id=:s AND o.owner_token=:t AND o.routing_manifest=:r AND o.routing_topology IS NOT NULL",
+        soci::use(world,"w"),soci::use(server,"s"),soci::use(m_config.owner_token,"t"),
+        soci::use(m_config.routing_manifest,"r"),soci::into(n);
+    if(n!=1)throw std::runtime_error("Native Map process topology changed or unavailable");
     sql<<"SELECT count(*) FROM actor_compat.statistics_release",soci::into(n);
     if(n!=1)throw std::runtime_error("Native Map requires the four-table actor release");
 }

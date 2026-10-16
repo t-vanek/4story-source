@@ -1,4 +1,5 @@
 #include "services/soci_tournament_repository.h"
+#include "services/battle_constants.h"
 
 #include <soci/soci.h>
 #include <spdlog/spdlog.h>
@@ -10,7 +11,7 @@ namespace tworldsvr {
 namespace {
 
 // BT_TOURNAMENT (TWorldType.h:235).
-constexpr int kBtTournament = 2;
+constexpr int kBtTournament = battle::kTypeTournament;
 
 std::string StrCol(const soci::row& row, std::size_t i)
 {

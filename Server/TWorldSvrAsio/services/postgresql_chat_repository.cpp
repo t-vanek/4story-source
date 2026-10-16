@@ -1,6 +1,7 @@
 #include "postgresql_chat_repository.h"
 #include "postgresql_friend_repository.h"
 #include "postgresql_world_owner.h"
+#include "fourstory/db/native_map_topology.h"
 #include "char_registry.h"
 #include <soci/soci.h>
 #include <algorithm>
@@ -61,6 +62,13 @@ PostgreSQLChatRepository::PostgreSQLChatRepository(PostgreSQLFriendRepository& a
         "FROM app_world.chat_ban_mutations WHERE false) required",soci::into(rows);
     *lease<<"SELECT count(*) FROM (SELECT world_id,char_id FROM app_world.guild_membership WHERE false) required",soci::into(rows);
     *lease<<"SELECT count(*) FROM (SELECT owner_token,connection_id,authority_epoch FROM app_world.map_sessions WHERE false) required",soci::into(rows);
+    *lease<<"SELECT count(*) FROM (SELECT routing_manifest,routing_source_group,routing_topology "
+        "FROM app_world.map_runtime_owner WHERE false) required",soci::into(rows);
+    *lease<<"SELECT count(*) FROM (SELECT world_id,source_group,manifest_sha256 FROM route_compat.map_topology_release WHERE false) required",soci::into(rows);
+    *lease<<"SELECT count(*) FROM (SELECT \"bGroup\",\"bChannel\",\"wMapID\",\"wUnitID\",\"bServerID\" "
+        "FROM route_compat.source_map_regions WHERE false) required",soci::into(rows);
+    *lease<<"SELECT count(*) FROM (SELECT \"bGroupID\",\"wMapID\",\"bLogChannel\",\"bPhyChannel\",\"bServerID\" "
+        "FROM route_compat.source_map_channels WHERE false) required",soci::into(rows);
     *lease<<"SELECT count(*) FROM (SELECT primary_server,primary_token,primary_connection,primary_epoch,"
         "target_server,target_token,connection_id,phase FROM app_world.map_replicas WHERE false) required",soci::into(rows);
     tx->commit();
@@ -100,14 +108,23 @@ std::string PostgreSQLChatRepository::MapOwner(std::uint8_t server) {
     auto& repo=m_authority;std::lock_guard guard(repo.m_mutex);
     if(repo.m_failed)throw std::runtime_error("Native peer authority stopped");
     try {
-        auto lease=repo.m_pool.Acquire();auto& sql=*lease;auto tx=BeginWorldTransaction(sql,repo.m_world,repo.m_token);
-        std::string token;const int sid=server;
-        sql<<"SELECT o.owner_token FROM app_world.map_runtime_owner o WHERE o.world_id=:w AND o.server_id=:s "
+        auto lease=repo.m_pool.Acquire();auto& sql=*lease;auto tx=BeginWorldTransaction(sql,repo.m_world,repo.m_token,true);
+        std::string token,manifest;const int sid=server;int source_group=-1;
+        soci::indicator manifest_status=soci::i_null,group_status=soci::i_null;
+        sql<<"SELECT o.owner_token,o.routing_manifest,o.routing_source_group FROM app_world.map_runtime_owner o WHERE o.world_id=:w AND o.server_id=:s "
              "AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=o.backend_pid AND l.locktype='advisory' "
              "AND l.classid=CAST(877478224 AS oid) AND l.objid=CAST((o.world_id::integer<<8)|o.server_id::integer AS oid) "
              "AND l.objsubid=2 AND l.granted) FOR SHARE OF o",
-            soci::use(repo.m_world,"w"),soci::use(sid,"s"),soci::into(token);
-        if(!sql.got_data())return {};
+            soci::use(repo.m_world,"w"),soci::use(sid,"s"),soci::into(token),
+            soci::into(manifest,manifest_status),soci::into(source_group,group_status);
+        if(!sql.got_data()||manifest_status!=soci::i_ok||group_status!=soci::i_ok)return {};
+        const auto topology=fourstory::db::ReadNativeMapTopology(sql,static_cast<std::uint8_t>(repo.m_world),server,manifest);
+        if(source_group!=topology.source_group)return {};
+        const auto shape=topology.Json();int matches=0;
+        sql<<"SELECT count(*) FROM app_world.map_runtime_owner WHERE world_id=:w AND server_id=:s AND owner_token=:t "
+            "AND routing_topology=CAST(:shape AS jsonb)",soci::use(repo.m_world,"w"),soci::use(sid,"s"),
+            soci::use(token,"t"),soci::use(shape,"shape"),soci::into(matches);
+        if(matches!=1)return {};
         tx->commit();return token;
     } catch(...) {repo.Fail();throw std::runtime_error("Native peer owner lookup failed; World stopped without replay");}
 }

@@ -28,11 +28,11 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation: native World RPS bootstrap and atomic win ledger,
-with explicit source calendar and Control ordering, are integrated and unverified.
-Complete RPS Map gameplay and PostgreSQL-only World bootstrap remain unfinished.
-Migration074/import/grants are written only; next075.
-[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-world-rps-20261015/README.md).
+Current Phase A continuation (2026-10-16): ordinary native Map RPS now includes
+start-item debit, source rounds, real World decisions and atomic reward mail,
+**INTEGRATED_UNVERIFIED**. BR/late replica parity, original admission and full
+World bootstrap remain incomplete. Written075/grants are unexecuted; next076.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-rps-20261016/README.md).
 
 Previous local Phase A work (2026-10-15), based on `7a8dfee`, implements the
 source3604 whole-handler return when current learned3603 is absent. ITEMUSE/ACT

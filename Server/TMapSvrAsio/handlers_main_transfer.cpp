@@ -112,6 +112,8 @@ boost::asio::awaitable<void> OnMWTransferEnterReq(std::vector<std::byte> body,co
     if(!incoming){client->Close();co_return;}
     incoming->snapshot.cluster=replica->cluster;
     incoming->snapshot.recovery=replica->recovery;
+    incoming->snapshot.rps=replica->rps;
+    incoming->snapshot.rps.ClearPending(); // a result from an older ownership tenure is not replayed
     // Publish ownership even if the socket closed during PostgreSQL commit;
     // teardown waits for this operation and uses the promoted claim.
     ctx.char_state->Store(cid,incoming->snapshot);

@@ -5,7 +5,15 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `0533c73`:** written074 adds exact RPS catalog
+**Current Phase A, baseline `c379231`:** written075 binds the full RPS chart to
+current source publications and adds nullable audit fields to quest_operations.
+The Map chain reuses existing item/mail IDs, ownership,061 diagnostics and
+notification tables. RPS counters are not loaded from those audit fields or
+added to saved/transfer data. No SQL/import/grants ran;044–075 remain unapplied,
+next076.
+[Source contract and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-rps-20261016/README.md).
+
+**Previous Phase A, baseline `0533c73`:** written074 adds exact RPS catalog
 publication, mutable win history, batch receipts and source-calendar resolver.
 The new `tools/database/import_world_rps.py` requires the complete verified
 pinned manifest, explicit IANA source timezone and offline owners. It preserves

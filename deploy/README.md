@@ -1,4 +1,10 @@
-> Current Phase A: `sql/world-rps-runtime-grants.sql` is written for074,
+> Current Phase A: `sql/map-rps-runtime-grants.sql` is written for075. It
+> grants the source views and the existing diagnostic-column startup probe;
+> existing native Map item/mail/receipt privileges remain in use. No migration,
+> grants, import, service, container, build or test ran; next076.
+> [Scope and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-rps-20261016/README.md).
+
+> Previous Phase A: `sql/world-rps-runtime-grants.sql` is written for074,
 > alongside `tools/database/import_world_rps.py` and explicit source timezone.
 > No grants, migration, import, service or container was run. Full World
 > bootstrap remains incomplete; source admission/RPS Map gameplay are OPEN.

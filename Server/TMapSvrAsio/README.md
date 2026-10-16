@@ -1,3 +1,11 @@
+> Current Phase A, baseline `c379231`: original normal-primary RPS start/debit,
+> source round thresholds/cards, actual World cap request/result, reward post
+> and Control cache update are connected, **INTEGRATED_UNVERIFIED**. Counters
+> remain local to the player object; written075/grants are unexecuted, next076.
+> Full RPS BR/late-replica parity and source admission/bootstrap remain OPEN.
+> No build/test/SQL/runtime, push or deployment.
+> [Current source contract and handoff](../../_rewrite/docs/modernization/evidence/phase-a-map-rps-20261016/README.md).
+
 # TMapSvrAsio — modernized 4Story map / gameplay server
 
 C++20 + Boost.Asio modernization of `Server/TMapSvr/`. The overall server is

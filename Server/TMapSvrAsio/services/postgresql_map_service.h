@@ -5,6 +5,9 @@
 #include "server_route_resolver.h"
 #include "fourstory/db/session_pool.h"
 #include <string>
+#include <map>
+#include <mutex>
+#include <optional>
 
 namespace tmapsvr {
 namespace transfer {struct State;struct Item;}
@@ -50,6 +53,7 @@ public:
     bool ConfirmChatBan(const MapSessionClaim&,const std::string&,std::int64_t,bool=false) override;
     std::optional<std::string> NoticeOperatorName(const MapSessionClaim&) override;
     QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) override;
+    void UpdateRpsChart(std::span<const std::byte>) override;
     TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillActionCommit CommitSkillAction(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
@@ -72,11 +76,11 @@ private:
     static void RefreshEquipment(soci::session&,CharSnapshot&,bool derive);
     static ItemInstance ProjectNativeItem(soci::session&,const transfer::Item&,bool template_projection=false);
     static std::uint64_t AllocateNativeItem(soci::session&,const MapSessionClaim&);
-    static std::int64_t NativeItemExpiry(soci::session&,std::uint32_t,int,int);
+    static std::int64_t NativeItemExpiry(soci::session&,std::uint32_t,int,int,std::optional<std::int64_t> observed={});
     static bool CanGrantQuestItems(const CharacterPayload&,const std::vector<ItemInstance>&);
     static void ReplaceNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,ItemInstance,const transfer::Item&);
     static void UpgradeNativeItemAttributes(soci::session&,const MapSessionClaim&,CharSnapshot&,ItemInstance,const transfer::Item&,bool);
-    static std::optional<ItemInstance> CreateQuestItem(soci::session&,const MapSessionClaim&,std::uint16_t,std::uint8_t);
+    static std::optional<ItemInstance> CreateQuestItem(soci::session&,const MapSessionClaim&,std::uint16_t,std::uint8_t,std::optional<std::int64_t> observed={});
     static std::vector<ItemInstance> CreateQuestRewardItems(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestRewardDef&);
     static std::vector<transfer::Item> CreateQuestRewardRawItems(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestRewardDef&,bool mail);
     static bool QueueQuestPost(soci::session&,const MapSessionClaim&,const CharSnapshot&,const QuestDef&,std::uint8_t,const std::function<std::uint8_t()>&);
@@ -132,6 +136,12 @@ private:
         std::span<const std::byte>,const QuestMapFacts&,QuestPackets&,std::optional<SoulmateOfferCommit>&) const;
     void CheckNativeSoulmateDeadline(soci::session&,const MapSessionClaim&) const;
     static void DebitNativeItem(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint8_t,std::uint8_t,std::uint64_t,std::uint8_t,QuestPackets&);
+    void LoadNativeRps(soci::session&);
+    void CheckNativeRpsRelease(soci::session&) const;
+    std::optional<NativeRpsGame> FindNativeRps(std::uint8_t,std::uint8_t) const;
+    bool ChangeNativeRps(soci::session&,const MapSessionClaim&,CharSnapshot&,std::uint16_t,
+                         std::span<const std::byte>,const QuestMapFacts&,QuestPackets&,std::string&);
+    void RewardNativeRps(soci::session&,const MapSessionClaim&,CharSnapshot&,const NativeRpsGame&);
     static PvpBalance ReadPvpBalance(soci::session&,const MapSessionClaim&);
     static void HydratePvpBalance(soci::session&,const MapSessionClaim&,CharacterPayload&);
     static void CheckPvpBalance(soci::session&,const MapSessionClaim&,const CharSnapshot&);
@@ -184,6 +194,9 @@ private:
     static void WriteCore(soci::session&,const MapSessionClaim&,const CharSnapshot&,int logout);
     void RecordCheckpoint(soci::session&,const MapSessionClaim&,long long revision,const std::string& fingerprint,const std::string& outcome) const;
     fourstory::db::SessionPool& m_pool;
+    mutable std::mutex m_rps_mutex;
+    std::map<std::uint16_t,NativeRpsGame> m_rps;
+    std::string m_rps_manifest;
     PostgreSQLMapConfig m_config;
 };
 }

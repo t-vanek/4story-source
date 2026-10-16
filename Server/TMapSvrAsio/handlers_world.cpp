@@ -816,6 +816,9 @@ DispatchWorld(std::uint16_t          wId,
     const auto id = ToMessageId(wId);
     switch (id)
     {
+    case MessageId::MW_RPSGAME_REQ:
+    case MessageId::MW_RPSGAMECHANGE_REQ:
+        co_await OnWorldRpsPacket(wId,std::move(body),ctx);break;
     case MessageId::MW_PARTYADD_REQ:
     case MessageId::MW_PARTYJOIN_REQ:
     case MessageId::MW_PARTYDEL_REQ:

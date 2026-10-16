@@ -63,7 +63,7 @@ std::optional<std::vector<Placement>> Place(const CharacterPayload& p,const std:
     return plan;
 }
 }
-std::int64_t PostgreSQLMapService::NativeItemExpiry(soci::session& sql,std::uint32_t duration,int use_type,int use_time) {
+std::int64_t PostgreSQLMapService::NativeItemExpiry(soci::session& sql,std::uint32_t duration,int use_type,int use_time,std::optional<std::int64_t> observed) {
     if(!duration&&(use_type&0x80)) {
         if(use_type&1)duration=static_cast<std::uint16_t>(use_time)*std::uint32_t{3600};
         else if(use_type&2)duration=static_cast<std::uint16_t>(use_time)*std::uint32_t{86400};
@@ -71,7 +71,16 @@ std::int64_t PostgreSQLMapService::NativeItemExpiry(soci::session& sql,std::uint
     if(!duration)return 0;
     long long now=0;int hour=0,minute=0,second=0;
     // Explicit native UTC policy. Historical wall-clock values stay archival.
-    sql << "SELECT floor(extract(epoch FROM transaction_timestamp()))::bigint,"
+    if(observed) {
+        // A source event that already owns its clock must not be rebased to
+        // the transaction start before a long account/claim wait or midnight.
+        const long long at=*observed;
+        sql << "SELECT floor(extract(epoch FROM to_timestamp(:at)))::bigint,"
+            "extract(hour FROM to_timestamp(:at) AT TIME ZONE 'UTC')::integer,"
+            "extract(minute FROM to_timestamp(:at) AT TIME ZONE 'UTC')::integer,"
+            "floor(extract(second FROM to_timestamp(:at)))::integer",
+            soci::use(at,"at"),soci::into(now),soci::into(hour),soci::into(minute),soci::into(second);
+    } else sql << "SELECT floor(extract(epoch FROM transaction_timestamp()))::bigint,"
         "extract(hour FROM transaction_timestamp() AT TIME ZONE 'UTC')::integer,"
         "extract(minute FROM transaction_timestamp() AT TIME ZONE 'UTC')::integer,"
         "floor(extract(second FROM transaction_timestamp()))::integer",
@@ -201,7 +210,7 @@ void PostgreSQLMapService::ReplaceNativeItem(soci::session& sql,const MapSession
     if(raw.id==before.dlID)target->alarm_time=before.alarm_time;
 }
 std::optional<ItemInstance> PostgreSQLMapService::CreateQuestItem(soci::session& sql,const MapSessionClaim& c,
-    std::uint16_t item,std::uint8_t count) {
+    std::uint16_t item,std::uint8_t count,std::optional<std::int64_t> observed) {
     if(!count)return std::nullopt;
     const int id=std::bit_cast<std::int16_t>(item);int durability=0,use_type=0,use_time=0;
     sql << "SELECT \"dwDuraMax\",\"bUseType\",\"wUseTime\" FROM character_compat.\"TITEMCHART\" WHERE \"wItemID\"=:id",
@@ -209,7 +218,7 @@ std::optional<ItemInstance> PostgreSQLMapService::CreateQuestItem(soci::session&
     if(!sql.got_data())return std::nullopt;
     transfer::Item raw;raw.id=AllocateNativeItem(sql,c);raw.owner_id=c.char_id;raw.item=item;raw.count=count;
     raw.durability=raw.durability_max=static_cast<std::uint32_t>(durability);
-    raw.expires=NativeItemExpiry(sql,0,use_type,use_time);
+    raw.expires=NativeItemExpiry(sql,0,use_type,use_time,observed);
     return ProjectNativeItem(sql,raw);
 }
 std::vector<ItemInstance> PostgreSQLMapService::CreateQuestRewardItems(soci::session& sql,const MapSessionClaim& c,

@@ -1,8 +1,15 @@
-> Current Phase A, baseline `0533c73`: native RPS catalog/history bootstrap,
+> Map continuation (2026-10-16): ordinary native RPS now produces the actual
+> next-win-count request, consumes World results and writes reward mail. The
+> World gate below remains unverified; full World bootstrap/BR/late-replica
+> parity are OPEN. No build/test/SQL/runtime.
+> [Map source contract](../../_rewrite/docs/modernization/evidence/phase-a-map-rps-20261016/README.md).
+
+> Previous Phase A, baseline `0533c73`: native RPS catalog/history bootstrap,
 > atomic source expiry/win batches and serialized Control edits are connected,
-> **INTEGRATED_UNVERIFIED** within World. Native Map RPS gameplay and full World
-> bootstrap remain **IMPLEMENTING**. Written074/import/grants are unexecuted;
-> next075. No build/test/SQL/runtime or publication.
+> **INTEGRATED_UNVERIFIED** within World. At that handoff the Map half was missing;
+> the continuation above implements its bounded ordinary-primary path. Full
+> World bootstrap remains **IMPLEMENTING**. Written074/import/grants are
+> unexecuted; the current migration head is075. No build/test/SQL/runtime or publication.
 > [Source contracts and exact handoff](../../_rewrite/docs/modernization/evidence/phase-a-world-rps-20261015/README.md).
 
 > Historical Phase A, based on `b251cdf`: retain only actual native corps0 party

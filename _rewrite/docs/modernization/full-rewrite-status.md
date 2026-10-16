@@ -11,9 +11,20 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–074 are **written, not applied**; next075.
+evidence remain unchanged. New migrations044–075 are **written, not applied**; next076.
 
-Local Phase A continuation (2026-10-15), baseline `0533c73`: native World RPS
+Local Phase A continuation (2026-10-16), baseline `c379231`: native Map RPS
+start/item debit, source round calculation, real World limit request/result,
+giveup/terminal reward mail and transient Control cache updates are wired into
+the current PostgreSQL gameplay path, **INTEGRATED_UNVERIFIED** for ordinary
+ready primaries. Local counters follow actual object lifetime and are not
+invented transfer/save fields. Written075 and Map grants are unexecuted;
+recorded044–075 remain unapplied, next076. Full RPS parity (BR/late replica),
+source Map admission/native World bootstrap and full Phase A remain OPEN.
+No build, test, SQL, import, service, client, container, push or deployment ran.
+[Source contracts, deviations and deferred acceptance](evidence/phase-a-map-rps-20261016/README.md).
+
+Previous Phase A continuation (2026-10-15), baseline `0533c73`: native World RPS
 catalog/history hydration, atomic expiry/win batches, source calendar conversion
 and serialized Control updates are wired into the existing World paths,
 **INTEGRATED_UNVERIFIED** in that World-only scope. Complete RPS gameplay

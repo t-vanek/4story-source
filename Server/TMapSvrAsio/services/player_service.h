@@ -55,6 +55,7 @@ public:
         throw std::runtime_error("Native soulmate state authority unavailable");
     }
     virtual QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) {throw std::runtime_error("Native quest persistence unavailable");}
+    virtual void UpdateRpsChart(std::span<const std::byte>) {throw std::runtime_error("Native RPS catalog unavailable");}
     virtual SecureCommit UpdateSecureCode(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&) {throw std::runtime_error("Secure code persistence unavailable");}
 
     // Load the snapshot for `char_id`, or nullopt when the row is

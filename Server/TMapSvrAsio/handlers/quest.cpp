@@ -71,8 +71,10 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
     const bool drop_damage=message==tnetlib::protocol::MessageId::CS_DROPDAMAGE_REQ;
     const bool act_items=message==tnetlib::protocol::MessageId::CS_ACTITEMSUSE_REQ;
     const bool item_use=message==tnetlib::protocol::MessageId::CS_ITEMUSE_REQ;
+    const bool rps=message==tnetlib::protocol::MessageId::CS_RPSSTART_REQ||message==tnetlib::protocol::MessageId::CS_RPSGAME_REQ||message==tnetlib::protocol::MessageId::MW_RPSGAME_REQ;
     const bool recovery_tick=opcode==0&&ctx.mode==Mode::PvE;
-    const bool source_projection=revival||change_mode||drop_damage||recovery_tick||act_items||item_use;
+    const bool source_projection=revival||change_mode||drop_damage||recovery_tick||act_items||item_use||rps;
+    if(rps&&ctx.mode!=Mode::PvE)co_return;
     if(revival||change_mode||drop_damage||act_items)if(ctx.mode!=Mode::PvE)co_return;
     if(source_projection) {
         const auto state=ctx.char_state?ctx.char_state->Get(identity->char_id):std::nullopt;
@@ -156,7 +158,10 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMSELL_REQ)?5U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_NPCTALK_REQ)?2U:
         opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_QUESTEXEC_REQ)?9U:4U;
-    if(soulmate) {
+    if(rps) {
+        if(body.size()!=(message==tnetlib::protocol::MessageId::CS_RPSSTART_REQ?3U:message==tnetlib::protocol::MessageId::CS_RPSGAME_REQ?1U:10U))
+            throw std::runtime_error("Invalid RPS request length");
+    }else if(soulmate) {
         if(body.size()>65527)throw std::runtime_error("Invalid soulmate request length");
     }else if(opcode==static_cast<std::uint16_t>(tnetlib::protocol::MessageId::CS_ITEMUSE_REQ)) {
         if(body.size()<7||body.size()!=7U+5U*std::to_integer<unsigned>(body[6]))throw std::runtime_error("Invalid ITEMUSE request length");
@@ -176,6 +181,7 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         QuestMapFacts facts;facts.map=before.wMapID;facts.channel=identity->channel;
         facts.ordinary_recovery=recovery_tick;
         facts.ordinary_actitems=ctx.mode==Mode::PvE;
+        facts.ordinary_rps=ctx.mode==Mode::PvE;
         facts.sample_ms=SkillClockMs();
         facts.world_registered=ctx.world_client&&ctx.world_client->IsRegistered();
         if(ctx.world_client)facts.world_events=ctx.world_client->EventSnapshot();

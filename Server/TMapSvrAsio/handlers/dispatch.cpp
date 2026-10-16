@@ -98,6 +98,8 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnMoveItemReq(sess, std::move(body), ctx); break;
     case MessageId::CS_ITEMUSE_REQ:
     case MessageId::CS_ACTITEMSUSE_REQ:
+    case MessageId::CS_RPSSTART_REQ:
+    case MessageId::CS_RPSGAME_REQ:
     case MessageId::CS_CHGMODE_REQ:
     case MessageId::CS_DROPDAMAGE_REQ:
     case MessageId::CS_ITEMSELL_REQ:

@@ -15,6 +15,7 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
         throw std::runtime_error("Native Map requires owned PostgreSQL and all verified catalog hashes");
     try{auto lease=pool.Acquire();soci::transaction tx(*lease);*lease<<"SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY";
         CheckCatalogs(*lease);
+        LoadNativeRps(*lease);
         // These native paths require migration 067. Keep all existing catalog
         // checks and reject a missing social/offer schema before accepting TCP.
         int columns=0;

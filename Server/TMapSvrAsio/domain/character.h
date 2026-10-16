@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include "domain/character_payload.h"
+#include "domain/rps.h"
 
 namespace tmapsvr {
 
@@ -38,6 +39,7 @@ struct CharSnapshot
     std::shared_ptr<const CharacterPayload> payload;
     CharacterClusterState cluster;
     std::optional<SourceRecoveryClock> recovery;
+    SourceRpsState rps;
     std::uint32_t  dwCharID         = 0;
     std::string    szNAME;
     std::uint8_t   bStartAct        = 0;

@@ -538,6 +538,7 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const bool mail_poll=opcode==2; // internal idle-primary mailbox timer only
     const bool use_item=message==MessageId::CS_ITEMUSE_REQ;
     const bool act_items=message==MessageId::CS_ACTITEMSUSE_REQ;
+    const bool rps=message==MessageId::CS_RPSSTART_REQ||message==MessageId::CS_RPSGAME_REQ||message==MessageId::MW_RPSGAME_REQ;
     const bool revival=message==MessageId::CS_REVIVAL_REQ;
     const bool change_mode=message==MessageId::CS_CHGMODE_REQ;
     const bool drop_damage=message==MessageId::CS_DROPDAMAGE_REQ;
@@ -558,6 +559,9 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     wire::Reader reader(body.data(),body.size());std::uint32_t quest=0,reward_id=0;std::uint16_t npc=0;std::uint8_t reward_type=0;
     if(progress_tick||during_entry||mail_poll) {
         if(!body.empty()||!facts.sample_ms)throw std::runtime_error("Invalid internal progression tick");
+    } else if(rps) {
+        if(body.size()!=(message==MessageId::CS_RPSSTART_REQ?3U:message==MessageId::CS_RPSGAME_REQ?1U:10U))
+            throw std::runtime_error("Invalid RPS request length");
     } else if(act_items) {
         if(body.size()!=36||!facts.sample_ms)throw std::runtime_error("Invalid ACTITEMSUSE request length");
     } else if(revival) {
@@ -624,9 +628,13 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     quest_runtime::HydrateLevels(*payload,chart);
     bool other_state_changed=false;
     std::vector<std::byte> act_ack;
+    std::string rps_context;
     std::optional<SoulmateOfferCommit> soulmate_offer;
     const auto before_json=quest_runtime::Json(quest_runtime::Rows(*before.payload));
-    if(act_items) {
+    if(rps) {
+        other_state_changed=ChangeNativeRps(sql,c,after,opcode,body,facts,committed.packets,rps_context);
+        payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
+    }else if(act_items) {
         if(!facts.ordinary_actitems)throw std::runtime_error("ACTITEMSUSE requires ordinary native runtime");
         other_state_changed=UseNativeActItems(sql,c,after,body,committed.packets,act_ack);
         payload=std::make_shared<CharacterPayload>(*after.payload);after.payload=payload;
@@ -1004,13 +1012,17 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
     const auto events=facts.world_events?facts.world_events->Json():std::string{"null"};
     if(!before.payload->pvp||!payload->pvp)throw std::runtime_error("Quest operation lost PvP balance");
     const auto before_pvp=before.payload->pvp->Json(),after_pvp=payload->pvp->Json();
+    const auto before_rps=rps?before.rps.Json():std::string{"null"},after_rps=rps?after.rps.Json():std::string{"null"};
+    const auto rps_json=rps?rps_context:std::string{"null"};
     const int world=c.group,character=std::bit_cast<std::int32_t>(c.char_id),server=m_config.server,op=opcode;
     const long long previous=payload->last_quest_id,generation=c.connection_id,epoch=c.authority_epoch;long long operation=0;
-    sql << "INSERT INTO app_world.quest_operations(world_id,char_id,previous_operation_id,session_key,server_id,owner_token,connection_id,authority_epoch,opcode,request,before_state,after_state,responses,world_event_context,before_pvp,after_pvp) "
-        "VALUES(:w,:c,:previous,:key,:server,:token,:generation,:epoch,:op,decode(:request,'hex'),CAST(:before AS jsonb),CAST(:after AS jsonb),CAST(:packets AS jsonb),NULLIF(CAST(:events AS jsonb),'null'::jsonb),CAST(:before_pvp AS jsonb),CAST(:after_pvp AS jsonb)) RETURNING operation_id",
+    sql << "INSERT INTO app_world.quest_operations(world_id,char_id,previous_operation_id,session_key,server_id,owner_token,connection_id,authority_epoch,opcode,request,before_state,after_state,responses,world_event_context,before_pvp,after_pvp,before_rps,after_rps,rps_context) "
+        "VALUES(:w,:c,:previous,:key,:server,:token,:generation,:epoch,:op,decode(:request,'hex'),CAST(:before AS jsonb),CAST(:after AS jsonb),CAST(:packets AS jsonb),NULLIF(CAST(:events AS jsonb),'null'::jsonb),CAST(:before_pvp AS jsonb),CAST(:after_pvp AS jsonb),"
+        "NULLIF(CAST(:before_rps AS jsonb),'null'::jsonb),NULLIF(CAST(:after_rps AS jsonb),'null'::jsonb),NULLIF(CAST(:rps_context AS jsonb),'null'::jsonb)) RETURNING operation_id",
         soci::use(world,"w"),soci::use(character,"c"),soci::use(previous,"previous"),soci::use(wire_key,"key"),soci::use(server,"server"),
         soci::use(m_config.owner_token,"token"),soci::use(generation,"generation"),soci::use(epoch,"epoch"),soci::use(op,"op"),
-        soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::use(events,"events"),soci::use(before_pvp,"before_pvp"),soci::use(after_pvp,"after_pvp"),soci::into(operation);
+        soci::use(request,"request"),soci::use(before_json,"before"),soci::use(after_json,"after"),soci::use(packets,"packets"),soci::use(events,"events"),soci::use(before_pvp,"before_pvp"),soci::use(after_pvp,"after_pvp"),
+        soci::use(before_rps,"before_rps"),soci::use(after_rps,"after_rps"),soci::use(rps_json,"rps_context"),soci::into(operation);
     payload->last_quest_id=static_cast<std::uint64_t>(operation);
     if(!act_ack.empty()) {
         // Original ACT has no learned-skill reuse/cost operation. Its receipt

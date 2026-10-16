@@ -11,7 +11,18 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-15), baseline `0533c73`: native World RPS
+Local Phase A continuation (2026-10-16), baseline `c379231`: native Map RPS
+start/item debit, source round calculation, real World limit request/result,
+giveup/terminal reward mail and transient Control cache updates are wired into
+the current PostgreSQL gameplay path, **INTEGRATED_UNVERIFIED** for ordinary
+ready primaries. Local counters follow actual object lifetime and are not
+invented transfer/save fields. Written075 and Map grants are unexecuted;
+recorded044–075 remain unapplied, next076. Full RPS parity (BR/late replica),
+source Map admission/native World bootstrap and full Phase A remain OPEN.
+No build, test, SQL, import, service, client, container, push or deployment ran.
+[Source contracts, deviations and deferred acceptance](evidence/phase-a-map-rps-20261016/README.md).
+
+Previous Phase A continuation (2026-10-15), baseline `0533c73`: native World RPS
 catalog/history hydration, atomic expiry/win batches, source calendar conversion
 and serialized Control updates are wired into the existing World paths,
 **INTEGRATED_UNVERIFIED** in that World-only scope. Complete RPS gameplay
@@ -475,12 +486,13 @@ incomplete. [Contracts, differences and compilation evidence](evidence/phase-a-q
 
 Active next source paths after this increment:
 
-Immediate continuation in the RPS unit: native Map `OnCS_RPSSTART_REQ`,
-`OnCS_RPSGAME_REQ`, `OnMW_RPSGAME_REQ/CHANGE_REQ`, `RPSReward`, `SelectNpcRPS`
-and their actual start-item/mail/reset/transfer dependencies. Preserve the
-World-only gate and source next-win-count key; do not call complete RPS
-integrated until these producers and consumers exist. Migration074 and
-its importer/grants are written only; next075.
+The ordinary native RPS chain now has its real Map producer/consumer and reward
+mail path. Preserve075 audit-only local state, source packet bodies, no generic
+ITEMUSE/quest credit, original thresholds/next-key lookup and actual constructor
+lifetime. Continue late World decisions during replica/main transfer using real
+role/result authority; then BR mode. Do not mark these variants implemented or
+invent a successful decision/refund. Full source-bootstrap prerequisite below
+remains the next cross-system dependency. Written075/grants are unexecuted; next076.
 
 Cross-cutting bootstrap prerequisite: original Map MW_CONNECT_ACK admission and native
 World bootstrap. Start with Server/TMapSvr/{TMapSvr.cpp::LoadData/InitNetwork;

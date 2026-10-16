@@ -152,6 +152,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_load.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_checkpoint.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_quest.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_rps.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/rps.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_quest_items.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_quest_mail.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_quest_rewards.cpp

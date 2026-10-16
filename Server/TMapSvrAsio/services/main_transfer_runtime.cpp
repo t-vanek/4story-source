@@ -42,7 +42,7 @@ State Capture(const CharSnapshot& s,std::uint32_t key,const SkillCooldownTracker
         out.new_security=!p.security.created;out.security_code=p.security.code;
         out.security_tries=p.security.tries;out.security_tick=p.security.source_tick;out.security_unlocked=p.security.unlocked;
     }
-    out.character=s;out.character.payload.reset();out.character.recovery.reset();out.key=key;out.db_load=0;out.result=0;out.login=0;
+    out.character=s;out.character.payload.reset();out.character.recovery.reset();out.character.rps={};out.key=key;out.db_load=0;out.result=0;out.login=0;
     out.aid_country=p.aid_country;out.lucky=p.lucky_number;out.rank_points=p.rank_point;
     if(p.pvp){out.pvp_total=p.pvp->total;out.pvp_available=p.pvp->available;out.month_points=p.pvp->month;}
     if(p.post_counts) {

@@ -640,8 +640,8 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
 }
 
 CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const transfer::State& t,const MapSessionClaim& claim) const {
-    CharSnapshot s=t.character;s.payload.reset();s.recovery.reset();auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
-    auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();graph->character.recovery.reset();
+    CharSnapshot s=t.character;s.payload.reset();s.recovery.reset();s.rps={};auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
+    auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();graph->character.recovery.reset();graph->character.rps={};
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
     HydrateNativePosts(sql,claim,p);
     HydrateNativeProtected(sql,claim,p);

@@ -157,6 +157,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_battles.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_monsters.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_monster_spawn.cpp
+    ${TMAPSVR_ASIO_SRC}/services/native_monster_ai.cpp
+    ${TMAPSVR_ASIO_SRC}/services/postgresql_map_monster_ai.cpp
     ${TMAPSVR_ASIO_SRC}/services/battle_regions.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/rps.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_quest_items.cpp

@@ -17,6 +17,7 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
         CheckCatalogs(*lease);
         LoadNativeRps(*lease);
         LoadNativeMonsterCatalog(*lease);
+        LoadNativeMonsterAi(*lease);
         LoadNativeBattleRegions(*lease);
         AllocateNativeMonsters();
         // These native paths require migration 067. Keep all existing catalog

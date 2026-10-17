@@ -304,7 +304,7 @@ int main(int argc, char** argv)
 
         // Prototype registry is populated only by the legacy/dev backend.
         // Native PostgreSQL allocates source slots in PostgreSQLMapService
-        // and refuses startup at an unresolved synchronous Initialize call.
+        // and refuses unresolved cell/visibility or timed AI effects before listening.
         tmapsvr::InMemoryMonsterRegistry monster_reg;
 
         // Monster corpse loot — money + items a kill leaves behind, keyed

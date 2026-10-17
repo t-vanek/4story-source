@@ -1,0 +1,67 @@
+#pragma once
+#include "native_monster_spawn.h"
+#include <cstddef>
+#include <tuple>
+
+namespace tmapsvr {
+struct NativeAiCondition {std::uint32_t id{};std::uint8_t kind{};};
+struct NativeAiCommand {
+    std::uint32_t id{};
+    std::uint8_t kind{};
+    std::vector<NativeAiCondition> conditions;
+};
+struct NativeAiBinding {
+    std::uint64_t source_row{}; // stable identity, never a legacy pointer handle
+    std::uint32_t command{},delay{};
+    std::uint8_t loop{};
+};
+struct NativeMonsterAiCatalog {
+    std::map<std::uint32_t,NativeAiCommand> commands;
+    std::map<std::tuple<std::uint8_t,std::uint8_t,std::uint32_t>,std::vector<NativeAiBinding>> bindings;
+    std::set<std::uint8_t> types;
+    std::string order_sha256;
+};
+struct NativeAiInvocation {
+    std::uint64_t binding{};
+    std::uint32_t monster{},host_key{},event_host{},real_host{},delay{};
+    std::uint16_t map{},party{};
+    std::uint8_t channel{},real_type{};
+};
+
+// Only the source LoadData phase before AI threads/network/actors. All actors
+// are absent, and the source static module clock is0 at that point. Explicit
+// consumers must either perform EnterMAP/delayed publication or throw; absence
+// of either must never turn those side effects into successful no-ops.
+class NativeMonsterBootstrap {
+public:
+    // Publishes cells/visibility only; Event(AT_ENTER) is emitted here once
+    // after this consumer succeeds. It must not emit a duplicate AI event.
+    using EnterMap=std::function<void(NativeMonsterMap&,std::uint32_t)>;
+    using Schedule=std::function<void(const NativeAiInvocation&)>;
+    using Draw=std::function<std::uint32_t()>;
+    NativeMonsterBootstrap(const NativeMonsterCatalog&,const NativeMonsterAiCatalog&,
+                           const BattleRegions&,EnterMap,Schedule,Draw);
+    void Initialize(NativeMonsterMap&,std::uint32_t);
+private:
+    struct Arguments {std::uint32_t event_host{},real_host{};std::uint8_t real_type{};};
+    const std::vector<NativeAiBinding>* Bindings(const NativeMonsterSlot&,std::uint8_t,std::uint32_t) const;
+    bool Conditions(const NativeAiCommand&,const NativeMonsterSlot&);
+    bool CanRun(const NativeAiCommand&,const NativeMonsterSlot&);
+    std::uint32_t Delay(const NativeAiBinding&,const NativeMonsterSlot&);
+    bool Execute(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
+    bool Complete(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
+    bool Regen(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
+    void Event(NativeMonsterMap&,std::uint32_t,std::uint8_t,std::uint32_t,Arguments);
+    void ResetHost(NativeMonsterSlot&);
+    void ResolveTemplate(NativeMonsterSlot&,const NativeMonsterAllocationTemplate&);
+    std::uint32_t Random();
+    void Step();
+    const NativeMonsterCatalog& m_catalog;
+    const NativeMonsterAiCatalog& m_ai;
+    const BattleRegions& m_regions;
+    EnterMap m_enter;
+    Schedule m_schedule;
+    Draw m_draw;
+    std::size_t m_steps{},m_depth{};
+};
+} // namespace tmapsvr

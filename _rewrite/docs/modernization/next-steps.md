@@ -11,7 +11,21 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-16), baseline `0f37aef`: native Map now
+Local Phase A continuation (2026-10-17), baseline `d61a3ae`: native Map now
+loads exact source AI commands, per-command conditions and ordered trigger
+bindings. Actual source Initialize consumes them between slot insertions;
+ordered conditions/base completion and fresh Regen preparation preserve group
+redirection, weighted selection, FLOAT placement and signed Win32 HP/MP clamps.
+**INTEGRATED_UNVERIFIED** within this pre-actor bootstrap scope. Required
+EnterMAP/cell/visibility and delayed AI publication still stop construction
+before listening; awake/dead/runtime lifecycle remains incomplete. There is no
+fake live-registry projection or successful dropped timer. Written080/publisher/
+grants are unexecuted;044–080 remain unapplied, next081. Full monster lifecycle,
+battles/bootstrap and full Phase A remain **IMPLEMENTING**. No build, test,
+SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-ai-20261017/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `0f37aef`: native Map now
 loads the source server-scoped monster catalog with original per-query order,
 group/party membership and raw attribute-family identity. Source default-spawn
 allocation preserves physical maps/channels, anonymous and essential slots,
@@ -39,15 +53,15 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: original AI command/condition/binding
-catalogs, then CTMonster::Initialize and the complete reachable Regen/event/
-timer/EnterMAP/client-host chain. Replace the actual throwing initializer in
-`PostgreSQLMapService::AllocateNativeMonsters` only when these consumers exist;
-never defer Initialize until after allocation or publish anonymous/dormant slots
-as live monsters. Preserve source per-invocation query order and synchronous
-boundaries. The detailed handoff above names the source symbols and unresolved
-branches. After monster realization, continue switches/GodBall, four battle
-enable consumers and native occupation/reward persistence. No Phase B/C work.
+Immediate implementation dependency: source InitMap/InitCell/InitExtCell,
+CSPGetServerID ownership, actual EnterMAP/cell registration and client visibility/
+host producers; in parallel dependency order, the source AI request/timer/batch
+ACK queue with host-key and object lifetime fences, cancellation and repeat
+rescheduling. Replace the actual throwing EnterMap/Schedule consumers in
+`AllocateNativeMonsters` only with those full effects. The bootstrap's empty-host
+branch is valid before actors only; extend the engine and concrete commands
+before admitting source-hosted monsters/players. Keep full lifecycle and battle
+support IMPLEMENTING. Next free migration081; no Phase B/C execution.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

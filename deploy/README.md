@@ -1,4 +1,12 @@
-> Current Phase A:079, `sql/map-monster-runtime-grants.sql` and the offline
+> Current Phase A:080, `sql/map-monster-ai-runtime-grants.sql` and offline
+> `tools/database/import_map_monster_ai.py` are written, unexecuted.079 is a
+> mandatory exact source/order prerequisite. AI bootstrap calculations are
+> integrated but unverified; native construction still refuses missing cell/
+> visibility/client-host or delayed AI queue effects before listening. This is
+> not a usable populated server. Next081; no Phase B/C execution.
+> [Scope and handoff](../_rewrite/docs/modernization/evidence/phase-a-map-monster-ai-20261017/README.md).
+
+> Previous Phase A:079, `sql/map-monster-runtime-grants.sql` and the offline
 > `tools/database/import_map_monsters.py` publisher are written, unexecuted.
 > Complete real source rows and original per-query order are required. Native
 > Map stops before listening at an unresolved synchronous monster Initialize;

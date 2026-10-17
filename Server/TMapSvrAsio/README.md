@@ -1,4 +1,13 @@
-> Current Phase A, baseline `0f37aef`: source monster publication079 and native
+> Current Phase A, baseline `d61a3ae`: native080 AI catalogs have actual
+> Initialize/condition/base-completion/fresh Regen consumers. Group/weighted
+> selection, FLOAT placement and signed Win32 HP/MP minima are implemented,
+> **INTEGRATED_UNVERIFIED** before actors only. Required EnterMAP/cell/visibility
+> or delayed AI publication still refuses before listening. No fake live monster
+> or dropped timer. Full runtime AI/client-host/death lifecycle remains open.
+>080/grants/publisher unexecuted; next081. No build/test/SQL/runtime ran.
+> [Contracts and exact next dependency](../../_rewrite/docs/modernization/evidence/phase-a-map-monster-ai-20261017/README.md).
+
+> Previous Phase A, baseline `0f37aef`: source monster publication079 and native
 > default-spawn allocation preserve query order, groups/parties, physical maps,
 > source IDs, anonymous/essential slots and synchronous Initialize boundaries.
 > **INTEGRATED_UNVERIFIED** for allocation only. Native startup now stops before

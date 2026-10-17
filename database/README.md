@@ -5,7 +5,17 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `0f37aef`:** written079 binds the native source
+**Current Phase A, baseline `d61a3ae`:** written080 adds the exact source AI
+command/condition/binding publication bound to079 and its actual order SHA.
+The offline `import_map_monster_ai.py` rechecks all ten full source tables and
+seven active content/character equalities before atomic order/receipt publication.
+Native initialization consumes these source rows; no saved HP/job state is
+invented. Actual079 template size/AI/flags and family HP/MP feed fresh Regen.
+No SQL/publisher/grants ran;044–080 unapplied, next081. Live cell and timer
+consumers still require implementation and explicitly refuse when reached.
+[Source contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-monster-ai-20261017/README.md).
+
+**Previous Phase A, baseline `0f37aef`:** written079 binds the native source
 monster allocation catalog to078 and the active releases. Seven source receipts,
 raw attribute-family keys and per-server/per-spawn query-order tables preserve
 actual rows; `import_map_monsters.py` is an offline atomic publisher requiring

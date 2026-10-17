@@ -28,7 +28,15 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-16): source Map monster catalog,
+Current Phase A continuation (2026-10-17): source AI catalogs now feed actual
+native monster Initialize and fresh Regen calculations, **INTEGRATED_UNVERIFIED**
+within pre-actor bootstrap. Group redirection, weights, FLOAT placement and signed
+Win32 HP/MP clamping follow source. Live cells/visibility/client hosts and delayed
+AI queues remain incomplete; required effects stop native construction before
+listening.080/grants/publisher are written only; next081. Full Phase A is open.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-ai-20261017/README.md).
+
+Previous Phase A continuation (2026-10-16): source Map monster catalog,
 group/party query order and default-spawn slot allocation now feed native boot
 and battle bindings, **INTEGRATED_UNVERIFIED** for allocation only. Native startup
 refuses the first unported synchronous `CTMonster::Initialize` before listening;

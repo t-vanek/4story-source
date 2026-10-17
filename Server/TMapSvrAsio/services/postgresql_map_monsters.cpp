@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "legacy_random.h"
 #include <soci/soci.h>
 #include <bit>
 #include <cmath>
@@ -40,6 +41,7 @@ void PostgreSQLMapService::CheckNativeMonsterRelease(soci::session& sql) const {
         soci::use(m_monster_catalog.manifest,"m"),soci::use(m_monster_catalog.order_sha256,"o"),
         soci::use(m_config.routing_manifest,"r"),soci::use(m_config.character_manifest,"c"),soci::into(count);
     if(count!=1)throw std::runtime_error("Native Map source monster publication changed or unavailable");
+    CheckNativeMonsterAiRelease(sql);
 }
 void PostgreSQLMapService::LoadNativeMonsterCatalog(soci::session& sql) {
     const int world=m_config.world,server=m_config.server;
@@ -108,21 +110,25 @@ void PostgreSQLMapService::LoadNativeMonsterCatalog(soci::session& sql) {
     if(candidate_count!=expected_candidates||party_count!=expected_parties)
         throw std::runtime_error("Incomplete source candidate/party queries");
     {soci::rowset<soci::row> rows=(sql.prepare<<
-        "SELECT \"wID\",\"wMonAttr\",\"bLevel\",\"bClass\",\"bRace\",\"wSkill1\",\"wSkill2\",\"wSkill3\",\"wSkill4\" "
+        "SELECT \"wID\",\"wMonAttr\",\"bLevel\",\"bClass\",\"bRace\",\"wSkill1\",\"wSkill2\",\"wSkill3\",\"wSkill4\","
+        "\"bAIType\",\"bCanAttack\",\"bIsSpecial\",\"bRemove\",\"fSize\" "
         "FROM monster_compat.\"TMONSTERCHART\" WHERE world_id=:w AND server_id=:s",
         soci::use(world,"w"),soci::use(server,"s"));
      for(const auto& row:rows) {
         NativeMonsterAllocationTemplate p;p.wID=Word(row,"wID");p.wMonAttr=Word(row,"wMonAttr");
         p.bLevel=Byte(row,"bLevel");p.bClass=Byte(row,"bClass");p.bRace=Byte(row,"bRace");
         p.skills={Word(row,"wSkill1"),Word(row,"wSkill2"),Word(row,"wSkill3"),Word(row,"wSkill4")};
+        p.ai_type=Byte(row,"bAIType");p.can_attack=Byte(row,"bCanAttack");
+        p.special=Byte(row,"bIsSpecial");p.remove=Byte(row,"bRemove");p.size=Real(row,"fSize");
         if(!catalog.monsters.emplace(p.wID,p).second)throw std::runtime_error("Duplicate source monster template");
      }}
     {soci::rowset<soci::row> rows=(sql.prepare<<
-        "SELECT \"wID\",\"bLevel\" FROM monster_compat.\"TMONATTRCHART\" WHERE world_id=:w AND server_id=:s",
+        "SELECT \"wID\",\"bLevel\",\"dwMaxHP\",\"dwMaxMP\" FROM monster_compat.\"TMONATTRCHART\" WHERE world_id=:w AND server_id=:s",
         soci::use(world,"w"),soci::use(server,"s"));
      for(const auto& row:rows) {
         const auto key=std::uint32_t{Word(row,"wID")}|(std::uint32_t{Byte(row,"bLevel")}<<16);
-        if(!catalog.attributes.insert(key).second)throw std::runtime_error("Duplicate source attribute FAMILY/level");
+        if(!catalog.attributes.emplace(key,NativeMonsterBaseVitals{Dword(row,"dwMaxHP"),Dword(row,"dwMaxMP")}).second)
+            throw std::runtime_error("Duplicate source attribute FAMILY/level");
      }}
     const auto load_bytes=[&](const char* query,const char* column,auto& target) {
         soci::rowset<soci::row> rows=(sql.prepare<<query,soci::use(world,"w"),soci::use(server,"s"));
@@ -140,13 +146,15 @@ void PostgreSQLMapService::LoadNativeMonsterCatalog(soci::session& sql) {
 void PostgreSQLMapService::AllocateNativeMonsters() {
     if(m_monster_catalog.run_id!=m_battles.run_id||m_monster_catalog.manifest!=m_battles.manifest)
         throw std::runtime_error("Native battle and monster source releases differ");
-    AddNativeDefaultSpawns(m_monster_catalog,m_battles,m_monster_maps,
+    NativeMonsterBootstrap bootstrap(m_monster_catalog,m_monster_ai,m_battles,
         [](NativeMonsterMap& map,std::uint32_t id) {
             const auto& slot=map.slots.at(id);
-            // Explicit protective refusal, NOT a successful/no-op initializer.
-            // CTMonster::Initialize must execute AT_DELETE directly here;
-            // its ordered AI/Regen/host/event consumers remain unported.
-            throw NativeMonsterInitializationRequired(slot.map,slot.channel,id);
-        });
+            throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"EnterMAP/cells/visibility/client host");
+        },[](const NativeAiInvocation& call) {
+            throw NativeMonsterInitializationRequired(call.map,call.channel,call.monster,
+                "AI timer request/ACK queue; binding="+std::to_string(call.binding));
+        },LegacyRandom15);
+    AddNativeDefaultSpawns(m_monster_catalog,m_battles,m_monster_maps,
+        [&](NativeMonsterMap& map,std::uint32_t id){bootstrap.Initialize(map,id);});
 }
 } // namespace tmapsvr

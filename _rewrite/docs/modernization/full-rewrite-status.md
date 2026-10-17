@@ -11,9 +11,23 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–079 are **written, not applied**; next080.
+evidence remain unchanged. New migrations044–080 are **written, not applied**; next081.
 
-Local Phase A continuation (2026-10-16), baseline `0f37aef`: native Map now
+Local Phase A continuation (2026-10-17), baseline `d61a3ae`: native Map now
+loads exact source AI commands, per-command conditions and ordered trigger
+bindings. Actual source Initialize consumes them between slot insertions;
+ordered conditions/base completion and fresh Regen preparation preserve group
+redirection, weighted selection, FLOAT placement and signed Win32 HP/MP clamps.
+**INTEGRATED_UNVERIFIED** within this pre-actor bootstrap scope. Required
+EnterMAP/cell/visibility and delayed AI publication still stop construction
+before listening; awake/dead/runtime lifecycle remains incomplete. There is no
+fake live-registry projection or successful dropped timer. Written080/publisher/
+grants are unexecuted;044–080 remain unapplied, next081. Full monster lifecycle,
+battles/bootstrap and full Phase A remain **IMPLEMENTING**. No build, test,
+SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-ai-20261017/README.md).
+
+Previous Phase A continuation (2026-10-16), baseline `0f37aef`: native Map now
 loads the source server-scoped monster catalog with original per-query order,
 group/party membership and raw attribute-family identity. Source default-spawn
 allocation preserves physical maps/channels, anonymous and essential slots,

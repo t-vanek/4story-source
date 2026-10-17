@@ -20,6 +20,7 @@
 #include "services/secure_code.h"
 #include "services/quest_runtime.h"
 #include "domain/party.h"
+#include "native_map_cells.h"
 
 #include <cstdint>
 #include <optional>
@@ -39,6 +40,21 @@ public:
     virtual bool AuthorizeControlKick(const MapSessionClaim&,const std::string&) {throw std::runtime_error("Native Control kick authority unavailable");}
     // Immutable adapter capability, never a fallback after failed native proof.
     virtual bool HasNativePartyAuthority() const {return false;}
+    virtual bool HasNativeCellAuthority() const {return false;}
+    // Transient source EnterMAP/OnMove/LeaveMAP. Called on the game executor,
+    // after durable admission and before actual client event publication.
+    virtual NativeCellNotices EnterNativePlayer(const MapSessionClaim&,const CharSnapshot&) {
+        throw std::runtime_error("Native player cells unavailable");
+    }
+    virtual NativeCellNotices MoveNativePlayer(const MapSessionClaim&,std::uint16_t,float,float,bool=true) {
+        throw std::runtime_error("Native player cells unavailable");
+    }
+    virtual NativeCellNotices LeaveNativePlayer(const MapSessionClaim&) {
+        throw std::runtime_error("Native player cells unavailable");
+    }
+    virtual NativeCellNotices RebindNativePlayer(const MapSessionClaim&,const MapSessionClaim&,std::uint16_t,float,float) {
+        throw std::runtime_error("Native player cell handoff unavailable");
+    }
     virtual std::optional<PartyAuthority> AuthorizeParty(const MapSessionClaim&,const CharSnapshot&,
         std::uint32_t=0,bool=false) {throw std::runtime_error("Native party actor authority unavailable");}
     virtual std::optional<CommunicationAuthority> AuthorizeCommunication(const MapSessionClaim&,bool=false,std::uint32_t=0,std::uint8_t=0) {

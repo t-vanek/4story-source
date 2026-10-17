@@ -11,7 +11,7 @@ NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::u
 }
 void PostgreSQLMapService::RequireNativeActorAdmission() const {
     if(m_native_ai_actor_barrier)
-        throw std::runtime_error("Native source monster actors require player cell visibility/ADDMON/client host lifecycle");
+        throw std::runtime_error("Native source monster actors require full ADDMON/client host/awake lifecycle and player coexistence");
     if(m_native_ai_retired)throw std::runtime_error("Native monster AI authority retired; restart required");
 }
 void PostgreSQLMapService::CheckNativeMonsterAiAuthority() {

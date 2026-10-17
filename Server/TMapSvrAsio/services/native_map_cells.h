@@ -1,4 +1,5 @@
 #pragma once
+#include "domain/session.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -10,6 +11,18 @@
 #include <vector>
 
 namespace tmapsvr {
+struct NativeCellPlayer {
+    MapSessionClaim claim;
+    float x{},z{};
+};
+enum class NativeCellNoticeKind { Enter, Leave, Move };
+struct NativeCellNotice {
+    NativeCellNoticeKind kind;
+    MapSessionClaim recipient,actor;
+    bool flag{}; // Enter: new member; Leave: exit map
+};
+using NativeCellNotices=std::vector<NativeCellNotice>;
+bool SameNativeCellPlayer(const MapSessionClaim&,const MapSessionClaim&);
 // Server/TMapSvr/TMapType.h, not the registration packet's BYTE limit.
 inline constexpr std::size_t NativeCellChannels=51;
 struct NativeCellCatalog {
@@ -24,6 +37,7 @@ struct NativeMapCell {
     std::array<bool,NativeCellChannels> enabled{},extended{};
     std::array<std::array<std::uint8_t,NativeCellChannels>,8> servers{};
     std::set<std::uint32_t> monsters; // source OT_MON only; no borrowed pointers
+    std::map<std::uint32_t,NativeCellPlayer> players; // source DWORD order, owned connection identities
     bool IsMain(std::uint8_t channel) const;
     bool IsEnabled(std::uint8_t channel) const;
 };
@@ -35,6 +49,13 @@ std::optional<std::uint32_t> NativeCellAt(float x,float z);
 // CTMapSvrModule::IsMainCell instead divides FLOAT before converting WORD.
 std::optional<std::uint32_t> NativeMainCellAt(float x,float z);
 struct NativeMonsterMap;
+// Ordinary PC-only cell lifecycle. The service's latched admission barrier
+// excludes monster AI, recall/self/companion and instance-map populations.
+NativeCellNotices EnterNativeCellPlayer(NativeMonsterMap&,const NativeCellPlayer&,bool new_member);
+NativeCellNotices MoveNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim&,float x,float z,
+                                     const std::vector<std::uint8_t>& source_channels,bool broadcast_movement=true);
+void RebindNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim& previous,const MapSessionClaim& current);
+NativeCellNotices LeaveNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim&);
 // These consumers require a proven actor-free population, during LoadData or
 // the native AI loop while all player-admission paths remain blocked.
 // AT_ENTER remains the bootstrap executor's responsibility, exactly once.

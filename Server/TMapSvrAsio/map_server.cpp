@@ -4,6 +4,7 @@
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/player_service.h"
+#include "services/native_cell_runtime.h"
 #include "services/session_validator.h"
 #include "services/world_client.h"
 #include "services/world_senders.h"
@@ -205,6 +206,12 @@ MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> session)
         }while(true);
     }
     if (identity) {
+        // Remove actual cell membership before any save/release suspension,
+        // even for replicas or a failed final save. The claim fences generation.
+        if(ctx.player_service&&ctx.player_service->HasNativeCellAuthority()) {
+            try {PublishNativeCellNotices(ctx,ctx.player_service->LeaveNativePlayer(identity->Claim(ctx.expected_group)));}
+            catch(...) {spdlog::error("map_server: native cell departure publication failed char={}",identity->char_id);}
+        }
         if((identity->phase==SessionPhase::Ready||identity->phase==SessionPhase::TransferOut) && identity->role==MapSessionRole::Primary &&
            (!ctx.char_state||!ctx.player_service||!ctx.char_state->Get(identity->char_id))){
             if(ctx.presence)ctx.presence->UnbindIfMatches(session.get());

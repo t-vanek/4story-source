@@ -84,6 +84,7 @@ struct NativeMonsterMap {
     std::uint8_t physical_channel{};
     std::uint16_t party{}; // ordinary source maps are party0; no synthetic instance map
     NativeMapCells cells;
+    std::map<std::uint32_t,NativeCellPlayer> players; // map affiliation, even outside enabled cells
     std::map<std::uint16_t,NativeMonsterSpawn> spawns;
     std::map<std::uint32_t,NativeMonsterSlot> slots;
 };

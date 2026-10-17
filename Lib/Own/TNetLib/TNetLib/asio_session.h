@@ -128,6 +128,13 @@ public:
                                             std::span<const std::byte> body,
                                             bool close_after_send = false);
 
+    // Owned, non-suspending game-event publication. Posts in caller order to
+    // the existing strand/channel/drain. Both posted envelopes and the channel
+    // are bounded by the configured per-session capacity; overflow closes the
+    // peer, rather than dropping a visibility transition or blocking game state.
+    // true means scheduled, not delivered. A later queue/write failure closes.
+    bool PostPacket(std::uint16_t wId,std::vector<std::byte> body);
+
     // Maximum number of pending SendPacket payloads queued per
     // session. Default 256. Set once at process startup, before any
     // sessions are constructed — existing sessions keep the capacity
@@ -234,6 +241,8 @@ private:
     std::vector<std::byte>       m_rc4_inbound_key;   // empty = no RC4 on recv
     std::vector<std::byte>       m_rc4_outbound_key;  // empty = no RC4 on send
     std::string                  m_remote_ipv4;       // captured at ctor, empty if not connected
+    const std::size_t            m_send_capacity;
+    std::atomic<std::size_t>     m_posted_sends{0};
     SendChannel                  m_send_chan;         // accessed only on m_strand
     bool                         m_drain_started = false;
 };

@@ -26,6 +26,11 @@ public:
     void CheckControlOwner() override;
     bool AuthorizeControlKick(const MapSessionClaim&,const std::string&) override;
     bool HasNativePartyAuthority() const override {return true;}
+    bool HasNativeCellAuthority() const override {return true;}
+    NativeCellNotices EnterNativePlayer(const MapSessionClaim&,const CharSnapshot&) override;
+    NativeCellNotices MoveNativePlayer(const MapSessionClaim&,std::uint16_t,float,float,bool=true) override;
+    NativeCellNotices LeaveNativePlayer(const MapSessionClaim&) override;
+    NativeCellNotices RebindNativePlayer(const MapSessionClaim&,const MapSessionClaim&,std::uint16_t,float,float) override;
     std::optional<MapSessionInfo> LookupSession(std::uint32_t user,std::uint32_t key) override;
     std::optional<MapSessionInfo> ClaimSession(const MapSessionClaim&,const MapSessionInfo&) override;
     std::optional<std::vector<std::uint8_t>> NeighborServers(const MapSessionClaim&,std::uint16_t,float,float) override;
@@ -161,6 +166,7 @@ private:
     void InitializeNativeCells();
     void CheckNativeCellRelease(soci::session&) const;
     const NativeMapCell* FindNativeCell(std::uint8_t logical,std::uint16_t map,std::uint32_t cell,bool allow_template) const;
+    NativeMonsterMap& NativePlayerMap(std::uint8_t logical,std::uint16_t map);
     void CheckNativeMonsterAiRelease(soci::session&) const;
     void CheckNativeMonsterRelease(soci::session&) const;
     void AllocateNativeMonsters();

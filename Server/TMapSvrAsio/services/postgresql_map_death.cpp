@@ -34,6 +34,7 @@ void PostgreSQLMapService::RequireNativeDeathMapContext(soci::session& sql,const
 void PostgreSQLMapService::ApplyNativeOrdinaryDeath(soci::session& sql,CharSnapshot& s) {
     if(!s.payload||!s.payload->effects)throw std::runtime_error("Native death requires the actual maintained graph");
     s.dwHP=s.dwMP=0;s.bDead=1;
+    s.movement.action=7; // TObjBase::OnDie -> TA_DEAD
     auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
     std::erase_if(*p->effects,[&](const MaintainedEffect& effect) {
         if(IsNativePosture(effect.skill))return false; // actual pinned static template

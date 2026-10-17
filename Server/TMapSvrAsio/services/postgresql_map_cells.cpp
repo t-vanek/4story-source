@@ -96,4 +96,45 @@ void PostgreSQLMapService::InitializeNativeCells() {
         state.cells=std::move(cells);
     }
 }
+NativeMonsterMap& PostgreSQLMapService::NativePlayerMap(std::uint8_t logical,std::uint16_t map) {
+    const auto channel=m_cell_channels.find(std::uint32_t{map}|(std::uint32_t{logical}<<16));
+    if(logical>=NativeCellChannels||channel==m_cell_channels.end())throw std::runtime_error("Native player logical map unavailable");
+    const auto key=std::uint32_t{map}|(std::uint32_t{channel->second}<<16);
+    const auto environment=m_battles.maps.find(key);
+    if(environment==m_battles.maps.end()||environment->second.instance_template)
+        throw std::runtime_error("Native player cells require live ordinary map; party-instance lifetime unavailable");
+    return m_monster_maps.at(key);
+}
+NativeCellNotices PostgreSQLMapService::EnterNativePlayer(const MapSessionClaim& claim,const CharSnapshot& snapshot) {
+    std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
+    if(snapshot.dwCharID!=claim.char_id)throw std::runtime_error("Native cell character identity mismatch");
+    return EnterNativeCellPlayer(NativePlayerMap(claim.channel,snapshot.wMapID),{claim,snapshot.fPosX,snapshot.fPosZ},true);
+}
+NativeCellNotices PostgreSQLMapService::MoveNativePlayer(const MapSessionClaim& claim,std::uint16_t map,float x,float z,bool broadcast_movement) {
+    std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
+    return MoveNativeCellPlayer(NativePlayerMap(claim.channel,map),claim,x,z,m_cells.channels,broadcast_movement);
+}
+NativeCellNotices PostgreSQLMapService::LeaveNativePlayer(const MapSessionClaim& claim) {
+    // Cleanup remains possible after authority retirement; an old generation
+    // cannot remove its replacement. No SQL or actor publication is required.
+    std::lock_guard lock(m_monster_ai_mutex);
+    for(auto& [key,map]:m_monster_maps)if(const auto player=map.players.find(claim.char_id);player!=map.players.end()) {
+        // A committed role change can precede a failed RAM rebind. Teardown
+        // still owns that same socket, but may never erase a newer tenure.
+        const auto stored=player->second.claim;auto expected=stored;
+        expected.role=claim.role;expected.authority_epoch=claim.authority_epoch;
+        if(stored.authority_epoch<=claim.authority_epoch&&SameNativeCellPlayer(expected,claim))
+            return LeaveNativeCellPlayer(map,stored);
+    }
+    return {};
+}
+NativeCellNotices PostgreSQLMapService::RebindNativePlayer(const MapSessionClaim& previous,const MapSessionClaim& current,
+                                                         std::uint16_t map,float x,float z) {
+    std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
+    auto& state=NativePlayerMap(current.channel,map);
+    RebindNativeCellPlayer(state,previous,current);
+    // CTMap::OnMove is also called by RELEASEMAIN, but the CS_MOVE_REQ-only
+    // MOVE_ACK broadcast must not be manufactured by an ownership transition.
+    return MoveNativeCellPlayer(state,current,x,z,m_cells.channels,false);
+}
 } // namespace tmapsvr

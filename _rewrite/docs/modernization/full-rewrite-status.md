@@ -13,7 +13,22 @@ Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside G
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–081 are **written, not applied**; next082.
 
-Local Phase A continuation (2026-10-17), baseline `8bc9008`: original Map AI
+Local Phase A continuation (2026-10-17), baseline `85a9aa2`: native Map now
+uses the actual source PC cell lifecycle for Ready, movement, confirmed ownership
+changes and disconnect. Owned primary/replica identities, enabled/main/extended
+cell predicates, ordered ENTER/LEAVE/channel exits and reverse-neighbor MOVE
+replace the native whole-channel/prototype flood. Source ordinary CanFight and
+actual transient pitch/directions/action feed ENTER. Owned bounded publication
+uses the existing Asio strand/channel/drain without suspending cell mutation.
+**INTEGRATED_UNVERIFIED** for PC-only ordinary source-empty processes. The latched
+populated-process admission barrier remains: full monster ADDMON/client hosts,
+concrete hosted AI and player/monster coexistence are incomplete. Ghost movement
+is explicitly refused; full MOVE/gameplay and full Phase A remain **IMPLEMENTING**.
+No new migration;044–081 remain written/unapplied, next082. No build, test, SQL,
+import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-player-cells-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `8bc9008`: original Map AI
 requests now reach owned timer/batch queues and actual delayed ACK execution in
 the existing Asio lifecycle. Source timer-before-request order, DWORD elapsed
 arithmetic, delivery-time CanRun, AICOMPLETE/repeat sequencing and current host-key

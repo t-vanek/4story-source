@@ -11,7 +11,22 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-17), baseline `8bc9008`: original Map AI
+Local Phase A continuation (2026-10-17), baseline `85a9aa2`: native Map now
+uses the actual source PC cell lifecycle for Ready, movement, confirmed ownership
+changes and disconnect. Owned primary/replica identities, enabled/main/extended
+cell predicates, ordered ENTER/LEAVE/channel exits and reverse-neighbor MOVE
+replace the native whole-channel/prototype flood. Source ordinary CanFight and
+actual transient pitch/directions/action feed ENTER. Owned bounded publication
+uses the existing Asio strand/channel/drain without suspending cell mutation.
+**INTEGRATED_UNVERIFIED** for PC-only ordinary source-empty processes. The latched
+populated-process admission barrier remains: full monster ADDMON/client hosts,
+concrete hosted AI and player/monster coexistence are incomplete. Ghost movement
+is explicitly refused; full MOVE/gameplay and full Phase A remain **IMPLEMENTING**.
+No new migration;044–081 remain written/unapplied, next082. No build, test, SQL,
+import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-player-cells-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `8bc9008`: original Map AI
 requests now reach owned timer/batch queues and actual delayed ACK execution in
 the existing Asio lifecycle. Source timer-before-request order, DWORD elapsed
 arithmetic, delivery-time CanRun, AICOMPLETE/repeat sequencing and current host-key
@@ -81,17 +96,17 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: actual player cell entry/exit and source
-ordinary-monster visibility, full SendCS_ADDMON_ACK state/fields, CanHost/NotifyHost
-and matching client-host request consumers. Extend existing source template/
-attribute/actor metadata and concrete awake/dead commands those events produce.
-Use actual HP/MP/effects and current primary/replica identity; do not publish
-prototype descriptors or run empty-host branches after actors exist. The source
-AI request/timer/ACK path is now connected for ordinary actor-free maps. Replace
-the latched admission barrier only with that real producer/consumer flow, then
+Immediate implementation dependency: source ordinary-monster visibility and full
+SendCS_ADDMON_ACK state/fields, then actual CanHost/NotifyHost and matching client
+host request consumers/concrete awake/dead commands. Extend the now connected PC
+cell graph instead of reintroducing prototype registries or a parallel AOI.
+Add actual source actor move/host/ghost clocks and metadata those commands need.
+Current PC-only Ready/move/handoff/close cell flow is integrated but unverified;
+monster EnterPlayer events remain blocked by the populated-process barrier.
+Retain that barrier until real player/monster coexistence is complete. Then
 continue non-fresh Regen/death/loot, dynamic/quest/battle and party-instance
 lifetime. Full Phase A remains IMPLEMENTING. Next free migration082; no Phase B/C
-execution. See the current source evidence handoff above.
+execution. See the current evidence handoff above.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

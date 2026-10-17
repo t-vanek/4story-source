@@ -90,8 +90,8 @@ AsioSession::AsioSession(boost::asio::ip::tcp::socket socket, PeerType type)
     , m_socket(std::move(socket))
     , m_type(type)
     , m_recv_buffer(kRecvChunkBytes)
-    , m_send_chan(m_strand,
-                  g_send_queue_capacity.load(std::memory_order_relaxed))
+    , m_send_capacity(g_send_queue_capacity.load(std::memory_order_relaxed))
+    , m_send_chan(m_strand,m_send_capacity)
 {
     m_closed = !m_socket.is_open();
     // Capture peer IPv4 once at construction. remote_endpoint() throws
@@ -328,6 +328,39 @@ AsioSession::RunPacketsOnExecutor(AsyncPacketHandler on_packet)
         }
     }
     Close();
+}
+
+bool AsioSession::PostPacket(std::uint16_t wId,std::vector<std::byte> body)
+{
+    if(!IsOpen())return false;
+    if(body.size()>=kMaxPacketSize-kPacketHeaderSize) {
+        LogProto("post: oversized body (wId=0x%04X)",static_cast<unsigned>(wId));Close();return false;
+    }
+    if(m_posted_sends.fetch_add(1,std::memory_order_relaxed)>=m_send_capacity) {
+        m_posted_sends.fetch_sub(1,std::memory_order_relaxed);Close();return false;
+    }
+    try {
+        // Dispatch also preserves ordering against a subsequent SendPacket
+        // when the caller already runs on this session's strand.
+        boost::asio::dispatch(m_strand,[self=shared_from_this(),wId,body=std::move(body)]() mutable noexcept {
+            self->m_posted_sends.fetch_sub(1,std::memory_order_relaxed);
+            if(!self->IsOpen()||self->m_close_queued)return;
+            try {
+                self->StartDrainIfNeeded();
+                if(!self->m_send_chan.try_send(boost::system::error_code{},PendingSend{wId,std::move(body),false})) {
+                    LogProto("post: full send queue (wId=0x%04X)",static_cast<unsigned>(wId));
+                    self->Close();
+                }
+            } catch(...) {
+                // Keep a handler exception from escaping dispatch after its
+                // posted-envelope reservation has already been released.
+                try {self->Close();} catch(...) {}
+            }
+        });
+    } catch(...) {
+        m_posted_sends.fetch_sub(1,std::memory_order_relaxed);Close();throw;
+    }
+    return true;
 }
 
 boost::asio::awaitable<void>

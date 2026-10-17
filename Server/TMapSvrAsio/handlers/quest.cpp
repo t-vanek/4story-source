@@ -39,6 +39,7 @@
 #include "services/quest_service.h"
 #include "services/session_registry.h"
 #include "services/player_service.h"
+#include "services/native_cell_runtime.h"
 #include "services/monster_registry.h"
 #include "services/channel_presence.h"
 #include "services/world_client.h"
@@ -220,7 +221,14 @@ boost::asio::awaitable<void> OnNativeQuestReq(std::shared_ptr<tnetlib::AsioSessi
         if(!client->IsOpen()||!current||current->phase!=SessionPhase::Ready||current->char_id!=identity->char_id||
            current->user_id!=identity->user_id||current->key!=identity->key||current->channel!=identity->channel||
            current->connection_id!=identity->connection_id||current->authority_epoch!=identity->authority_epoch||current->role!=identity->role)co_return;
-        if(revival)ctx.presence->UpdatePosition(cid,after.wMapID,{after.fPosX,after.fPosY,after.fPosZ});
+        if(revival) {
+            if(ctx.player_service->HasNativeCellAuthority()) {
+                try {PublishNativeCellNotices(ctx,ctx.player_service->MoveNativePlayer(identity->Claim(ctx.expected_group),
+                    after.wMapID,after.fPosX,after.fPosZ,false));}
+                catch(...){client->Close();co_return;}
+            }
+            ctx.presence->UpdatePosition(cid,after.wMapID,{after.fPosX,after.fPosY,after.fPosZ});
+        }
     }
     std::vector<std::shared_ptr<tnetlib::AsioSession>> neighbors{client};
     const auto cell=[](float value)->int{return std::isfinite(value)&&value>=0&&value<65536?static_cast<std::uint16_t>(value)/64:-10000;};

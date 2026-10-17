@@ -3,6 +3,7 @@
 #include "services/char_state_store.h"
 #include "services/session_registry.h"
 #include "services/player_service.h"
+#include "services/native_cell_runtime.h"
 #include "services/main_transfer_runtime.h"
 #include "services/main_transfer_codec.h"
 #include "services/maintained_effects.h"
@@ -112,12 +113,21 @@ boost::asio::awaitable<void> OnMWTransferEnterReq(std::vector<std::byte> body,co
     if(!incoming){client->Close();co_return;}
     incoming->snapshot.cluster=replica->cluster;
     incoming->snapshot.recovery=replica->recovery;
+    incoming->snapshot.movement=replica->movement; // receiver's CTPlayer survives the ownership change
     incoming->snapshot.rps=replica->rps;
     incoming->snapshot.rps.ClearPending(); // a result from an older ownership tenure is not replayed
     // Publish ownership even if the socket closed during PostgreSQL commit;
     // teardown waits for this operation and uses the promoted claim.
     ctx.char_state->Store(cid,incoming->snapshot);
     if(!ctx.session_reg->FinishTransfer(client.get(),MapSessionRole::Primary,incoming->authority_epoch)){client->Close();co_return;}
+    if(ctx.player_service->HasNativeCellAuthority()) {
+        try {
+            const auto current=ctx.session_reg->Identity(client.get());
+            if(!current)throw std::runtime_error("Native cell promotion lost its session");
+            PublishNativeCellNotices(ctx,ctx.player_service->RebindNativePlayer(id->Claim(ctx.expected_group),
+                current->Claim(ctx.expected_group),incoming->snapshot.wMapID,incoming->snapshot.fPosX,incoming->snapshot.fPosZ));
+        } catch(...) {client->Close();co_return;}
+    }
     try {ctx.skill_cooldown->Restore(cid,incoming->snapshot.payload->skills,SkillClockMs());}
     catch(...){client->Close();co_return;}
     operation.Finish();

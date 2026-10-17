@@ -7,6 +7,7 @@
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
 #include "services/client_senders.h"
+#include "services/native_cell_runtime.h"
 #include "services/monster_chart.h"
 #include "services/monster_registry.h"
 #include "services/session_registry.h"
@@ -158,6 +159,14 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
             // Retained source becomes the same partial observer as initial
             // replica admission. Its old graph is preserved in the journal.
             s->payload.reset();ctx.char_state->Store(identity->char_id,*s);
+            if(ctx.player_service->HasNativeCellAuthority()) {
+                try {
+                    const auto current=ctx.session_reg->Identity(sess.get());
+                    if(!current)throw std::runtime_error("Native cell demotion lost its session");
+                    PublishNativeCellNotices(ctx,ctx.player_service->RebindNativePlayer(identity->Claim(ctx.expected_group),
+                        current->Claim(ctx.expected_group),s->wMapID,s->fPosX,s->fPosZ));
+                } catch(...) {sess->Close();co_return;}
+            }
             if(sess->IsOpen()&&ctx.presence){ctx.presence->Bind(identity->char_id,identity->channel,sess);
                 ctx.presence->UpdatePosition(identity->char_id,s->wMapID,{s->fPosX,s->fPosY,s->fPosZ});}
         }
@@ -249,7 +258,18 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
     // ChannelPresence.pos is only seeded on the first CS_MOVE_REQ, so for
     // a just-entered crowd the snapshot is the authoritative location.
     // Live presence-position tracking is a follow-up.
-    if (ctx.presence && ctx.char_state)
+    const bool native_cells=ctx.player_service&&ctx.player_service->HasNativeCellAuthority();
+    if(native_cells) {
+        // Actual durable Ready -> source map affiliation/cell membership ->
+        // ordered visibility publication. Replica observers use the same graph.
+        try {
+            const auto current=ctx.session_reg->Identity(sess.get());
+            const auto live=ctx.char_state->Get(cid);
+            if(!current||current->phase!=SessionPhase::Ready||!live) {sess->Close();co_return;}
+            PublishNativeCellNotices(ctx,ctx.player_service->EnterNativePlayer(current->Claim(ctx.expected_group),*live));
+        } catch(...) {sess->Close();co_return;}
+    }
+    if (!native_cells && ctx.presence && ctx.char_state)
     {
         const auto me = ctx.presence->FindEntry(cid);
         if (me)

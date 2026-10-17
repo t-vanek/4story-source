@@ -161,6 +161,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/native_monster_ai_queue.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_ai_runtime.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_map_cells.cpp
+    ${TMAPSVR_ASIO_SRC}/services/native_player_cells.cpp
+    ${TMAPSVR_ASIO_SRC}/services/native_cell_runtime.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_cells.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_monster_ai.cpp
     ${TMAPSVR_ASIO_SRC}/services/battle_regions.cpp

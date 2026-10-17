@@ -28,7 +28,16 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): source Map AI requests, elapsed
+Current Phase A continuation (2026-10-17): source PC cell membership and ordered
+ENTER/LEAVE/MOVE now run through native Ready, movement, confirmed handoff and
+close paths. Actual transient movement and ordinary CanFight feed ENTER; bounded
+owned packets use the existing Asio transport. **INTEGRATED_UNVERIFIED** for
+PC-only source-empty processes. Populated worlds still block actor admission
+pending full ADDMON/client-host/AI consumers. No new migration;044–081 remain
+written/unapplied, next082. Full Phase A remains open.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-player-cells-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): source Map AI requests, elapsed
 timers, separate batch ACK delivery and repeat execution now run through native
 Asio paths, **INTEGRATED_UNVERIFIED** for ordinary actor-free maps. Generations,
 host keys and cancellation protect queued lifetimes. Source-populated processes

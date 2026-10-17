@@ -22,6 +22,12 @@ namespace tmapsvr {
 struct SourceRecoveryClock {
     std::uint32_t hp_tick{},mp_tick{},last_attack_tick{};
 };
+// CTObjBase movement is transient connection state, not a character DB column
+// or a new transfer field. TKDIR_N is4 in the pinned source/client profile.
+struct SourceMovementState {
+    std::uint16_t pitch{};
+    std::uint8_t mouse{4},key{4},action{};
+};
 
 struct CharacterClusterState {
     std::uint32_t guild{},fame{},fame_color{},tactics{},party_chief{},riding{},soulmate{},soul_silence{};
@@ -83,6 +89,7 @@ struct CharSnapshot
     std::uint8_t   bStatLevel       = 0;
     std::uint8_t   bStatPoint       = 0;
     std::uint32_t  dwStatExp        = 0;
+    SourceMovementState movement;
 };
 
 } // namespace tmapsvr

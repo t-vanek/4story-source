@@ -296,13 +296,13 @@ std::vector<std::byte> EncodeEnterAck(
     wire::WritePOD<float>        (b, pos.x);
     wire::WritePOD<float>        (b, pos.y);
     wire::WritePOD<float>        (b, pos.z);
-    wire::WritePOD<std::uint8_t> (b, s.bDead?7:0);  // source TA_DEAD / TA_STAND
+    wire::WritePOD<std::uint8_t> (b, s.bDead?7:s.movement.action);
     wire::WritePOD<std::uint8_t> (b, 0);            // block
     wire::WritePOD<std::uint8_t> (b, s.cluster.mode);
-    wire::WritePOD<std::uint16_t>(b, 0);            // pitch
+    wire::WritePOD<std::uint16_t>(b, s.movement.pitch);
     wire::WritePOD<std::uint16_t>(b, s.wDIR);
-    wire::WritePOD<std::uint8_t> (b, 0);            // mouse dir
-    wire::WritePOD<std::uint8_t> (b, 0);            // key dir
+    wire::WritePOD<std::uint8_t> (b, s.movement.mouse);
+    wire::WritePOD<std::uint8_t> (b, s.movement.key);
     wire::WritePOD<std::uint8_t> (b, color);        // faction tint (PvP)
     wire::WritePOD<std::uint32_t>(b, s.dwRegion);
     wire::WritePOD<std::uint8_t> (b, 0);            // in PC-bang

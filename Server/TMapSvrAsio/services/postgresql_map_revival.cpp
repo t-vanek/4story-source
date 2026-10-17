@@ -81,6 +81,7 @@ bool PostgreSQLMapService::ReviveNative(soci::session& sql,const MapSessionClaim
     const double rate=type==0?0.3:0.4;
     s.dwHP=std::max<std::uint32_t>(1,static_cast<std::uint32_t>(s.dwMaxHP*rate));
     s.dwMP=static_cast<std::uint32_t>(s.dwMaxMP*rate);s.bDead=0;
+    s.movement.action=0; // TPlayer::Revival sets TA_STAND on the existing object
     packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_REVIVAL_ACK),EncodeRevivalAck(c.char_id,x,y,z),QuestAudience::Neighbors);
     packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_HPMP_ACK),EncodeHpMpAck(c.char_id,1,s.dwMaxHP,s.dwHP,s.dwMaxMP,s.dwMP),QuestAudience::Neighbors);
     ForceProgressEffect(sql,c,s,800,0,packets);return true;

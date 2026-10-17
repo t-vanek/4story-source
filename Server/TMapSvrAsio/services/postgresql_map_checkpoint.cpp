@@ -158,6 +158,7 @@ void PostgreSQLMapService::RecordCheckpoint(soci::session& sql,const MapSessionC
     if(!sql.got_data()||stored!=1)throw std::runtime_error("Conflicting native checkpoint ownership");
 }
 void PostgreSQLMapService::MarkReady(const MapSessionClaim& claim,const CharSnapshot& s){
+    RequireNativeActorAdmission();
     if(claim.role==MapSessionRole::Replica){MarkReplicaReady(claim);return;}
     const auto fingerprint=Fingerprint(claim,s);
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);

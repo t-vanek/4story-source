@@ -28,7 +28,16 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): actual source channel/owner data
+Current Phase A continuation (2026-10-17): source Map AI requests, elapsed
+timers, separate batch ACK delivery and repeat execution now run through native
+Asio paths, **INTEGRATED_UNVERIFIED** for ordinary actor-free maps. Generations,
+host keys and cancellation protect queued lifetimes. Source-populated processes
+block player admission until real visibility/ADDMON/client-host consumers exist;
+this is protective refusal, not completed gameplay. No new migration;044–081 are
+written/unapplied, next082. Full Phase A remains open.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-ai-queue-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): actual source channel/owner data
 now builds native primary/extended cells. Pre-actor monster membership and source
 CHECKMAIN/movement connection-selection consumers are **INTEGRATED_UNVERIFIED**.
 Written081/publisher/grants are unexecuted; next082. Delayed AI queues and

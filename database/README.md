@@ -5,7 +5,16 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `39b94e1`:** written081 adds the actual global
+**Current Phase A, baseline `8bc9008`:** source AI queues and delayed execution
+now consume existing079/080/081 publications. Job state, generation and source
+DWORD clocks remain process-local; no saved timers or SQL Server dependency are
+introduced. Active turns read current owner/catalog authority before local
+execution. No new migration, grant or publisher;044–081 remain unexecuted, next082.
+Actor admission remains blocked with source slots/jobs until actual visibility/
+ADDMON/host consumers exist; full gameplay is incomplete.
+[Source contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-ai-queue-20261017/README.md).
+
+**Previous Phase A, baseline `39b94e1`:** written081 adds the actual global
 TCHANNEL query order and exact TGetServerID join for native cell construction.
 The offline `import_map_cells.py` requires the complete pinned full manifest,
 original channel-query order and explicit `TGLOBAL_GSP=TGLOBAL_RAGEZONE` alias.

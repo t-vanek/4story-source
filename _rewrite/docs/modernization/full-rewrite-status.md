@@ -13,7 +13,21 @@ Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside G
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–081 are **written, not applied**; next082.
 
-Local Phase A continuation (2026-10-17), baseline `39b94e1`: native Map now
+Local Phase A continuation (2026-10-17), baseline `8bc9008`: original Map AI
+requests now reach owned timer/batch queues and actual delayed ACK execution in
+the existing Asio lifecycle. Source timer-before-request order, DWORD elapsed
+arithmetic, delivery-time CanRun, AICOMPLETE/repeat sequencing and current host-key
+capture are preserved, **INTEGRATED_UNVERIFIED** within ordinary actor-free maps.
+Object generations and removal/shutdown/authority retirement fence queued work.
+The former Schedule/entered-monster constructor barriers are replaced by a real
+queue and a latched player-admission barrier when source slots/jobs survive boot;
+this is protective isolation, not hosted gameplay. Full visibility/ADDMON/client
+hosts, concrete awake/dead commands, party instances and full Phase A remain
+**IMPLEMENTING**. No new migration;044–081 remain written/unapplied, next082.
+No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-ai-queue-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `39b94e1`: native Map now
 loads the actual global CTBLChannelList and source TGetServerID join, builds
 primary/extended cells in source order and registers/removes pre-actor monster
 membership. CHECKMAIN and movement/entry/replica connection sets consume this

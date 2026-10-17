@@ -1,12 +1,13 @@
 #include "native_monster_spawn.h"
 #include <stdexcept>
 #include <utility>
+#include <limits>
 
 namespace tmapsvr {
 namespace {
 void InitMonster(const NativeMonsterCatalog& catalog,const SpawnPoint& source,
                  std::uint8_t channel,NativeMonsterMap& map,NativeMonsterSpawn& spawn,
-                 const NativeMonsterInitialize& initialize) {
+                 std::uint64_t& generation,const NativeMonsterInitialize& initialize) {
     const auto& candidates=catalog.candidates.at(source.wID);
     if(candidates.empty())return; // source: even ordinary slots are absent
     unsigned index=0;
@@ -14,6 +15,8 @@ void InitMonster(const NativeMonsterCatalog& catalog,const SpawnPoint& source,
         // The source BYTE index wraps and aliases a prior ID. Refuse that
         // invalid graph instead of retaining an unindexed/leaked monster.
         if(index>255)throw std::runtime_error("Source monster slot BYTE overflow");
+        if(generation==std::numeric_limits<std::uint64_t>::max())throw std::runtime_error("Native monster generation exhausted");
+        slot.generation=++generation;
         slot.id=(std::uint32_t{source.wID}<<16)|(std::uint32_t{channel}<<8)|index++;
         slot.spawn=source.wID;slot.map=source.wMapID;slot.channel=channel;
         slot.country=source.bCountry;slot.region=source.dwRegion;
@@ -46,7 +49,7 @@ void InitMonster(const NativeMonsterCatalog& catalog,const SpawnPoint& source,
 }
 }
 void AddNativeDefaultSpawns(const NativeMonsterCatalog& catalog,const BattleRegions& environment,
-                           NativeMonsterMaps& maps,const NativeMonsterInitialize& initialize) {
+                           NativeMonsterMaps& maps,std::uint64_t& generation,const NativeMonsterInitialize& initialize) {
     if(!initialize)throw std::invalid_argument("Source Initialize consumer required");
     // Source iterates spawn WORD map, then physical channel BYTE map.
     // Environment's packed map/channel keys must not reverse that order.
@@ -60,6 +63,7 @@ void AddNativeDefaultSpawns(const NativeMonsterCatalog& catalog,const BattleRegi
             if(found==channel_maps.end())continue;
             const auto key=std::uint32_t{source.wMapID}|(std::uint32_t{channel}<<16);
             auto& map=maps[key];
+            map.map_id=source.wMapID;map.physical_channel=channel;
             NativeMonsterSpawn spawn;spawn.id=id;
             if(source.wGroup) {
                 const auto& group=catalog.groups.at(source.wGroup);
@@ -68,7 +72,7 @@ void AddNativeDefaultSpawns(const NativeMonsterCatalog& catalog,const BattleRegi
             auto [position,inserted]=map.spawns.emplace(id,std::move(spawn));
             if(!inserted)continue;
             if(!found->second->instance_template)
-                InitMonster(catalog,source,channel,map,position->second,initialize);
+                InitMonster(catalog,source,channel,map,position->second,generation,initialize);
         }
     }
 }

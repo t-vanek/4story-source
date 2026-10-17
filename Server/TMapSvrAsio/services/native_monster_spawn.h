@@ -45,8 +45,9 @@ struct NativeMonsterCatalog {
 // Owned source allocation/bootstrap state. A missing template is anonymous,
 // never template0. Bootstrap cell membership is not an admitted live actor or
 // prototype registry entry. The empty inventory/effects/aggro context is enforced by
-// NativeMonsterBootstrap, which cannot be called for an admitted game actor.
+// NativeMonsterAiExecutor, which cannot be called for an admitted game actor.
 struct NativeMonsterSlot {
+    std::uint64_t generation{}; // process-local lifetime, independent of reused source DWORD ID
     std::uint32_t id{},region{};
     std::uint16_t spawn{},map{};
     std::uint8_t channel{},country{},status{}; // CTMonster starts DISAPPEAR0
@@ -79,6 +80,9 @@ struct NativeMonsterSpawn {
     std::optional<std::uint16_t> missing_essential_attribute;
 };
 struct NativeMonsterMap {
+    std::uint16_t map_id{};
+    std::uint8_t physical_channel{};
+    std::uint16_t party{}; // ordinary source maps are party0; no synthetic instance map
     NativeMapCells cells;
     std::map<std::uint16_t,NativeMonsterSpawn> spawns;
     std::map<std::uint32_t,NativeMonsterSlot> slots;
@@ -98,5 +102,5 @@ public:
 // callbacks would change group redirection and leader visibility in Regen.
 using NativeMonsterInitialize=std::function<void(NativeMonsterMap&,std::uint32_t)>;
 void AddNativeDefaultSpawns(const NativeMonsterCatalog&,const BattleRegions&,
-                           NativeMonsterMaps&,const NativeMonsterInitialize&);
+                           NativeMonsterMaps&,std::uint64_t& generation,const NativeMonsterInitialize&);
 } // namespace tmapsvr

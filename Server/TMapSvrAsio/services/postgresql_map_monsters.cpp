@@ -1,5 +1,4 @@
 #include "postgresql_map_service.h"
-#include "legacy_random.h"
 #include <soci/soci.h>
 #include <bit>
 #include <cmath>
@@ -146,18 +145,14 @@ void PostgreSQLMapService::LoadNativeMonsterCatalog(soci::session& sql) {
 void PostgreSQLMapService::AllocateNativeMonsters() {
     if(m_monster_catalog.run_id!=m_battles.run_id||m_monster_catalog.manifest!=m_battles.manifest)
         throw std::runtime_error("Native battle and monster source releases differ");
-    NativeMonsterBootstrap bootstrap(m_monster_catalog,m_monster_ai,m_battles,
-        EnterNativeBootstrapMonster,[](const NativeAiInvocation& call) {
-            throw NativeMonsterInitializationRequired(call.map,call.channel,call.monster,
-                "AI timer request/ACK queue; binding="+std::to_string(call.binding));
-        },LegacyRandom15);
-    AddNativeDefaultSpawns(m_monster_catalog,m_battles,m_monster_maps,
+    auto bootstrap=MakeNativeMonsterAiExecutor(0); // source LoadData precedes AIThread clock initialization
+    AddNativeDefaultSpawns(m_monster_catalog,m_battles,m_monster_maps,m_monster_generation,
         [&](NativeMonsterMap& map,std::uint32_t id){bootstrap.Initialize(map,id);});
-    // Cell registration does not establish native player visibility, complete
-    // ADDMON serialization or client-host authority. Preserve the pre-listen
-    // barrier until those actor producers/consumers replace the prototype.
-    for(const auto& [key,map]:m_monster_maps)for(const auto& [id,slot]:map.slots)
-        if(slot.entered_map)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,
-            "admitted-actor visibility/ADDMON/client host lifecycle");
+    // Source objects/jobs may now advance through the actual AI queues. Until
+    // actor cell/host consumers exist, ALL player admission is blocked for this
+    // process, including invisible/WAIT slots and later removal of every slot.
+    m_native_ai_actor_barrier=m_monster_ai_queue.Pending()!=0;
+    for(const auto& [key,map]:m_monster_maps)
+        if(!map.slots.empty())m_native_ai_actor_barrier=true;
 }
 } // namespace tmapsvr

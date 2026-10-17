@@ -95,7 +95,7 @@ void EnterNativeBootstrapMonster(NativeMonsterMap& map,std::uint32_t id) {
     if(!key)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"valid source WORD cell coordinates");
     const auto origin=map.cells.find(*key);
     // Normal OT_MON entry ignores channel enable. No players exist in this
-    // synchronous constructor scope, so EnterMonster has zero recipients.
+    // enforced actor-free scope, so EnterMonster has zero recipients.
     if(origin!=map.cells.end())origin->second.monsters.insert(id);
     // InitMonster already establishes the owning map. Record the EnterMAP
     // boundary even without a cell, as the source still assigns m_pMAP there.

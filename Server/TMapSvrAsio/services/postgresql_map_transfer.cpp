@@ -139,6 +139,7 @@ std::optional<TransferredCharacter> PostgreSQLMapService::ConfirmAcceptedTransfe
 }
 std::optional<TransferredCharacter> PostgreSQLMapService::AcceptTransferOrConfirm(const MapSessionClaim& c,
     std::span<const std::byte> body,bool confirmation_only) {
+    RequireNativeActorAdmission();
     auto state=transfer::Decode(body);
     if(c.role!=MapSessionRole::Replica||!state||state->db_load||state->character.dwCharID!=c.char_id||state->key!=c.key)return {};
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);

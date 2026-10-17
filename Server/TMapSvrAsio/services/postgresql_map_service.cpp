@@ -91,6 +91,7 @@ std::optional<MapSessionInfo> PostgreSQLMapService::LookupSession(std::uint32_t 
     tx->commit();return out;
 }
 std::optional<MapSessionInfo> PostgreSQLMapService::ClaimSession(const MapSessionClaim& c,const MapSessionInfo&){
+    RequireNativeActorAdmission();
     if(c.authority_epoch)return {}; // only initial socket admission claims epoch zero
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     if(!LockAccount(sql,c))return {};

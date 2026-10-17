@@ -5,6 +5,7 @@
 #include "server_route_resolver.h"
 #include "battle_regions.h"
 #include "native_monster_ai.h"
+#include "native_monster_ai_queue.h"
 #include "fourstory/db/session_pool.h"
 #include <string>
 #include <map>
@@ -58,7 +59,16 @@ public:
     QuestCommit ChangeQuest(const MapSessionClaim&,std::uint16_t,std::span<const std::byte>,const CharSnapshot&,const IQuestChart&,const QuestMapFacts&) override;
     void UpdateRpsChart(std::span<const std::byte>) override;
     std::vector<std::byte> BattleHeroList(const MapSessionClaim&) override;
-    void RetireBattleRegions() override {m_battle_current=false;}
+    void RetireBattleRegions() override {m_battle_current=false;StopNativeMonsterAi();}
+    // The IO executor serializes timer/batch turns; authority reads run on a
+    // separate SOCI lease. No gameplay callback executes on a DB worker.
+    void CheckNativeMonsterAiAuthority();
+    void AdvanceNativeMonsterAi(std::uint32_t tick);
+    void DispatchNativeMonsterAi();
+    bool NativeMonsterAiPending() const;
+    bool NativeMonsterAiImmediateWork() const;
+    bool NativeMonsterAiStopped() const {return m_native_ai_retired.load();}
+    void StopNativeMonsterAi();
     bool BattleRegionsCurrent() const override {return m_battle_current;}
     TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
@@ -154,6 +164,8 @@ private:
     void CheckNativeMonsterAiRelease(soci::session&) const;
     void CheckNativeMonsterRelease(soci::session&) const;
     void AllocateNativeMonsters();
+    NativeMonsterAiExecutor MakeNativeMonsterAiExecutor(std::uint32_t tick);
+    void RequireNativeActorAdmission() const;
     void CheckNativeBattleRelease(soci::session&) const;
     bool NativeNpcCanTalk(soci::session&,const CharSnapshot&,std::uint8_t,std::uint16_t) const;
     std::optional<NativeRpsGame> FindNativeRps(std::uint8_t,std::uint8_t) const;
@@ -218,6 +230,11 @@ private:
     BattleRegions m_battles;
     NativeMonsterCatalog m_monster_catalog;
     NativeMonsterAiCatalog m_monster_ai;
+    mutable std::mutex m_monster_ai_mutex;
+    NativeMonsterAiQueue m_monster_ai_queue;
+    std::atomic<bool> m_native_ai_retired{false};
+    bool m_native_ai_actor_barrier{}; // latched before sockets; immutable afterwards
+    std::uint64_t m_monster_generation{};
     NativeMonsterMaps m_monster_maps;
     NativeCellCatalog m_cells;
     std::map<std::uint32_t,std::uint8_t> m_cell_channels; // source logical -> physical, immutable after boot

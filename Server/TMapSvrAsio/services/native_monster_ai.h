@@ -19,29 +19,31 @@ struct NativeMonsterAiCatalog {
     std::map<std::uint32_t,NativeAiCommand> commands;
     std::map<std::tuple<std::uint8_t,std::uint8_t,std::uint32_t>,std::vector<NativeAiBinding>> bindings;
     std::set<std::uint8_t> types;
+    std::map<std::uint64_t,NativeAiBinding> by_source_row; // immutable command-instance identity index
     std::string order_sha256;
 };
 struct NativeAiInvocation {
-    std::uint64_t binding{};
+    std::uint64_t binding{},generation{};
     std::uint32_t monster{},host_key{},event_host{},real_host{},delay{};
     std::uint16_t map{},party{};
     std::uint8_t channel{},real_type{};
 };
 
-// Only the source LoadData phase before AI threads/network/actors. All actors
-// are absent, and the source static module clock is0 at that point. Explicit
-// consumers must either perform EnterMAP/delayed publication or throw; absence
-// of either must never turn those side effects into successful no-ops.
-class NativeMonsterBootstrap {
+// The existing bootstrap executor extended to delayed ACKs. Still restricted
+// to a PROVEN actor-free population. LoadData supplies tick0; runtime supplies
+// the AI thread's current DWORD clock. Actor admission must enforce this scope.
+class NativeMonsterAiExecutor {
 public:
     // Publishes cells/visibility only; Event(AT_ENTER) is emitted here once
     // after this consumer succeeds. It must not emit a duplicate AI event.
     using EnterMap=std::function<void(NativeMonsterMap&,std::uint32_t)>;
     using Schedule=std::function<void(const NativeAiInvocation&)>;
+    using Cancel=std::function<void(const NativeAiInvocation&)>;
     using Draw=std::function<std::uint32_t()>;
-    NativeMonsterBootstrap(const NativeMonsterCatalog&,const NativeMonsterAiCatalog&,
-                           const BattleRegions&,EnterMap,Schedule,Draw);
+    NativeMonsterAiExecutor(const NativeMonsterCatalog&,const NativeMonsterAiCatalog&,
+                           const BattleRegions&,EnterMap,Schedule,Cancel,Draw,std::uint32_t tick);
     void Initialize(NativeMonsterMap&,std::uint32_t);
+    void Acknowledge(NativeMonsterMap&,const NativeAiInvocation&);
 private:
     struct Arguments {std::uint32_t event_host{},real_host{};std::uint8_t real_type{};};
     const std::vector<NativeAiBinding>* Bindings(const NativeMonsterSlot&,std::uint8_t,std::uint32_t) const;
@@ -52,6 +54,7 @@ private:
     bool Complete(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
     bool Regen(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
     void Event(NativeMonsterMap&,std::uint32_t,std::uint8_t,std::uint32_t,Arguments);
+    void DoCommand(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
     void ResetHost(NativeMonsterSlot&);
     void ResolveTemplate(NativeMonsterSlot&,const NativeMonsterAllocationTemplate&);
     std::uint32_t Random();
@@ -61,7 +64,9 @@ private:
     const BattleRegions& m_regions;
     EnterMap m_enter;
     Schedule m_schedule;
+    Cancel m_cancel;
     Draw m_draw;
+    std::uint32_t m_tick;
     std::size_t m_steps{},m_depth{};
 };
 } // namespace tmapsvr

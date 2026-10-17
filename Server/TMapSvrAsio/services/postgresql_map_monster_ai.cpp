@@ -71,6 +71,8 @@ void PostgreSQLMapService::LoadNativeMonsterAi(soci::session& sql) {
         binding.source_row=static_cast<std::uint64_t>(ordinal);binding.command=Dword(row,"dwCmdID");
         binding.delay=Dword(row,"dwDelay");binding.loop=Byte(row,"bLoop");
         if(!m_monster_ai.commands.contains(binding.command))throw std::runtime_error("Source AI binding command template absent");
+        if(!m_monster_ai.by_source_row.emplace(binding.source_row,binding).second)
+            throw std::runtime_error("Duplicate source AI command-instance identity");
         m_monster_ai.types.insert(type);
         m_monster_ai.bindings[{type,trigger,Dword(row,"dwTriggerID")}].push_back(binding);
      }}

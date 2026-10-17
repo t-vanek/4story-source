@@ -96,6 +96,7 @@ bool PostgreSQLMapService::LockReplica(soci::session& sql,const MapSessionClaim&
     return sql.got_data();
 }
 bool PostgreSQLMapService::LoadReplica(const MapSessionClaim& c,std::uint16_t map,float x,float z) {
+    RequireNativeActorAdmission();
     if(!std::isfinite(x)||!std::isfinite(z))return false;
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;if(!LockAccount(sql,c)||!LockReplica(sql,c,phase)||phase!="claimed")return false;

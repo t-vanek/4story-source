@@ -35,7 +35,8 @@ std::optional<std::uint32_t> NativeCellAt(float x,float z);
 // CTMapSvrModule::IsMainCell instead divides FLOAT before converting WORD.
 std::optional<std::uint32_t> NativeMainCellAt(float x,float z);
 struct NativeMonsterMap;
-// These consumers run only inside LoadData before any actor is admitted.
+// These consumers require a proven actor-free population, during LoadData or
+// the native AI loop while all player-admission paths remain blocked.
 // AT_ENTER remains the bootstrap executor's responsibility, exactly once.
 void EnterNativeBootstrapMonster(NativeMonsterMap&,std::uint32_t);
 void LeaveNativeBootstrapMonster(NativeMonsterMap&,std::uint32_t);

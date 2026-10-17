@@ -91,7 +91,9 @@ void PostgreSQLMapService::InitializeNativeCells() {
     for(const auto& [channel,maps]:channels)for(auto map:maps) {
         const auto key=std::uint32_t{map}|(std::uint32_t{channel}<<16);
         auto cells=BuildNativeMapCells(m_cells,map,m_battles.maps.at(key).units,m_config.server,maximum_cells-count);
-        count+=cells.size();m_monster_maps[key].cells=std::move(cells);
+        count+=cells.size();
+        auto& state=m_monster_maps[key];state.map_id=map;state.physical_channel=channel;
+        state.cells=std::move(cells);
     }
 }
 } // namespace tmapsvr

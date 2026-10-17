@@ -85,12 +85,18 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/thread_pool.hpp>
+#include <boost/asio/post.hpp>
+#include <boost/asio/redirect_error.hpp>
+#include <boost/asio/steady_timer.hpp>
 
 #include <spdlog/spdlog.h>
 
 #include <cstdio>
 #include <cstring>
 #include <exception>
+#include <chrono>
+#include <functional>
+#include <stdexcept>
 #include <atomic>
 #include <memory>
 #include <string>
@@ -141,11 +147,14 @@ int main(int argc, char** argv)
         std::size_t background_operations = 0;
         bool stopping=false;
         bool ownership_lost=false;
+        std::function<void()> cancel_native_ai;
+        std::shared_ptr<boost::asio::steady_timer> native_ai_timer;
         const auto drain = std::chrono::milliseconds(cfg.shutdown.drain_ms);
 
         boost::asio::signal_set signals(io, SIGINT, SIGTERM);
-        signals.async_wait([&io, &server_ptr, &world_operations, &background_operations, &stopping, drain](auto, int sig) {
+        signals.async_wait([&io, &server_ptr, &world_operations, &background_operations, &stopping, &cancel_native_ai, drain](auto, int sig) {
             stopping=true;
+            if(cancel_native_ai)cancel_native_ai();
             spdlog::info("received signal {}, beginning graceful shutdown "
                          "(drain {}ms)",
                 sig, static_cast<long long>(drain.count()));
@@ -243,6 +252,11 @@ int main(int argc, char** argv)
                     native_owner->Topology().physical_channels.size(),native_owner->Topology().logical_channels.size());
                 native_map=std::make_unique<tmapsvr::PostgreSQLMapService>(*pool,tmapsvr::PostgreSQLMapConfig{
                     cfg.cluster.group_id,cfg.cluster.server_id,native_owner->Token(),cfg.character_manifest,cfg.routing_manifest,cfg.actor_manifest,cfg.client_text_encoding});
+                native_ai_timer=std::make_shared<boost::asio::steady_timer>(io);
+                cancel_native_ai=[&native_map,timer=native_ai_timer] {
+                    native_map->StopNativeMonsterAi();
+                    boost::system::error_code error;timer->cancel(error);
+                };
                 spdlog::info("native PostgreSQL Map ready; recovered checkpoints={}, orphaned prior sessions={}",native_owner->RecoveredSessions(),native_owner->OrphanedSessions());
             } else {
             tmapsvr::db::ValidateUserSchema(*pool);
@@ -445,7 +459,10 @@ int main(int argc, char** argv)
             if (native_owner) {
                 world_client->SetDisconnectHandler([&]() -> boost::asio::awaitable<bool> {
                     ++world_operations;
-                    if(native_map&&world_client->HasEverRegistered())native_map->RetireBattleRegions();
+                    if(native_map&&world_client->HasEverRegistered()) {
+                        native_map->RetireBattleRegions();
+                        if(cancel_native_ai)cancel_native_ai();
+                    }
                     spdlog::warn("native Map World link lost; closing clients and awaiting persistence");
                     if (server_ptr) server_ptr->CloseSessions();
                     boost::asio::steady_timer timer(io);
@@ -488,6 +505,7 @@ int main(int argc, char** argv)
             --background_operations;
             if(!healthy&&!stopping) {
                 stopping=true;ownership_lost=true;
+                if(cancel_native_ai)cancel_native_ai();
                 if(server_ptr){server_ptr->StopAccepting();server_ptr->CloseSessions();}
                 boost::asio::co_spawn(io,[&]() -> boost::asio::awaitable<void> {
                     boost::asio::steady_timer wait(io);
@@ -511,6 +529,54 @@ int main(int argc, char** argv)
         boost::asio::co_spawn(io, server.Run(), boost::asio::detached);
 
         if(native_owner) {
+            // Source AIThread cadence and one-request admission. Timer transfer
+            // never executes a command: ACK delivery gets a separate IO turn.
+            // This actor-free slice is guarded at every native admission path.
+            boost::asio::co_spawn(io,[&]() -> boost::asio::awaitable<void> {
+                while(!stopping&&!native_map->NativeMonsterAiStopped()) {
+                    bool failed=false;
+                    try {
+                        if(native_map->NativeMonsterAiPending()) {
+                            ++background_operations;
+                            struct Release {std::size_t& count;~Release(){--count;}} release{background_operations};
+                            co_await fourstory::db::CoOffloadVoidIf(db_thread_pool.get(),[&native_map] {
+                                native_map->CheckNativeMonsterAiAuthority();
+                            });
+                        }
+                        if(stopping||native_map->NativeMonsterAiStopped())co_return;
+                        const auto milliseconds=std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch()).count();
+                        native_map->AdvanceNativeMonsterAi(static_cast<std::uint32_t>(milliseconds));
+                        co_await boost::asio::post(io,boost::asio::use_awaitable);
+                        if(stopping||native_map->NativeMonsterAiStopped())co_return;
+                        native_map->DispatchNativeMonsterAi();
+                        if(native_map->NativeMonsterAiImmediateWork()) {
+                            co_await boost::asio::post(io,boost::asio::use_awaitable);
+                        }else {
+                            native_ai_timer->expires_after(std::chrono::milliseconds(100)); // MAP_TIMER
+                            boost::system::error_code error;
+                            co_await native_ai_timer->async_wait(boost::asio::redirect_error(boost::asio::use_awaitable,error));
+                            if(error) {
+                                if(stopping||native_map->NativeMonsterAiStopped())co_return;
+                                throw std::runtime_error("Native AI timer wait failed");
+                            }
+                        }
+                    }catch(...) {failed=true;}
+                    if(failed) {
+                        if(stopping)co_return;
+                        stopping=true;ownership_lost=true;
+                        if(cancel_native_ai)cancel_native_ai();
+                        spdlog::critical("native source AI authority/execution failed; stopping and draining");
+                        server.StopAccepting();server.CloseSessions();
+                        boost::asio::steady_timer wait(io);
+                        while(world_operations||background_operations||server.LiveSessions()||server.ControlOperations()) {
+                            wait.expires_after(std::chrono::milliseconds(20));
+                            co_await wait.async_wait(boost::asio::use_awaitable);
+                        }
+                        io.stop();co_return;
+                    }
+                }
+            },boost::asio::detached);
             // Original SM_TIMER_REQ cadence. Run one durable character tick at
             // a time, sharing the session lease with requests/checkpoints and
             // keeping shutdown alive until each database outcome is known.
@@ -629,6 +695,7 @@ int main(int argc, char** argv)
                     --background_operations;
                     if(healthy)continue;
                     stopping=true;
+                    if(cancel_native_ai)cancel_native_ai();
                     ownership_lost=true;spdlog::critical("native Map ownership lost; stopping listener and draining sessions");
                     server.StopAccepting();server.CloseSessions();
                     while(world_operations||background_operations||server.LiveSessions()||server.ControlOperations()){
@@ -712,6 +779,7 @@ int main(int argc, char** argv)
         }
 
         io.run();
+        if(cancel_native_ai)cancel_native_ai();
 
         // Wait for any in-flight SaveChar calls to complete before
         // the pool is destroyed (same pattern as TControlSvrAsio).

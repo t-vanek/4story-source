@@ -484,6 +484,7 @@ void PostgreSQLMapService::RefreshEquipment(soci::session& sql,CharSnapshot& s,b
     s.payload=std::move(p);
 }
 std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessionClaim& claim) {
+    RequireNativeActorAdmission();
     auto lease=m_pool.Acquire();auto& sql=*lease;
     auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token,true);
     std::string phase;

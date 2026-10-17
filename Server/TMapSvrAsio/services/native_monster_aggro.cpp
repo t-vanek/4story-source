@@ -1,5 +1,6 @@
 #include "native_monster_ai.h"
 #include "native_monster_skills.h"
+#include "native_skill_state.h"
 #include <bit>
 #include <optional>
 #include <utility>
@@ -33,10 +34,7 @@ bool Neighbor(const NativeMonsterMap& map,const NativeMonsterSlot& slot,const Na
 }
 }
 bool NativeMonsterAiExecutor::CheckAttack(const NativeMonsterSlot& slot) const {
-    if(slot.getaway||!slot.can_attack)return false;
-    if(!slot.maintained.empty())throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,
-        "maintained status/AI metadata for source CheckAttack");
-    return true; // exact empty maintained-vector branch, not an assumed absence of effects
+    return NativeMonsterAttackAllowed(m_catalog,slot);
 }
 bool NativeMonsterAiExecutor::LeaveAggro(NativeMonsterMap& map,std::uint32_t id,Arguments args) {
     const auto generation=map.slots.at(id).generation;

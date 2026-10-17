@@ -1,11 +1,25 @@
 #include "postgresql_map_service.h"
 #include "postgresql_map_owner.h"
 #include "legacy_random.h"
+#include "native_skill_state.h"
 #include <soci/soci.h>
 #include <iterator>
 #include <utility>
 
 namespace tmapsvr {
+NativeMonsterHostCountry PostgreSQLMapService::NativePlayerCountry(const CharSnapshot& snapshot,MapSessionRole role) const {
+    // Immutable published metadata plus the caller's owned current snapshot;
+    // called on the same IO turn under the AI lock, never performs SQL.
+    std::span<const MaintainedEffect> effects;
+    std::uint8_t aid{};
+    if(snapshot.payload) {
+        if(!snapshot.payload->effects)throw std::runtime_error("Native player country has unloaded maintained effects");
+        effects=*snapshot.payload->effects;aid=snapshot.payload->aid_country;
+    } else if(role==MapSessionRole::Replica&&snapshot.cluster.hydrated&&snapshot.replica_effects) {
+        effects=*snapshot.replica_effects;aid=snapshot.cluster.aid_country;
+    } else throw std::runtime_error("Native player country has no actual primary/replica effect authority");
+    return {NativeDisguisedCountry(m_monster_catalog,snapshot.bCountry,effects),aid!=3?aid:snapshot.bCountry};
+}
 void PostgreSQLMapService::BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer lookup,NativeMonsterAiExecutor::ReadPlayerCountry country) {
     std::lock_guard lock(m_monster_ai_mutex);
     if(!lookup||!country||m_native_player_lookup||m_native_player_country||m_native_ai_retired)

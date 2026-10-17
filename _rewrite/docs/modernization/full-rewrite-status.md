@@ -11,9 +11,26 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–082 are **written, not applied**; next083.
+evidence remain unchanged. New migrations044–083 are **written, not applied**; next084.
 
-Local Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
+Local Phase A continuation (2026-10-17), baseline `5e835e3`: written083,
+SELECT grants and the offline skill-data publisher now define complete original
+per-skill query order, explicit empty results, full/active source equality and
+ordinary TPREMIUMSKILLCHART removals. Actual native boot loads all eight data
+fields, applies source template removals and pins the release on subsequent
+owner/battle/AI reads. CheckAttack consumes real status/AI rows; ordered disguise
+and GetCountry feed CHGHOST and native NPC access. Initial replica constructor
+effects and retained demotion effects are distinct from unloaded state. These
+paths are **IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED** in their documented
+scope; all populated admission/actual-player AI guards remain. General effect/
+replica mutation and expiry, combat SetAggro, host attack/skill/movement, PC events/
+loot locks and full hosting remain incomplete. Existing player learn/load/use/item
+readers also need the same source premium-availability contract. Full Phase A
+remains **IMPLEMENTING**.083/grants/publisher are written only;044–083 unapplied,
+next084. No build/test/SQL/import/runtime/push/deployment ran.
+[Source contracts and handoff](evidence/phase-a-native-skill-state-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
 now produces owned aggro/target state, follows source notification/skill ordering
 and invokes real LeaveAggro/reset/re-entry on a missing new host. LeaveAggro keeps
 signed-key ties, raw-country filtering and recursive return semantics; leader/
@@ -1333,7 +1350,14 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `fbc91a7`: original LeaveAggro/AddAggro/CHGHOST/
+Latest local work based on `5e835e3`: original CTBLSkillData/skill-template
+removal, CheckAttack/HaveDisguiseBuff/GetCountry and replica constructor/release
+contracts; native loader/owner checks/NPC/host/entry/demotion/wire boundaries;
+SQL-text/publisher AST/interface/CMake/diff/inventory inspection only. Actual
+source revision and local backup SHA256 re-read. No executable verification;
+[current skill-state evidence](evidence/phase-a-native-skill-state-20261017/README.md).
+
+Previous local work based on `fbc91a7`: original LeaveAggro/AddAggro/CHGHOST/
 follower and CHGMODE/CheckAttack/GetCountry contracts; actual native snapshot/
 accepted-lifetime callbacks, ownership/reentrancy/output/queue paths and CMake/
 diff/inventory inspection only. Actual backup SHA256 and source revision re-read.

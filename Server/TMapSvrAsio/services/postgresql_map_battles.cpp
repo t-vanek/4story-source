@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_skill_state.h"
 #include "postgresql_map_owner.h"
 #include "native_wire_text.h"
 #include <soci/soci.h>
@@ -160,24 +161,8 @@ bool PostgreSQLMapService::NativeNpcCanTalk(soci::session& sql,const CharSnapsho
     std::uint8_t country,std::uint16_t local) const {
     CheckNativeBattleRelease(sql);
     if(!state.payload||!state.payload->effects)throw std::runtime_error("NPC interaction requires actual disguise state");
-    int disguise=0;
-    for(const auto& effect:*state.payload->effects) {
-        const int skill=std::bit_cast<std::int16_t>(effect.skill);
-        int present=0;
-        sql<<"SELECT 1 FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:s",soci::use(skill,"s"),soci::into(present);
-        if(!sql.got_data())throw std::runtime_error("Actual maintained NPC disguise has no source skill template");
-        soci::rowset<int> rows=(sql.prepare<<"SELECT DISTINCT \"bExec\" FROM character_compat.\"TSKILLDATA\" "
-            "WHERE \"wSkillID\"=:s AND \"bType\"=3 AND \"bExec\" BETWEEN 4 AND 6",soci::use(skill,"s"));
-        for(const auto exec:rows) {
-            if(disguise&&disguise!=exec)throw std::runtime_error("Ambiguous source disguise-data order requires original query evidence");
-            disguise=exec;
-        }
-        // HaveDisguiseBuff traverses the actual maintained vector. Its inner
-        // CTBLSkillData query has no ORDER BY: different disguise executors
-        // within one template cannot be resolved by sorting by numeric ID.
-        if(disguise)break;
-    }
-    return m_battles.CanTalk(state.bCountry,state.payload->aid_country,static_cast<std::uint8_t>(disguise),country,local);
+    const auto disguise=NativeHaveDisguiseBuff(m_monster_catalog,*state.payload->effects);
+    return m_battles.CanTalk(state.bCountry,state.payload->aid_country,disguise,country,local);
 }
 std::vector<std::byte> PostgreSQLMapService::BattleHeroList(const MapSessionClaim& claim) {
     auto lease=m_pool.Acquire();auto& sql=*lease;

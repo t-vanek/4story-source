@@ -72,6 +72,7 @@ public:
     // separate SOCI lease. No gameplay callback executes on a DB worker.
     void CheckNativeMonsterAiAuthority();
     void BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer,NativeMonsterAiExecutor::ReadPlayerCountry);
+    NativeMonsterHostCountry NativePlayerCountry(const CharSnapshot&,MapSessionRole) const;
     void AdvanceNativeMonsterAi(std::uint32_t tick);
     void DispatchNativeMonsterAi();
     NativeCellNotices TakeNativeCellNotices();
@@ -169,6 +170,8 @@ private:
     void LoadNativeMonsterCatalog(soci::session&);
     void LoadNativeMonsterSkills(soci::session&);
     void CheckNativeMonsterSkillRelease(soci::session&) const;
+    void LoadNativeSkillData(soci::session&);
+    void CheckNativeSkillDataRelease(soci::session&) const;
     void LoadNativeMonsterAi(soci::session&);
     void LoadNativeCellCatalog(soci::session&);
     void InitializeNativeCells();

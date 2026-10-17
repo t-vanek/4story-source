@@ -70,6 +70,17 @@ enum SkillCureType : std::uint8_t
     SCT_MP      = 19,
 };
 
+// Source NetCode.h status/AI/transform values consumed by CheckAttack and
+// HaveDisguiseBuff/GetCountry. Other source entries are retained as raw bytes.
+enum SkillStatusType : std::uint8_t {
+    SDT_STATUS_BLOCK=3, SDT_STATUS_HOLD=8, SDT_STATUS_FLASH=12,
+    SDT_STATUS_DARK=45, SDT_STATUS_HYPNOSIS=53,
+};
+enum SkillAiType : std::uint8_t { SDT_RUNAWAY=1 };
+enum SkillTransformType : std::uint8_t {
+    SDT_TRANS_DISGUISE_D=4, SDT_TRANS_DISGUISE_C=5, SDT_TRANS_DISGUISE_B=6,
+};
+
 // One TSKILLDATA row (tagTSKILLDATA, TMapType.h:1945). wSkillID is the
 // grouping key and lives on the chart, not the row.
 struct SkillDataRow

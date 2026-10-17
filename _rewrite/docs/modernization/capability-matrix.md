@@ -2,7 +2,24 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Local Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
+Local Phase A continuation (2026-10-17), baseline `5e835e3`: written083,
+SELECT grants and the offline skill-data publisher now define complete original
+per-skill query order, explicit empty results, full/active source equality and
+ordinary TPREMIUMSKILLCHART removals. Actual native boot loads all eight data
+fields, applies source template removals and pins the release on subsequent
+owner/battle/AI reads. CheckAttack consumes real status/AI rows; ordered disguise
+and GetCountry feed CHGHOST and native NPC access. Initial replica constructor
+effects and retained demotion effects are distinct from unloaded state. These
+paths are **IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED** in their documented
+scope; all populated admission/actual-player AI guards remain. General effect/
+replica mutation and expiry, combat SetAggro, host attack/skill/movement, PC events/
+loot locks and full hosting remain incomplete. Existing player learn/load/use/item
+readers also need the same source premium-availability contract. Full Phase A
+remains **IMPLEMENTING**.083/grants/publisher are written only;044–083 unapplied,
+next084. No build/test/SQL/import/runtime/push/deployment ran.
+[Source contracts and handoff](evidence/phase-a-native-skill-state-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
 now produces owned aggro/target state, follows source notification/skill ordering
 and invokes real LeaveAggro/reset/re-entry on a missing new host. LeaveAggro keeps
 signed-key ties, raw-country filtering and recursive return semantics; leader/

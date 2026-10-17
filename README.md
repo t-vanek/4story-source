@@ -28,7 +28,17 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): source CHGHOST, owned aggro/target
+Current Phase A continuation (2026-10-17): native ordered skill-data metadata
+now feeds source CheckAttack, disguise/GetCountry and NPC access. Bootstrap also
+applies the original ordinary premium-template removals. Replica entry/demotion
+retain actual local effect authority. **IMPLEMENTED_UNVERIFIED /
+INTEGRATED_UNVERIFIED** in the documented scope; full effects/combat and player
+skill-availability consistency remain open. Populated actor guards stay.
+Written083/grants/offline publisher were not run;044–083 unapplied, next084.
+Full Phase A remains incomplete.
+[Current scope and handoff](_rewrite/docs/modernization/evidence/phase-a-native-skill-state-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): source CHGHOST, owned aggro/target
 state, LeaveAggro and leader/party follower events are connected to the existing
 native AI executor. CHGMODE now has its source eligibility and transitions;
 actual player-country reads preserve accepted lifetime and refuse unsupported

@@ -108,6 +108,7 @@ boost::asio::awaitable<void> OnMWNativeEnterCharReq(std::vector<std::byte> body,
     if(replica) {
         if(identity->phase!=SessionPhase::Pending||s||!ctx.validator)co_return;
         s=CharSnapshot{};s->dwCharID=cid;
+        s->replica_effects.emplace(); // actual CTObjBase ctor; MW_ENTERCHAR carries no player maintained vector
         // The replica receives only the source cluster summary, not the core
         // graph. Unknown vitals/inventory must never become a client CHARINFO.
         s->dwHP=s->dwMP=s->dwMaxHP=s->dwMaxMP=0;

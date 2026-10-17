@@ -73,5 +73,6 @@ void PostgreSQLMapService::LoadNativeMonsterSkills(soci::session& sql) {
     };
     stats("SELECT * FROM monster_compat.skill_class_stats WHERE world_id=:w AND server_id=:s","bClassID",c.classes);
     stats("SELECT * FROM monster_compat.skill_race_stats WHERE world_id=:w AND server_id=:s","bRaceID",c.races);
+    LoadNativeSkillData(sql); // original per-skill data then ordinary premium-template removals, before Initialize
 }
 } // namespace tmapsvr

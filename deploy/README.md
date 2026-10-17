@@ -1,4 +1,11 @@
-> Current Phase A: source aggro/CHGHOST/follower/mode work is connected to the
+> Current Phase A:083, skill-data SELECT grants and the offline publisher are
+> written, unexecuted. Native startup now requires the complete per-skill order
+> publication after079/082, with original premium-template removals. Effects,
+> replica lifecycle and hosted gameplay remain incomplete; actor guards stay.
+>044–083 written/unapplied, next084. No build/test/SQL/runtime/deployment or Phase B/C.
+> [Scope and handoff](../_rewrite/docs/modernization/evidence/phase-a-native-skill-state-20261017/README.md).
+
+> Previous Phase A: source aggro/CHGHOST/follower/mode work is connected to the
 > existing native executor/outbox and current player snapshots. Admission and
 > actual-player AI guards remain pending real effects, combat and PC/loot-lock
 > producers. No new migration/grant/publisher;044–082 written/unapplied, next083.

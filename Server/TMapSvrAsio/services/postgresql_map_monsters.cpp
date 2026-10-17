@@ -41,6 +41,7 @@ void PostgreSQLMapService::CheckNativeMonsterRelease(soci::session& sql) const {
         soci::use(m_config.routing_manifest,"r"),soci::use(m_config.character_manifest,"c"),soci::into(count);
     if(count!=1)throw std::runtime_error("Native Map source monster publication changed or unavailable");
     CheckNativeMonsterSkillRelease(sql);
+    CheckNativeSkillDataRelease(sql);
     CheckNativeMonsterAiRelease(sql);
 }
 void PostgreSQLMapService::LoadNativeMonsterCatalog(soci::session& sql) {

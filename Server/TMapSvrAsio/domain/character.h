@@ -12,6 +12,7 @@
 #include <string>
 #include <memory>
 #include <optional>
+#include <vector>
 #include "domain/character_payload.h"
 #include "domain/rps.h"
 
@@ -91,6 +92,11 @@ struct CharSnapshot
     std::uint8_t   bStatPoint       = 0;
     std::uint32_t  dwStatExp        = 0;
     SourceMovementState movement;
+    // Source CTPlayer object-local maintained vector for a partial replica.
+    // Established by its actual constructor/entry or retained on demotion;
+    // absent means unobserved, never an invented empty graph. Not persisted
+    // or appended to the original transfer wire. Primary authority is payload.
+    std::optional<std::vector<MaintainedEffect>> replica_effects;
 };
 
 } // namespace tmapsvr

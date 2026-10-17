@@ -156,8 +156,11 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
         if(!committed||!ctx.session_reg->FinishTransfer(sess.get(),MapSessionRole::Replica,identity->authority_epoch+1)){sess->Close();co_return;}
         if(ctx.skill_cooldown)ctx.skill_cooldown->Forget(identity->char_id);
         if(auto s=ctx.char_state?ctx.char_state->Get(identity->char_id):std::nullopt) {
-            // Retained source becomes the same partial observer as initial
-            // replica admission. Its old graph is preserved in the journal.
+            // The source CTPlayer survives demotion with its actual maintained
+            // vector. Keep it separately before dropping durable graph authority;
+            // a missing vector is not equivalent to the initial replica ctor.
+            if(!s->payload||!s->payload->effects){sess->Close();co_return;}
+            s->replica_effects=*s->payload->effects;s->cluster.aid_country=s->payload->aid_country;
             s->payload.reset();ctx.char_state->Store(identity->char_id,*s);
             if(ctx.player_service->HasNativeCellAuthority()) {
                 try {

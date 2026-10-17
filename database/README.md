@@ -5,7 +5,18 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `fbc91a7`:** CHGHOST/AddAggro/LeaveAggro, follower
+**Current Phase A, baseline `5e835e3`:** written083 adds ordered skill-data
+publication bound to079/082, explicit per-existing-skill empty results, full/
+active TSKILLDATA equality and faithful full-source TPREMIUMSKILLCHART removal
+inputs. `tools/database/import_map_skill_data.py` requires the complete pinned
+manifest and private per-skill original query-order evidence; it never derives
+order from archive ordinals. Native boot and later owner/release paths consume
+these readers. `deploy/sql/map-monster-skill-data-runtime-grants.sql` is written
+only. No source/old migration edits, live buff/job tables or SQL Server dependency.
+044–083 remain unexecuted, next084. No SQL/import/build/test/runtime run.
+[Source contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-native-skill-state-20261017/README.md).
+
+**Previous Phase A, baseline `fbc91a7`:** CHGHOST/AddAggro/LeaveAggro, follower
 routing and CHGMODE consume existing native catalog, process-local object state
 and current accepted player snapshots. No new migration/grant/publisher or aggro
 persistence table; no archive/historical layer changes. Existing079–082 and

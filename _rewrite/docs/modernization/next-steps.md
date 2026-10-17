@@ -11,7 +11,24 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
+Local Phase A continuation (2026-10-17), baseline `5e835e3`: written083,
+SELECT grants and the offline skill-data publisher now define complete original
+per-skill query order, explicit empty results, full/active source equality and
+ordinary TPREMIUMSKILLCHART removals. Actual native boot loads all eight data
+fields, applies source template removals and pins the release on subsequent
+owner/battle/AI reads. CheckAttack consumes real status/AI rows; ordered disguise
+and GetCountry feed CHGHOST and native NPC access. Initial replica constructor
+effects and retained demotion effects are distinct from unloaded state. These
+paths are **IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED** in their documented
+scope; all populated admission/actual-player AI guards remain. General effect/
+replica mutation and expiry, combat SetAggro, host attack/skill/movement, PC events/
+loot locks and full hosting remain incomplete. Existing player learn/load/use/item
+readers also need the same source premium-availability contract. Full Phase A
+remains **IMPLEMENTING**.083/grants/publisher are written only;044–083 unapplied,
+next084. No build/test/SQL/import/runtime/push/deployment ran.
+[Source contracts and handoff](evidence/phase-a-native-skill-state-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
 now produces owned aggro/target state, follows source notification/skill ordering
 and invokes real LeaveAggro/reset/re-entry on a missing new host. LeaveAggro keeps
 signed-key ties, raw-country filtering and recursive return semantics; leader/
@@ -175,18 +192,19 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: complete source monster maintained-status
-inputs/CheckAttack and original GetCountry disguise/replica state, then real
-host movement/attack/skill Use and remaining awake/dead commands. Implement
-combat SetAggro with its actual hit/heal/skill producers; reuse the now connected
-AddAggro/LeaveAggro/CHGHOST/follower/mode paths. PC Enter/Leave/channel/MoveGhost
-must preserve source event order and real loot inventory lock-release producers;
-no empty lock state may stand in for the missing source MONITEMLIST/TAKE lifetime.
-Non-PC/effect/transform/loot, non-fresh Regen, dynamic/battle/quest/party-instance
-lifetimes, MOVE stand-hide and position quests remain open. Keep latched admission
-and actual-player Initialize/ACK guards until coexistence is implemented. No
-CS_MONHOST_REQ exists in the inspected source. Full Phase A remains IMPLEMENTING;
-next migration083; Phase B/C stays deferred.
+Immediate implementation dependency: apply the ordinary source premium-skill
+availability contract consistently to native player learn/load/use/item callers;
+keep missing-template handling distinct from a proven empty skill-data query.
+Then implement BeginAtk/CanSilenceAttack/SkillUse and host attack/movement, using
+the ordered083 metadata and current source clocks. Monster maintained-effect
+creation/removal/stat recomputation, replica buff/expiry producers and combat
+SetAggro with actual damage/heal/skill inputs remain required. PC Enter/Leave/
+channel/MoveGhost must retain event order and real MONITEMLIST/TAKE lock lifetimes.
+Non-PC/transform/death/loot, non-fresh Regen, dynamic/battle/quest/party-instance
+lifetimes, MOVE stand-hide and position quests stay open. Keep all latched actor
+admission and actual-player Initialize/ACK guards until coexistence is connected.
+No CS_MONHOST_REQ exists in this source profile. Full Phase A remains IMPLEMENTING;
+next migration084; no Phase B/C execution.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

@@ -9,8 +9,9 @@ NativeMonsterAiQueue::NativeMonsterAiQueue(std::size_t capacity):m_capacity(capa
 }
 void NativeMonsterAiQueue::Publish(NativeAiInvocation call) {
     if(m_stopped)throw std::runtime_error("Native AI queue retired");
-    if(!call.binding||!call.generation||!call.delay)
-        throw std::runtime_error("Invalid native delayed AI request identity/delay");
+    if(!call.generation||(call.kind==NativeAiMessageKind::Command?(!call.binding||!call.delay):
+        call.kind!=NativeAiMessageKind::ResetHost||call.binding||call.delay))
+        throw std::runtime_error("Invalid native AI request identity/kind/delay");
     if(Pending()>=m_capacity)throw std::runtime_error("Native AI outstanding-job limit");
     m_requests.push_back(std::move(call));
 }
@@ -32,7 +33,9 @@ void NativeMonsterAiQueue::Turn(std::uint32_t tick) {
         m_timers.resize(retained); // stable due/remaining order; no invalidated source iterator
     }
     if(!m_requests.empty()) {
-        m_timers.push_back({std::move(m_requests.front()),0});
+        if(m_requests.front().kind==NativeAiMessageKind::ResetHost)
+            m_batch.push_back(std::move(m_requests.front())); // SM_RESETHOST_REQ -> separate batch ACK, no timer
+        else m_timers.push_back({std::move(m_requests.front()),0});
         m_requests.pop_front();
     }
 }

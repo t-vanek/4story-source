@@ -21,7 +21,8 @@ struct NativeCellPlayer {
     std::uint64_t revision{1}; // process-local mutation fence, never persisted
     float size{0.5f}; // actual CTObjBase constructor OBJECT_SIZE/2; transform producer remains missing
 };
-enum class NativeCellNoticeKind { Enter, Leave, Move, AddMonster, DeleteMonster, MonsterHost, MonsterSkill };
+enum class NativeCellNoticeKind { Enter, Leave, Move, AddMonster, DeleteMonster, MonsterHost, MonsterSkill,
+                                 MonsterMode, MonsterColor, MonsterMove };
 struct NativeCellNotice {
     NativeCellNoticeKind kind;
     MapSessionClaim recipient,actor;
@@ -30,6 +31,10 @@ struct NativeCellNotice {
     std::uint64_t monster_generation{};
     std::shared_ptr<const NativeMonsterAppearance> monster{};
     std::uint16_t skill_id{},attack_range{}; // captured MONSETSKILL fields; no mutable slot lookup on delivery
+    std::uint8_t mode{};
+    std::optional<NativeMonsterColorState> color;
+    std::optional<NativeMonsterMotion> motion;
+    bool accepted_recipient{}; // source global FindChar old host, including pre-Ready/other-map actors
 };
 using NativeCellNotices=std::vector<NativeCellNotice>;
 bool SameNativeCellPlayer(const MapSessionClaim&,const MapSessionClaim&);
@@ -76,4 +81,9 @@ void ActivateNativePlayerHost(NativeMonsterMap&,const MapSessionClaim&);
 NativeCellNotices EnterNativeMonster(NativeMonsterMap&,std::uint32_t,const NativeMonsterCatalog&,
                                    const NativeMonsterAiCatalog&,std::uint32_t tick);
 NativeCellNotices LeaveNativeMonster(NativeMonsterMap&,std::uint32_t,bool exit_map);
+struct NativeMonsterCellMove {NativeCellNotices notices;bool changed{};};
+// Captures normal OT_MON cell output only. The executor must emit one source
+// AT_LEAVE after this returns, before its caller's final MONMOVE output.
+NativeMonsterCellMove MoveNativeMonster(NativeMonsterMap&,std::uint32_t,float x,float z,
+    const NativeMonsterCatalog&,const NativeMonsterAiCatalog&,const std::vector<std::uint8_t>&,std::uint32_t tick);
 } // namespace tmapsvr

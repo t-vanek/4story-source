@@ -1,5 +1,4 @@
 #include "native_map_cells.h"
-#include "native_monster_spawn.h"
 #include <cmath>
 #include <stdexcept>
 #include <utility>
@@ -96,46 +95,5 @@ std::optional<std::uint32_t> NativeMainCellAt(float x,float z) {
     if(!std::isfinite(cx)||!std::isfinite(cz)||std::trunc(cx)<0||std::trunc(cz)<0||
        std::trunc(cx)>65535||std::trunc(cz)>65535)return {};
     return Cell(static_cast<std::uint16_t>(cx),static_cast<std::uint16_t>(cz));
-}
-NativeCellNotices EnterNativeMonster(NativeMonsterMap& map,std::uint32_t id,const NativeMonsterCatalog& catalog,
-                                   const NativeMonsterAiCatalog& ai,std::uint32_t tick) {
-    auto& slot=map.slots.at(id);
-    if(slot.entered_map)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"repeated EnterMAP lifecycle");
-    const auto key=NativeCellAt(slot.x,slot.z);
-    if(!key)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"valid source WORD cell coordinates");
-    const auto origin=map.cells.find(*key);
-    NativeCellNotices notices;
-    // Normal OT_MON entry ignores channel enable. EnterMonster tests the
-    // ORIGIN cell for every recipient, not the neighbor being visited.
-    if(origin!=map.cells.end()) {
-        origin->second.monsters.insert(id);
-        std::shared_ptr<const NativeMonsterAppearance> appearance;
-        for(auto cell:NativeNeighborCells(map.cells,*key))for(const auto& [player_id,player]:map.cells.at(cell).players)
-            if(origin->second.IsMain(player.claim.channel)) {
-                if(!appearance)appearance=std::make_shared<const NativeMonsterAppearance>(ProjectNativeMonsterAppearance(slot,catalog,ai,tick));
-                NativeCellNotice notice{NativeCellNoticeKind::AddMonster,player.claim,{},true};
-                notice.monster_id=id;notice.monster_generation=slot.generation;notice.monster=appearance;
-                notices.push_back(std::move(notice));
-            }
-    }
-    // InitMonster already establishes the owning map. Record the EnterMAP
-    // boundary even without a cell, as the source still assigns m_pMAP there.
-    slot.entered_map=true;
-    return notices;
-}
-NativeCellNotices LeaveNativeMonster(NativeMonsterMap& map,std::uint32_t id,bool exit_map) {
-    auto& slot=map.slots.at(id);
-    const auto key=NativeCellAt(slot.x,slot.z);
-    if(!key)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"valid source LeaveMAP coordinates");
-    if(auto cell=map.cells.find(*key);cell!=map.cells.end())cell->second.monsters.erase(id);
-    NativeCellNotices notices;
-    // Normal TCell::LeaveMonster sends DELMON to EVERY neighbor player, with
-    // no main/channel predicate and no recall/self/companion aggro side effects.
-    for(auto cell:NativeNeighborCells(map.cells,*key))for(const auto& [player_id,player]:map.cells.at(cell).players) {
-        NativeCellNotice notice{NativeCellNoticeKind::DeleteMonster,player.claim,{},exit_map};
-        notice.monster_id=id;notice.monster_generation=slot.generation;notices.push_back(std::move(notice));
-    }
-    slot.entered_map=false; // normal-monster LeaveMAP does not clear map affiliation
-    return notices;
 }
 } // namespace tmapsvr

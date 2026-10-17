@@ -11,5 +11,5 @@ float NativeMonsterTargetDistance(const NativeMonsterMap&,const NativeMonsterSlo
 std::optional<NativeCellNotice> SelectNativeMonsterSkill(const NativeMonsterCatalog&,const NativeMonsterMap&,
     NativeMonsterSlot&,const std::optional<MapSessionClaim>& host,bool new_host,std::uint32_t tick);
 NativeCellNotices NotifyNativeMonsterHost(const NativeMonsterMap&,const NativeMonsterSlot&,
-                                        const std::optional<MapSessionClaim>& previous);
+                                        const std::optional<MapSessionClaim>& previous,bool previous_accepted=false);
 } // namespace tmapsvr

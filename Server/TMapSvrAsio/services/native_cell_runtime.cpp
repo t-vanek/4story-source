@@ -9,10 +9,16 @@
 
 namespace tmapsvr {
 namespace {
-std::shared_ptr<tnetlib::AsioSession> Current(const HandlerContext& ctx,const MapSessionClaim& claim,bool observer=false) {
+std::shared_ptr<tnetlib::AsioSession> Current(const HandlerContext& ctx,const MapSessionClaim& claim,bool observer=false,bool accepted=false) {
     auto session=ctx.session_reg->Find(claim.char_id,claim.key);
     if(!session||!session->IsOpen())return {};
     const auto identity=ctx.session_reg->Identity(session.get());
+    if(accepted) {
+        const auto actor=ctx.session_reg->FindActor(claim.char_id);
+        if(!identity||!actor||!SameNativeCellPlayer(actor->Claim(ctx.expected_group),claim)||
+           !SameNativeCellPlayer(identity->Claim(ctx.expected_group),claim))return {};
+        return session; // source previous global host can be pre-Ready or outside this map
+    }
     if(!identity||!(identity->phase==SessionPhase::Ready||(observer&&
         (identity->phase==SessionPhase::TransferOut||identity->phase==SessionPhase::TransferIn||identity->phase==SessionPhase::Loaded)))||
        !SameNativeCellPlayer(identity->Claim(ctx.expected_group),claim))return {};
@@ -32,12 +38,14 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
     for(const auto& notice:notices) {
         // An already entered observer keeps receiving cell deltas during an
         // ownership handoff. Initial Loaded players have no cell membership.
-        auto recipient=Current(ctx,notice.recipient,true);
+        auto recipient=Current(ctx,notice.recipient,true,notice.accepted_recipient);
         if(!recipient)continue;
         std::vector<std::byte> packet;
         MessageId opcode;
         if(notice.kind==NativeCellNoticeKind::AddMonster||notice.kind==NativeCellNoticeKind::DeleteMonster||
-           notice.kind==NativeCellNoticeKind::MonsterHost||notice.kind==NativeCellNoticeKind::MonsterSkill) {
+           notice.kind==NativeCellNoticeKind::MonsterHost||notice.kind==NativeCellNoticeKind::MonsterSkill||
+           notice.kind==NativeCellNoticeKind::MonsterMode||notice.kind==NativeCellNoticeKind::MonsterColor||
+           notice.kind==NativeCellNoticeKind::MonsterMove) {
             if(!notice.monster_generation)throw std::runtime_error("Native monster visibility has no source lifetime");
             if(notice.kind==NativeCellNoticeKind::AddMonster) {
                 const auto observer=ctx.char_state->Get(notice.recipient.char_id);
@@ -52,6 +60,25 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
                 packet=EncodeNativeAddMonAck(*notice.monster,source_observer,notice.flag);
             } else if(notice.kind==NativeCellNoticeKind::DeleteMonster) {
                 opcode=MessageId::CS_DELMON_ACK;packet=EncodeDelMonAck(notice.monster_id,notice.flag?1:0);
+            } else if(notice.kind==NativeCellNoticeKind::MonsterMode) {
+                opcode=MessageId::CS_CHGMODE_ACK;wire::WritePOD(packet,notice.monster_id);
+                wire::WritePOD<std::uint8_t>(packet,2);wire::WritePOD(packet,notice.mode);
+            } else if(notice.kind==NativeCellNoticeKind::MonsterColor) {
+                const auto observer=ctx.char_state->Get(notice.recipient.char_id);
+                if(!observer||!notice.color)throw std::runtime_error("Native mode color requires actual observer/captured source inputs");
+                const auto aid=observer->payload?observer->payload->aid_country:observer->cluster.aid_country;
+                const NativeMonsterObserver source_observer{notice.recipient.char_id,
+                    observer->cluster.party_type==1?0U:std::uint32_t{observer->cluster.party},aid!=3?aid:observer->bCountry};
+                opcode=MessageId::CS_CHANGECOLOR_ACK;
+                wire::WritePOD<std::uint8_t>(packet,2);wire::WritePOD(packet,notice.monster_id);
+                wire::WritePOD(packet,NativeMonsterColor(*notice.color,source_observer));wire::WritePOD(packet,notice.color->country);
+            } else if(notice.kind==NativeCellNoticeKind::MonsterMove) {
+                if(!notice.motion)throw std::runtime_error("Native MONMOVE requires captured source motion");
+                const auto& m=*notice.motion;opcode=MessageId::CS_MONMOVE_ACK;
+                wire::WritePOD<std::uint16_t>(packet,1);wire::WritePOD(packet,notice.monster_id);wire::WritePOD<std::uint8_t>(packet,2);
+                wire::WritePOD(packet,m.x);wire::WritePOD(packet,m.y);wire::WritePOD(packet,m.z);
+                wire::WritePOD(packet,m.pitch);wire::WritePOD(packet,m.direction);
+                wire::WritePOD(packet,m.mouse);wire::WritePOD(packet,m.key);wire::WritePOD(packet,m.action);
             } else {
                 wire::WritePOD(packet,notice.monster_id);
                 if(notice.kind==NativeCellNoticeKind::MonsterHost) {

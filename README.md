@@ -28,7 +28,17 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): actual native monster boot/Regen now
+Current Phase A continuation (2026-10-17): source ResetHost, monster mode/color
+output and queued return-to-spawn now connect through native global actor lookup,
+existing AI/batch queues, actual monster cells and Asio publication. Global actor
+retirement is separate from a dirty retained reservation. **INTEGRATED_UNVERIFIED /
+IMPLEMENTED_UNVERIFIED**, as scoped in the inventory; populated player admission
+and AI guards remain. PC/monster events, live aggro and remaining hosted gameplay
+are incomplete. No new migration;044–082 remain written/unapplied, next083.
+Full Phase A remains open.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-reset-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): actual native monster boot/Regen now
 creates source learned skill objects and loads exact skill/formula/stat inputs.
 Source SelectSkill, pure resource costs, selected SetHost/CHKHOST and ordered
 MONHOST/MONSETSKILL publication are written and connected to the existing native

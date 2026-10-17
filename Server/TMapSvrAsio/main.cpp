@@ -199,6 +199,9 @@ int main(int argc, char** argv)
         std::unique_ptr<tmapsvr::ISkillDataChart>       skill_data_chart;
         std::unique_ptr<tmapsvr::ICompanionService>     companion_service;
 
+        // Existing registry also supplies source global FindChar. It outlives
+        // the native Map callbacks and retains failed-save reservations.
+        tmapsvr::InMemorySessionRegistry session_reg;
         std::unique_ptr<tmapsvr::PostgreSQLMapOwner> native_owner;
         std::unique_ptr<tmapsvr::PostgreSQLMapService> native_map;
 
@@ -359,12 +362,6 @@ int main(int argc, char** argv)
         tmapsvr::TokenBucketLimiter rate_limiter(
             cfg.rate_limit.burst, cfg.rate_limit.refill_per_s);
 
-        // char_id → AsioSession map. Lives for the io.run() duration,
-        // bound at CS_CONNECT_REQ success, unbound by the MapServer
-        // per-connection teardown. Consulted by handlers_world to
-        // route DM_/MW_ inbound traffic back to the right client.
-        tmapsvr::InMemorySessionRegistry session_reg;
-
         // Per-channel presence (char_id → channel + position + session).
         // Driven by the same handshake / teardown pair as session_reg.
         // CS_MOVE_REQ updates position and broadcasts to other
@@ -395,6 +392,10 @@ int main(int argc, char** argv)
         ctx.presence          = &presence;
         ctx.player_service    = native_map?static_cast<tmapsvr::IPlayerService*>(native_map.get()):player_service.get();
         ctx.expected_group    = cfg.cluster.group_id;
+        if(native_map)native_map->BindNativePlayerLookup([&session_reg,group=cfg.cluster.group_id](std::uint32_t id) {
+            const auto actor=session_reg.FindActor(id);
+            return actor?std::optional{actor->Claim(group)}:std::nullopt;
+        });
         ctx.route_resolver    = native_map.get();
         ctx.inventory_service = inventory_service.get();
         ctx.npc_service       = npc_service.get();

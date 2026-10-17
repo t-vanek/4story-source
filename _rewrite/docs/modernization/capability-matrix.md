@@ -2,7 +2,22 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Local Phase A continuation (2026-10-17), baseline `b5c42da`: native monster
+Local Phase A continuation (2026-10-17), baseline `f006388`: native ResetHost
+now resolves the actual global accepted actor, captures per-recipient mode/color
+before clearing host/target/aggro/damage, and queues source far-from-start resets
+through the existing shared AI FIFO and batch ACK. Ordinary monster cell movement
+preserves source leave/channel/enter ordering, one AT_LEAVE and final captured
+MONMOVE. Native global actor retirement precedes teardown DB waits while dirty
+reservations remain retained. These paths are **INTEGRATED_UNVERIFIED** within
+actor isolation; populated recipient/relocation branches and monster battle-mode
+clock/output calculations are **IMPLEMENTED_UNVERIFIED**. All player-admission
+and actual-player AI guards remain. Live aggro/PC monster events, remaining host
+requests/awake/dead commands, effects and other lifetimes are still incomplete;
+full hosting and Phase A remain **IMPLEMENTING**. No new migration;044–082 remain
+written/unapplied, next083. No build, test, SQL, import, runtime, push or deployment
+ran. [Source contracts and exact handoff](evidence/phase-a-map-monster-reset-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `b5c42da`: native monster
 allocation/Regen now produces owned learned skill objects with real constructor
 rank and DWORD reuse clocks. Written082 derives exact skill/formula/class/race
 readers from the pinned079 publication; actual native boot and release checks

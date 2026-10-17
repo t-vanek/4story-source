@@ -1,4 +1,11 @@
-> Current Phase A:082 and `sql/map-monster-skill-runtime-grants.sql` are
+> Current Phase A: native reset/mode/return-to-spawn work uses existing AI/batch
+> queues, source cells and Asio output. No new migration/grant/publisher.044–082
+> remain written/unapplied, next083. Populated actor admission and AI guards stay
+> until PC monster events, live aggro and remaining host/awake/dead flows exist.
+> No Phase B/C execution or deployment.
+> [Scope and handoff](../_rewrite/docs/modernization/evidence/phase-a-map-monster-reset-20261017/README.md).
+
+> Previous Phase A:082 and `sql/map-monster-skill-runtime-grants.sql` are
 > written, unexecuted. Existing079 full publication now also gates exact skill/
 > formula/class/race inputs through082; the same offline publisher requires it.
 > Skill selection and host notifications use native AI and bounded Asio output,

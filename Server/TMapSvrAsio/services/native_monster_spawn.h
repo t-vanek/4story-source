@@ -53,6 +53,10 @@ struct NativeMonsterSkill {
     std::uint8_t level{1};
     std::uint32_t use_tick{},delay_tick{}; // CTSkill constructor, original DWORD reuse clocks
 };
+struct NativeMonsterAggro {
+    std::uint8_t object_type{},country{3};
+    std::uint32_t object{},host{},value{}; // source TAGGRO, actual mutation producers remain separate
+};
 // Owned source allocation/bootstrap state. A missing template is anonymous,
 // never template0. Bootstrap cell membership is not an admitted live actor or
 // prototype registry entry. The empty inventory/effects/aggro context is enforced by
@@ -74,6 +78,11 @@ struct NativeMonsterSlot {
     bool maxima_ready{}; // actual derived-maxima producer, never missing object -> zero bars
     std::vector<NativeMonsterMaintain> maintained; // CTSkill vector order and raw DWORD clocks
     std::optional<std::uint32_t> last_attack_tick,attack_wait_tick;
+    std::uint32_t recover_hp_tick{},recover_mp_tick{}; // CTObjBase constructor0; ChgMode battle tick+5000
+    std::map<std::int64_t,NativeMonsterAggro> aggro;
+    std::map<std::int64_t,std::int64_t> damage; // source MAPINT64 keys AND values
+    std::map<std::uint32_t,std::uint32_t> guild_damage;
+    std::set<std::uint32_t> cell_memberships; // lifetime-owned indexes, including source disabled-old-cell remnants
     std::optional<std::uint8_t> leave_count;
     std::optional<std::uint16_t> next_skill;
     std::uint8_t keeper_type{};

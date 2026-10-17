@@ -4,6 +4,15 @@
 #include <stdexcept>
 
 namespace tmapsvr {
+NativeMonsterColorState ProjectNativeMonsterColor(const NativeMonsterSlot& slot,const NativeMonsterCatalog& catalog,
+                                                  const NativeMonsterAiCatalog& ai) {
+    NativeMonsterColorState out{slot.keeper,slot.mode,slot.country,slot.aid_country,slot.keeper_type,{}};
+    if(slot.monster) {
+        const auto type=catalog.monsters.at(*slot.monster).ai_type;
+        if(ai.types.contains(type))out.own_ai_type=type;
+    }
+    return out;
+}
 NativeMonsterAppearance ProjectNativeMonsterAppearance(const NativeMonsterSlot& slot,const NativeMonsterCatalog& catalog,
                                                        const NativeMonsterAiCatalog& ai,std::uint32_t tick) {
     if(!slot.monster||!slot.generation||!slot.attribute||!slot.maxima_ready)
@@ -27,7 +36,7 @@ NativeMonsterAppearance ProjectNativeMonsterAppearance(const NativeMonsterSlot& 
     out.maintained.assign(slot.maintained.begin(),slot.maintained.begin()+count);
     return out;
 }
-std::uint8_t NativeMonsterColor(const NativeMonsterAppearance& monster,const NativeMonsterObserver& observer) {
+std::uint8_t NativeMonsterColor(const NativeMonsterColorState& monster,const NativeMonsterObserver& observer) {
     const auto war=monster.aid_country!=3?monster.aid_country:monster.country;
     if(war==observer.war_country)return 0; // ALLI before any ownership/mode checks
     if(war!=3)return 3; // ENEMY
@@ -41,6 +50,10 @@ std::uint8_t NativeMonsterColor(const NativeMonsterAppearance& monster,const Nat
     // OnEvent, it does not fall back to DEFAULT_AI. Refuse the unsafe branch.
     if(!monster.own_ai_type)throw std::runtime_error("Native monster GetColor requires its actual own AI template");
     return *monster.own_ai_type==1?3:2; // FIRSTATK -> ENEMY, otherwise PIECE
+}
+std::uint8_t NativeMonsterColor(const NativeMonsterAppearance& monster,const NativeMonsterObserver& observer) {
+    return NativeMonsterColor(NativeMonsterColorState{monster.keeper,monster.mode,monster.country,monster.aid_country,
+        monster.keeper_type,monster.own_ai_type},observer);
 }
 std::vector<std::byte> EncodeNativeAddMonAck(const NativeMonsterAppearance& m,const NativeMonsterObserver& observer,bool fresh) {
     if(!m.generation||!observer.character)throw std::runtime_error("Native ADDMON requires owned source lifetime and actual PC observer");

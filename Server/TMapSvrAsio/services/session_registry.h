@@ -68,6 +68,11 @@ public:
     virtual std::size_t Size() const = 0;
     virtual bool MarkAccepted(const tnetlib::AsioSession*) {throw std::runtime_error("Source accepted registry unavailable");}
     virtual bool Accepted(const tnetlib::AsioSession*) const {throw std::runtime_error("Source accepted registry unavailable");}
+    // Source module FindChar membership, distinct from a retained failed-save
+    // reservation and from Ready/cell membership. Retire after LeaveMAP, before
+    // teardown's first DB suspension, while preserving the reservation itself.
+    virtual std::optional<SessionIdentity> FindActor(std::uint32_t) const {throw std::runtime_error("Source global actor lookup unavailable");}
+    virtual void RetireActor(const tnetlib::AsioSession*) {throw std::runtime_error("Source global actor retirement unavailable");}
     virtual SourceServiceData ServiceData() const {throw std::runtime_error("Source service statistics unavailable");}
     virtual void ClearServiceData() {throw std::runtime_error("Source active-user registry unavailable");}
     virtual std::vector<std::pair<SessionIdentity,std::shared_ptr<tnetlib::AsioSession>>> ReadyPrimaries() const {
@@ -252,6 +257,16 @@ public:
         for(const auto& [cid,row]:m_rows)if(auto current=row.session.lock();current&&current.get()==session)return row.accepted;
         return false;
     }
+    std::optional<SessionIdentity> FindActor(std::uint32_t character) const override {
+        std::lock_guard lock(m_mtx);
+        const auto found=m_rows.find(character);
+        if(found==m_rows.end()||!found->second.accepted||found->second.actor_retired||found->second.session.expired())return {};
+        return found->second.id; // no Ready/primary/map/channel predicate in source FindChar
+    }
+    void RetireActor(const tnetlib::AsioSession* session) override {
+        std::lock_guard lock(m_mtx);
+        for(auto& [cid,row]:m_rows)if(auto current=row.session.lock();current&&current.get()==session){row.actor_retired=true;return;}
+    }
     SourceServiceData ServiceData() const override {
         std::lock_guard lock(m_mtx);SourceServiceData data;
         for(const auto& [cid,row]:m_rows)if(row.accepted&&!row.session.expired())++data.players;
@@ -286,7 +301,7 @@ public:
         return out;
     }
 private:
-    struct Row { SessionIdentity id; std::weak_ptr<tnetlib::AsioSession> session; unsigned operations=0; bool checkpoint=false,accepted=false; };
+    struct Row { SessionIdentity id; std::weak_ptr<tnetlib::AsioSession> session; unsigned operations=0; bool checkpoint=false,accepted=false,actor_retired=false; };
     std::uint64_t m_generation=0;
     mutable std::mutex m_mtx;
     std::unordered_map<std::uint32_t, Row> m_rows;

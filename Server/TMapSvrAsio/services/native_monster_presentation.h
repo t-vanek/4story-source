@@ -19,6 +19,18 @@ struct NativeMonsterObserver {
     std::uint32_t character{},party{};
     std::uint8_t war_country{};
 };
+// GetColor needs no vitals/effect projection. Capture only its actual source
+// inputs before ResetHost clears state, independently of ADDMON readiness.
+struct NativeMonsterColorState {
+    std::uint32_t keeper{};
+    std::uint8_t mode{},country{3},aid_country{3},keeper_type{};
+    std::optional<std::uint8_t> own_ai_type;
+};
+struct NativeMonsterMotion {
+    float x{},y{},z{};
+    std::uint16_t pitch{},direction{};
+    std::uint8_t mouse{4},key{4},action{};
+};
 // Immutable wire projection, captured before the following source AI event.
 // It survives slot deletion/reuse; only the original BYTE-sized effect prefix
 // is retained. It is not another monster registry or authoritative actor.
@@ -35,6 +47,9 @@ struct NativeMonsterAppearance {
 struct NativeMonsterSlot;
 struct NativeMonsterCatalog;
 struct NativeMonsterAiCatalog;
+NativeMonsterColorState ProjectNativeMonsterColor(const NativeMonsterSlot&,const NativeMonsterCatalog&,
+                                                  const NativeMonsterAiCatalog&);
+std::uint8_t NativeMonsterColor(const NativeMonsterColorState&,const NativeMonsterObserver&);
 NativeMonsterAppearance ProjectNativeMonsterAppearance(const NativeMonsterSlot&,const NativeMonsterCatalog&,
                                                        const NativeMonsterAiCatalog&,std::uint32_t tick);
 std::uint8_t NativeMonsterColor(const NativeMonsterAppearance&,const NativeMonsterObserver&);

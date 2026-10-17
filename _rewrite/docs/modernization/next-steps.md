@@ -11,7 +11,22 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-17), baseline `b5c42da`: native monster
+Local Phase A continuation (2026-10-17), baseline `f006388`: native ResetHost
+now resolves the actual global accepted actor, captures per-recipient mode/color
+before clearing host/target/aggro/damage, and queues source far-from-start resets
+through the existing shared AI FIFO and batch ACK. Ordinary monster cell movement
+preserves source leave/channel/enter ordering, one AT_LEAVE and final captured
+MONMOVE. Native global actor retirement precedes teardown DB waits while dirty
+reservations remain retained. These paths are **INTEGRATED_UNVERIFIED** within
+actor isolation; populated recipient/relocation branches and monster battle-mode
+clock/output calculations are **IMPLEMENTED_UNVERIFIED**. All player-admission
+and actual-player AI guards remain. Live aggro/PC monster events, remaining host
+requests/awake/dead commands, effects and other lifetimes are still incomplete;
+full hosting and Phase A remain **IMPLEMENTING**. No new migration;044–082 remain
+written/unapplied, next083. No build, test, SQL, import, runtime, push or deployment
+ran. [Source contracts and exact handoff](evidence/phase-a-map-monster-reset-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `b5c42da`: native monster
 allocation/Regen now produces owned learned skill objects with real constructor
 rank and DWORD reuse clocks. Written082 derives exact skill/formula/class/race
 readers from the pinned079 publication; actual native boot and release checks
@@ -143,21 +158,18 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: finish populated CTMonster::ResetHost,
-CTObjBase::ChgMode and SM_RESETHOST_REQ/ACK, including global old-host lookup,
-aggro/damage cleanup, mode notifications and actual monster relocation/cells.
-The selected SetHost/CHKHOST -> NotifyHost -> SelectSkill path now has source
-code and an owned output consumer; retain its ordinary PC target scope and
-constructor-only skill clocks until actual attack/effect/transform producers
-exist. Then implement PC EnterPlayer/LeavePlayer/channel and MoveGhost monster
-AT_ENTER/LeaveAggro/AT_LEAVE sequencing, CS_MONMOVE_REQ and other real host
-requests, and concrete awake/dead commands. Recall/self/companion target size/
-lifetime, nonempty monster effect/stat producers, MOVE stand-hide and position
-quests remain open. Preserve the process admission and actual-player AI guards
-until connected coexistence is complete. Continue non-fresh Regen/death/loot,
-dynamic/quest/battle and party-instance lifetimes against the same native graph.
-There is no CS_MONHOST_REQ in the inspected source. Full Phase A remains
-IMPLEMENTING; next migration083; Phase B/C execution stays deferred.
+Immediate implementation dependency: port CTMonster::LeaveAggro and its actual
+aggro/target producers and transitions, then PC EnterPlayer/LeavePlayer/channel/
+MoveGhost AT_ENTER/LeaveAggro/AT_LEAVE ordering, including source inventory-lock
+release producers. Reuse the now connected ResetHost/ChgMode/shared reset ACK/
+normal monster cell movement path. Complete actual CS_MONMOVE_REQ and remaining
+host/attack/skill Use lifecycles plus CheckAttack and awake/dead commands; the
+AC_CHGMODE command's own CanRun/transition is separate from its implemented
+monster ChgMode output helper. Non-PC/effect/transform/loot, non-fresh Regen,
+dynamic/battle/quest/party-instance lifetimes, MOVE stand-hide and position quests
+remain open. Keep latched admission and all actual-player AI guards until real
+coexistence is implemented. No CS_MONHOST_REQ exists in the inspected source.
+Full Phase A remains IMPLEMENTING; next migration083; Phase B/C stays deferred.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

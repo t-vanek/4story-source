@@ -119,9 +119,12 @@ std::optional<NativeCellNotice> SelectNativeMonsterSkill(const NativeMonsterCata
     out.skill_id=*slot.next_skill;out.attack_range=c.skills.at(*slot.next_skill).wMaxRange;return out;
 }
 NativeCellNotices NotifyNativeMonsterHost(const NativeMonsterMap& map,const NativeMonsterSlot& slot,
-                                        const std::optional<MapSessionClaim>& previous) {
+                                        const std::optional<MapSessionClaim>& previous,bool previous_accepted) {
     NativeCellNotices out;
-    if(previous)out.push_back(Notice(slot,*previous,NativeCellNoticeKind::MonsterHost)); // FALSE first
+    if(previous) {
+        auto notice=Notice(slot,*previous,NativeCellNoticeKind::MonsterHost); // FALSE first
+        notice.accepted_recipient=previous_accepted;out.push_back(std::move(notice));
+    }
     const auto position=NativeCellAt(slot.x,slot.z);
     if(!position)throw std::runtime_error("Native host notification requires source WORD position");
     const auto cells=NativeNeighborCells(map.cells,*position);

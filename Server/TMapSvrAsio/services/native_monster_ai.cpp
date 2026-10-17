@@ -17,10 +17,13 @@ std::uint32_t FreshMaximum(std::uint32_t raw) {
 }
 }
 NativeMonsterAiExecutor::NativeMonsterAiExecutor(const NativeMonsterCatalog& catalog,const NativeMonsterAiCatalog& ai,
-    const BattleRegions& regions,EnterMap enter,LeaveMap leave,Publish publish,Schedule schedule,Cancel cancel,Draw draw,std::uint32_t tick)
+    const BattleRegions& regions,EnterMap enter,LeaveMap leave,Publish publish,FindPlayer find_player,MoveMap move,
+    Schedule schedule,Cancel cancel,Draw draw,std::uint32_t tick)
     :m_catalog(catalog),m_ai(ai),m_regions(regions),m_enter(std::move(enter)),
-     m_leave(std::move(leave)),m_publish(std::move(publish)),m_schedule(std::move(schedule)),m_cancel(std::move(cancel)),m_draw(std::move(draw)),m_tick(tick) {
-    if(!m_enter||!m_leave||!m_publish||!m_schedule||!m_cancel||!m_draw)throw std::invalid_argument("Actual source AI side-effect consumers required");
+     m_leave(std::move(leave)),m_publish(std::move(publish)),m_find_player(std::move(find_player)),m_move(std::move(move)),
+     m_schedule(std::move(schedule)),m_cancel(std::move(cancel)),m_draw(std::move(draw)),m_tick(tick) {
+    if(!m_enter||!m_leave||!m_publish||!m_find_player||!m_move||!m_schedule||!m_cancel||!m_draw)
+        throw std::invalid_argument("Actual source AI side-effect consumers required");
 }
 void NativeMonsterAiExecutor::Step() {
     // Security limit, not a source gameplay rule. Fail before serving a graph
@@ -126,6 +129,7 @@ void NativeMonsterAiExecutor::DoCommand(NativeMonsterMap& map,std::uint32_t id,c
     }
 }
 void NativeMonsterAiExecutor::Acknowledge(NativeMonsterMap& map,const NativeAiInvocation& call) {
+    if(call.kind!=NativeAiMessageKind::Command)throw std::runtime_error("Native command ACK has wrong message kind");
     const auto found=map.slots.find(call.monster);
     if(found==map.slots.end()||found->second.generation!=call.generation||found->second.host_key!=call.host_key)return;
     if(!map.players.empty())throw std::runtime_error("Native AI ACK requires full hosted actor execution before player coexistence");
@@ -159,12 +163,6 @@ void NativeMonsterAiExecutor::ResolveTemplate(NativeMonsterSlot& slot,const Nati
         for(const auto skill:monster.skills)if(m_catalog.skills.contains(skill))slot.skills.try_emplace(skill);
     }
 }
-void NativeMonsterAiExecutor::ResetHost(NativeMonsterSlot& slot) {
-    if(slot.host||slot.target||slot.helper||slot.help_count)
-        throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"populated host/aggro state");
-    slot.action=0;slot.mode=0;slot.last_attack_tick=m_tick; // LoadData0 or actual current AI tick
-    slot.host=slot.target=slot.helper=0;slot.target_type=0;slot.help_count=0;
-}
 bool NativeMonsterAiExecutor::Execute(NativeMonsterMap& map,std::uint32_t id,const NativeAiBinding& binding,Arguments args) {
     Step();
     auto& slot=map.slots.at(id);
@@ -180,7 +178,7 @@ bool NativeMonsterAiExecutor::Execute(NativeMonsterMap& map,std::uint32_t id,con
         if(choice.keep_current)return false; // CHKHOST valid old host, before selection/mutation
         if(choice.activate_first&&choice.player)ActivateNativePlayerHost(map,*choice.player);
         if(kind==2)old=FindNativeMonsterHost(map,slot.x,slot.z,slot.host);
-        if(!choice.player){++slot.host_key;ResetHost(slot);return false;}
+        if(!choice.player){++slot.host_key;ResetHost(map,id);return false;}
         if(old&&SameNativeCellPlayer(*old,*choice.player))return false;
         ++slot.host_key;slot.host=choice.player->char_id;
         if(kind==2)slot.status=1; // only SETHOST establishes OS_WAKEUP
@@ -268,7 +266,7 @@ bool NativeMonsterAiExecutor::Regen(NativeMonsterMap& map,std::uint32_t id,const
         if(local!=m_regions.locals.end()&&local->second.type==LocalType::Occupation&&local->second.valid)
             slot->country=local->second.country;
     }
-    slot->next_skill.reset();ResetHost(*slot);
+    slot->next_skill.reset();ResetHost(map,slot->id);
     const auto& attributes=m_catalog.attributes.at(*slot->attribute);
     slot->max_hp=slot->hp=FreshMaximum(attributes.hp);
     slot->max_mp=slot->mp=FreshMaximum(attributes.mp);

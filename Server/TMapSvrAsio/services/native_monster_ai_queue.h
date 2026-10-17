@@ -5,7 +5,8 @@
 #include <vector>
 
 namespace tmapsvr {
-// Owned equivalents of SayToAI, TAIBUF and SayToBATCH. The caller serializes
+// Owned equivalents of SayToAI, TAIBUF and SayToBATCH, shared by timed commands
+// and immediate SM_RESETHOST request->batch ACK. The caller serializes
 // access; no borrowed packet, executor or legacy command-pointer handle survives.
 class NativeMonsterAiQueue {
 public:
@@ -13,7 +14,9 @@ public:
     void Publish(NativeAiInvocation);
     // AIThread: advance existing timers BEFORE accepting one queued request.
     // First sample establishes the thread's clock; startup time is not elapsed
-    // time for requests which have not reached OnSM_AICMD_REQ yet.
+    // time for requests which have not reached OnSM_AICMD_REQ yet. ResetHost
+    // reaches batch immediately when its one AI request is accepted, even at
+    // the same sampled tick; it never enters the delay timers.
     void Turn(std::uint32_t tick);
     std::optional<NativeAiInvocation> TakeAcknowledgement();
     void CancelObject(const NativeAiInvocation& identity);

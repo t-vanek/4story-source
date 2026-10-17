@@ -6,6 +6,11 @@
 #include <utility>
 
 namespace tmapsvr {
+void PostgreSQLMapService::BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer lookup) {
+    std::lock_guard lock(m_monster_ai_mutex);
+    if(!lookup||m_native_player_lookup||m_native_ai_retired)throw std::runtime_error("Native global actor lookup cannot be missing/replaced/retired");
+    m_native_player_lookup=std::move(lookup);
+}
 NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::uint32_t tick) {
     return NativeMonsterAiExecutor(m_monster_catalog,m_monster_ai,m_battles,
         [this,tick](NativeMonsterMap& map,std::uint32_t id) {
@@ -15,6 +20,15 @@ NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::u
             StageNativeCellNotices(LeaveNativeMonster(map,id,exit_map));
         },
         [this](NativeCellNotices notices){StageNativeCellNotices(std::move(notices));},
+        [this](std::uint32_t id)->std::optional<MapSessionClaim> {
+            if(!id)return {}; // native accepted character IDs are nonzero, including during boot
+            if(!m_native_player_lookup)throw std::runtime_error("Native ResetHost requires actual global actor lookup");
+            return m_native_player_lookup(id);
+        },
+        [this,tick](NativeMonsterMap& map,std::uint32_t id,float x,float z) {
+            auto moved=MoveNativeMonster(map,id,x,z,m_monster_catalog,m_monster_ai,m_cells.channels,tick);
+            StageNativeCellNotices(std::move(moved.notices));return moved.changed;
+        },
         [this](const NativeAiInvocation& call){m_monster_ai_queue.Publish(call);},
         [this](const NativeAiInvocation& call){m_monster_ai_queue.CancelObject(call);},LegacyRandom15,tick);
 }
@@ -25,8 +39,10 @@ void PostgreSQLMapService::StageNativeCellNotices(NativeCellNotices notices) {
     if(notices.size()>max_notices-m_native_cell_notices.size())throw std::runtime_error("Native cell publication count limit");
     auto bytes=m_native_cell_notice_bytes;
     for(const auto& notice:notices) {
-        const auto charge=sizeof(NativeCellNotice)+(notice.monster?notice.monster->WireSize():
-            notice.kind==NativeCellNoticeKind::MonsterSkill?8:5);
+        const std::size_t body=notice.monster?notice.monster->WireSize():
+            notice.kind==NativeCellNoticeKind::MonsterSkill?8:notice.kind==NativeCellNoticeKind::MonsterMode?6:
+            notice.kind==NativeCellNoticeKind::MonsterColor?7:notice.kind==NativeCellNoticeKind::MonsterMove?26:5;
+        const auto charge=sizeof(NativeCellNotice)+body;
         if(charge>max_bytes-bytes)throw std::runtime_error("Native cell publication byte limit");
         bytes+=charge;
     }
@@ -81,12 +97,14 @@ void PostgreSQLMapService::DispatchNativeMonsterAi() {
         if(map->second.map_id!=call->map||map->second.physical_channel!=call->channel)
             throw std::runtime_error("Native AI physical map identity differs from index");
         auto executor=MakeNativeMonsterAiExecutor(m_monster_ai_queue.Tick());
-        executor.Acknowledge(map->second,*call);
+        if(call->kind==NativeAiMessageKind::ResetHost)executor.ResetHostAcknowledgement(map->second,*call);
+        else executor.Acknowledge(map->second,*call);
     }catch(...) {m_native_ai_retired=true;m_monster_ai_queue.Stop();throw;}
 }
 void PostgreSQLMapService::StopNativeMonsterAi() {
     m_native_ai_retired=true;
     std::lock_guard lock(m_monster_ai_mutex);m_monster_ai_queue.Stop();
+    m_native_player_lookup={};
     m_native_cell_notices.clear();m_native_cell_notice_bytes=0;
 }
 } // namespace tmapsvr

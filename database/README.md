@@ -5,7 +5,15 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `b5c42da`:** written082 adds only derived
+**Current Phase A, baseline `f006388`:** source monster reset/mode/cell movement
+and global actor retirement use RAM lifecycle state and the existing pinned079–082
+catalog/owner path. No dynamic host/job tables, SQL Server dependency, new migration
+or archive changes. Source reset FIFO/batch work stays volatile; native teardown
+retires actor lookup before existing save/release waits and retains failed-save
+reservations.044–082 remain unexecuted, next083. No SQL/build/test/runtime run.
+[Source contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-monster-reset-20261017/README.md).
+
+**Previous Phase A, baseline `b5c42da`:** written082 adds only derived
 `monster_compat` skill/formula/class/race views and full source/active value+byte
 proofs. Native monster boot and later owner/release checks require this same
 publication; the existing079 offline publisher checks its visibility atomically.

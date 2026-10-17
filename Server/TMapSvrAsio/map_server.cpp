@@ -211,6 +211,7 @@ MapServer::HandleConnection(std::shared_ptr<tnetlib::AsioSession> session)
         if(ctx.player_service&&ctx.player_service->HasNativeCellAuthority()) {
             try {PublishNativeCellNotices(ctx,ctx.player_service->LeaveNativePlayer(identity->Claim(ctx.expected_group)));}
             catch(...) {spdlog::error("map_server: native cell departure publication failed char={}",identity->char_id);}
+            ctx.session_reg->RetireActor(session.get()); // source global FindChar ends before async save; reservation stays
         }
         if((identity->phase==SessionPhase::Ready||identity->phase==SessionPhase::TransferOut) && identity->role==MapSessionRole::Primary &&
            (!ctx.char_state||!ctx.player_service||!ctx.char_state->Get(identity->char_id))){

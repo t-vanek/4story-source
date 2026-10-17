@@ -27,8 +27,14 @@ struct NativeMonsterAllocationTemplate {
     std::uint8_t ai_type{},can_attack{},special{},remove{};
     float size{};
     std::uint16_t chase_range{}; // actual TMONSTERCHART.wChaseRange, not MAX_ROAMRANGE
+    std::uint16_t transform_skill{}; // source wTransSkillID, not a synthesized template pair
 };
 struct NativeMonsterBaseVitals {std::uint32_t hp{},mp{};};
+struct NativeMonsterMaintainTemplate {
+    std::uint32_t duration{},duration_increment{};
+    std::uint16_t posture{};
+    std::uint8_t positive{},static_skill{};
+};
 
 // CTBLMonSpawn order and each parameterized CTBLMapMon/CTBLMonParty order
 // are independent evidence. Archival ordinal order is not query order.
@@ -41,6 +47,7 @@ struct NativeMonsterCatalog {
     std::map<std::uint16_t,NativeMonsterAllocationTemplate> monsters;
     std::map<std::uint32_t,NativeMonsterBaseVitals> attributes; // MAKELONG(attribute FAMILY,level)
     std::map<std::uint16_t,SkillTemplate> skills;
+    std::map<std::uint16_t,NativeMonsterMaintainTemplate> maintain_templates;
     std::map<std::uint16_t,std::vector<SkillDataRow>> skill_data; // exact CTBLSkillData query order; present-empty is explicit
     std::shared_ptr<const SourceSkillDataCatalog> player_skill_data;
     std::string skill_data_order_sha256;

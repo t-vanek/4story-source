@@ -7,6 +7,10 @@ std::uint32_t NativeMonsterPureMaximum(const NativeMonsterCatalog&,const NativeM
 bool NativeMonsterCanUseSkillNow(const NativeMonsterCatalog&,const NativeMonsterSlot&,std::uint16_t,std::uint32_t tick);
 std::uint32_t NativeMonsterSkillRemaining(const NativeMonsterSkill&,std::uint32_t tick);
 bool NativeMonsterCanSilenceAttack(const NativeMonsterCatalog&,const NativeMonsterSlot&,std::uint16_t);
+struct NativeMonsterAbility {std::uint32_t value{};std::int32_t increase{};};
+NativeMonsterAbility CalculateNativeMonsterAbility(const NativeMonsterCatalog&,const NativeMonsterSlot&,
+    std::uint32_t base,std::uint8_t exec,const NativeMonsterMaintain* instance_override=nullptr);
+std::uint32_t NativeMonsterMaximum(const NativeMonsterCatalog&,const NativeMonsterSlot&,bool hp);
 SkillAttackTiming NativeMonsterAttackTiming(const NativeMonsterCatalog&,const NativeMonsterSlot&,std::uint8_t speed);
 void UseNativeMonsterSkill(const NativeMonsterCatalog&,NativeMonsterSlot&,std::uint16_t,std::uint32_t tick);
 float NativeMonsterTargetDistance(const NativeMonsterMap&,const NativeMonsterSlot&);

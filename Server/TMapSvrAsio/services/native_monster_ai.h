@@ -79,6 +79,9 @@ private:
     bool ChangeHost(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
     bool Attack(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments,bool begin);
     bool Follow(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
+    bool Refill(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
+    bool Transformation(NativeMonsterMap&,std::uint32_t);
+    void DieFromRoam(NativeMonsterMap&,std::uint32_t);
     bool CheckAttack(const NativeMonsterSlot&) const;
     void ResolveTemplate(NativeMonsterSlot&,const NativeMonsterAllocationTemplate&);
     std::uint32_t Random();

@@ -13,7 +13,26 @@ Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside G
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–083 are **written, not applied**; next084.
 
-Local Phase A continuation (2026-10-17), baseline `1070f72`: ordinary FOLLOW
+Local Phase A continuation (2026-10-17), baseline `011c238`: source monster
+CalcAbilityValue now uses actual bases and returns the signed delta; effect-aware
+GetMaxHP/MP feed real fresh Regen, REFILL, Transformation and current ADDMON.
+Ordinary REFILL case10 preserves source gates/output/completion. Host MONMOVE
+now executes the DEAD/Transformation prefix of OnDie; supported no-replacement
+branches create an actual owned rank1 maintained effect, size and HPMP state,
+then source HPMP/DEFEND in recipient order. Calculations/command branches are
+**IMPLEMENTED_UNVERIFIED**; metadata/packet connections are
+**INTEGRATED_UNVERIFIED** within actor isolation. Full transformation/death/
+MONMOVE remain **IMPLEMENTING**: buff collision/erase/release/expiry, base death,
+rewards/loot/dead AI and non-PC state remain missing. The sender's numeric-ID
+party echo is an explicit incomplete boundary. All populated admission/Initialize/
+ACK and non-fresh Regen guards remain; ADDMON now uses the real maxima producer.
+No new migration/grant/publisher;044–083 and existing grants/publishers are
+written/unexecuted, next084. No build/test/SQL/import/runtime/push/deployment ran.
+Inventory349 IDs/13 columns and DB map78 rows/6 columns are navigation counts.
+Full Phase A remains **IMPLEMENTING**.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-vitals-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `1070f72`: ordinary FOLLOW
 now preserves source eligibility, actual accepted host XYZ, host-only MONACTION,
 skill reselection, key and completion order. Host MONMOVE has a conditional normal
 monster path through real dispatch/claim/map, owned cells, AT_LEAVE/ATHOME,

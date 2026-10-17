@@ -134,8 +134,7 @@ void NativeMonsterAiExecutor::MoveHostedMonsters(NativeMonsterMap& map,const Map
         } else if(slot->mode==2) {
             if(Distance(*slot)<=3.0f)Event(map,record.id,11,0,{slot->host,slot->target,slot->target_type}); // AT_ATHOME
         } else if(Distance(*slot)>64.0f) {
-            throw NativeMonsterInitializationRequired(slot->map,slot->channel,slot->id,
-                "MONMOVE out-of-roam OnDie: transformation, loot, rewards, quest and dead AI lifecycle");
+            DieFromRoam(map,record.id);
         }
         slot=current();if(slot&&slot->status!=3)accepted.try_emplace(record.id,generation);
     }

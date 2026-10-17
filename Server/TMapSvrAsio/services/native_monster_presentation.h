@@ -14,6 +14,8 @@ struct NativeMonsterMaintain {
     std::uint32_t start_tick{},duration{},attack_id{},host_id{};
     std::array<std::uint32_t,4> powers{};
     std::array<float,3> position{};
+    std::uint32_t charge_tick{}; // SetEndTick records the actual DWORD, including0
+    std::uint16_t silenced_skill{};
 };
 struct NativeMonsterObserver {
     std::uint32_t character{},party{};
@@ -35,6 +37,12 @@ struct NativeMonsterAttack {
     std::uint32_t target{};
     std::uint8_t target_type{};
     std::uint16_t skill{};
+};
+struct NativeMonsterVitals {std::uint32_t max_hp{},hp{},max_mp{},mp{};};
+struct NativeMonsterTransformation {
+    std::uint16_t skill{};
+    std::uint8_t level{},country{},aid_country{};
+    float x{},y{},z{};
 };
 struct NativeMonsterAction {
     std::uint8_t action{};
@@ -73,4 +81,6 @@ std::vector<std::byte> EncodeNativeAddMonAck(const NativeMonsterAppearance&,cons
 std::vector<std::byte> EncodeNativeMonAttackAck(std::uint32_t monster,const NativeMonsterAttack&);
 std::vector<std::byte> EncodeNativeMonActionAck(std::uint32_t monster,const NativeMonsterAction&);
 std::vector<std::byte> EncodeNativeMonMoveAck(const std::vector<NativeMonsterMoveRecord>&);
+std::vector<std::byte> EncodeNativeMonsterVitals(std::uint32_t,const NativeMonsterVitals&);
+std::vector<std::byte> EncodeNativeMonsterTransformation(std::uint32_t,const NativeMonsterTransformation&);
 } // namespace tmapsvr

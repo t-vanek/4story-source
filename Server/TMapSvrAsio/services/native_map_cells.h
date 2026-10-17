@@ -22,7 +22,8 @@ struct NativeCellPlayer {
     float size{0.5f}; // actual CTObjBase constructor OBJECT_SIZE/2; transform producer remains missing
 };
 enum class NativeCellNoticeKind { Enter, Leave, Move, AddMonster, DeleteMonster, MonsterHost, MonsterSkill,
-                                 MonsterMode, MonsterColor, MonsterMove, MonsterAttack, MonsterAction, MonsterMoveBatch };
+                                 MonsterMode, MonsterColor, MonsterMove, MonsterAttack, MonsterAction, MonsterMoveBatch,
+                                 MonsterVitals, MonsterTransformation };
 struct NativeCellNotice {
     NativeCellNoticeKind kind;
     MapSessionClaim recipient,actor;
@@ -38,8 +39,11 @@ struct NativeCellNotice {
     std::optional<NativeMonsterAttack> attack; // captured target/type/skill before SkillUse and reselection
     std::optional<NativeMonsterAction> monster_action;
     std::shared_ptr<const std::vector<NativeMonsterMoveRecord>> monster_moves;
+    std::optional<NativeMonsterVitals> vitals;
+    std::optional<NativeMonsterTransformation> transformation;
 };
 using NativeCellNotices=std::vector<NativeCellNotice>;
+inline constexpr std::size_t NativeCellNoticeLimit=65536;
 bool SameNativeCellPlayer(const MapSessionClaim&,const MapSessionClaim&);
 // Server/TMapSvr/TMapType.h, not the registration packet's BYTE limit.
 inline constexpr std::size_t NativeCellChannels=51;

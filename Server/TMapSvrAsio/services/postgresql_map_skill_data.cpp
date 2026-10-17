@@ -86,7 +86,7 @@ void PostgreSQLMapService::LoadNativeSkillData(soci::session& sql) {
      for(const auto& row:rows) {
         if(++premium>expected_premium)throw std::runtime_error("Native premium removal count differs");
         (void)Byte(row,"bType");(void)Word(row,"wMedals");const auto skill=Word(row,"wSkillID");
-        c.skill_data.erase(skill);c.skills.erase(skill);
+        c.skill_data.erase(skill);c.skills.erase(skill);c.maintain_templates.erase(skill);
      }}
     if(premium!=expected_premium)throw std::runtime_error("Incomplete source premium skill removals");
     c.player_skill_data=std::make_shared<const SourceSkillDataCatalog>(c.skill_data);

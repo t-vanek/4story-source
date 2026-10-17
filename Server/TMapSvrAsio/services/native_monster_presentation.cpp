@@ -1,5 +1,6 @@
 #include "native_monster_presentation.h"
 #include "native_monster_ai.h"
+#include "native_monster_skills.h"
 #include "wire_codec.h"
 #include <stdexcept>
 
@@ -23,15 +24,14 @@ NativeMonsterAppearance ProjectNativeMonsterAppearance(const NativeMonsterSlot& 
                                                        const NativeMonsterAiCatalog& ai,std::uint32_t tick) {
     if(!slot.monster||!slot.generation||!slot.attribute||!slot.maxima_ready)
         throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"real monster template and derived current maxima for ADDMON");
-    // The current derived-maxima producer is fresh empty-state Regen. Effects
-    // must not be projected with old unmodified maxima just because they exist.
-    if(!slot.maintained.empty()||!slot.remaining.empty()||slot.instance_skill)
-        throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"effect-aware monster GetMaxHP/GetMaxMP producer");
     const auto& monster=catalog.monsters.at(*slot.monster);
     NativeMonsterAppearance out;
     out.generation=slot.generation;out.id=slot.id;out.monster=monster.wID;
     out.template_level=monster.bLevel; // CSSender sends m_pMON->m_bLevel, not m_bLevel
-    out.max_hp=slot.max_hp;out.hp=slot.hp;out.max_mp=slot.max_mp;out.mp=slot.mp;
+    // CSSender calls the getters now. Do not serialize cached maxima from an
+    // earlier graph, or clamp current bars as a side effect of visibility.
+    out.max_hp=NativeMonsterMaximum(catalog,slot,true);out.hp=slot.hp;
+    out.max_mp=NativeMonsterMaximum(catalog,slot,false);out.mp=slot.mp;
     out.x=slot.x;out.y=slot.y;out.z=slot.z;out.pitch=slot.pitch;out.direction=slot.direction;
     out.mouse=slot.mouse;out.key=slot.key;out.action=slot.action;out.mode=slot.mode;
     out.country=slot.country;out.aid_country=slot.aid_country;out.region=slot.region;

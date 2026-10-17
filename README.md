@@ -28,7 +28,18 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): source FOLLOW now reads the actual
+Current Phase A continuation (2026-10-17): source effect-aware monster maxima
+now feed boot, REFILL, Transformation and ADDMON. Host MONMOVE reaches the
+original DEAD/Transformation prefix, with actual owned effects, size/bar changes
+and source HPMP/DEFEND publication. **IMPLEMENTED_UNVERIFIED /
+INTEGRATED_UNVERIFIED** for these conditional branches; complete transformation/
+death remains **IMPLEMENTING** pending buff replacement/release/expiry, base
+death/rewards/loot/dead AI and the numeric-ID party echo. Populated actor and
+non-fresh Regen guards remain. No new migration;044–083 and existing grants/
+publishers remain written/unexecuted, next084. Full Phase A remains incomplete.
+[Current scope and handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-vitals-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): source FOLLOW now reads the actual
 accepted host XYZ and publishes source MONACTION before skill reselection.
 Conditional normal-monster MONMOVE connects real dispatch, cells/events, chase
 range and final batch capture to the existing Asio publisher.

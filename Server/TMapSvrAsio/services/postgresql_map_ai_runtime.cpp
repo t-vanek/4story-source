@@ -59,11 +59,12 @@ NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::u
 void PostgreSQLMapService::StageNativeCellNotices(NativeCellNotices notices) {
     // Called during boot or while m_monster_ai_mutex is already held. Keep
     // source ADD/DEL order; overflow is an execution failure, never truncation.
-    constexpr std::size_t max_notices=65536,max_bytes=64*1024*1024;
+    constexpr std::size_t max_notices=NativeCellNoticeLimit,max_bytes=64*1024*1024;
     if(notices.size()>max_notices-m_native_cell_notices.size())throw std::runtime_error("Native cell publication count limit");
     auto bytes=m_native_cell_notice_bytes;
     for(const auto& notice:notices) {
         const std::size_t body=notice.monster?notice.monster->WireSize():
+            notice.kind==NativeCellNoticeKind::MonsterTransformation?84:notice.kind==NativeCellNoticeKind::MonsterVitals?21:
             notice.monster_moves?2+24*notice.monster_moves->size():notice.kind==NativeCellNoticeKind::MonsterAction?22:
             notice.kind==NativeCellNoticeKind::MonsterAttack?12:notice.kind==NativeCellNoticeKind::MonsterSkill?8:notice.kind==NativeCellNoticeKind::MonsterMode?6:
             notice.kind==NativeCellNoticeKind::MonsterColor?7:notice.kind==NativeCellNoticeKind::MonsterMove?26:5;

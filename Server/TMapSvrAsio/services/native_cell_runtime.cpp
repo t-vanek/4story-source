@@ -51,9 +51,26 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
            notice.kind==NativeCellNoticeKind::MonsterHost||notice.kind==NativeCellNoticeKind::MonsterSkill||
            notice.kind==NativeCellNoticeKind::MonsterMode||notice.kind==NativeCellNoticeKind::MonsterColor||
            notice.kind==NativeCellNoticeKind::MonsterMove||notice.kind==NativeCellNoticeKind::MonsterAttack||
-           notice.kind==NativeCellNoticeKind::MonsterAction) {
+           notice.kind==NativeCellNoticeKind::MonsterAction||notice.kind==NativeCellNoticeKind::MonsterVitals||
+           notice.kind==NativeCellNoticeKind::MonsterTransformation) {
             if(!notice.monster_generation)throw std::runtime_error("Native monster visibility has no source lifetime");
-            if(notice.kind==NativeCellNoticeKind::AddMonster) {
+            if(notice.kind==NativeCellNoticeKind::MonsterVitals) {
+                if(!notice.vitals)throw std::runtime_error("Native monster HPMP has no captured source bars");
+                // Original SendCS_HPMP_ACK also echoes party stats on numeric
+                // ID equality, without checking object type. Do not silently
+                // drop that World dependency if the two ID namespaces collide.
+                if(notice.monster_id==notice.recipient.char_id) {
+                    const auto observer=ctx.char_state->Get(notice.recipient.char_id);
+                    if(!observer||!observer->cluster.hydrated)
+                        throw std::runtime_error("Native monster HPMP ID collision has no actual party projection");
+                    if(observer->cluster.party_type!=1&&observer->cluster.party)
+                        throw std::runtime_error("Native monster HPMP numeric-ID party echo requires original World publication ordering");
+                }
+                opcode=MessageId::CS_HPMP_ACK;packet=EncodeNativeMonsterVitals(notice.monster_id,*notice.vitals);
+            } else if(notice.kind==NativeCellNoticeKind::MonsterTransformation) {
+                if(!notice.transformation)throw std::runtime_error("Native monster transformation has no captured source reply");
+                opcode=MessageId::CS_DEFEND_ACK;packet=EncodeNativeMonsterTransformation(notice.monster_id,*notice.transformation);
+            } else if(notice.kind==NativeCellNoticeKind::AddMonster) {
                 const auto observer=ctx.char_state->Get(notice.recipient.char_id);
                 if(!observer){recipient->Close();continue;}
                 if(!notice.monster||notice.monster->id!=notice.monster_id||notice.monster->generation!=notice.monster_generation)

@@ -54,7 +54,8 @@ void PostgreSQLMapService::LoadNativeMonsterSkills(soci::session& sql) {
     {soci::rowset<soci::row> rows=(sql.prepare<<
         "SELECT \"wID\",\"wMinRange\",\"wMaxRange\",\"wPrevActiveID\",\"dwReuseDelay\","
         "\"dwUseHP\",\"bUseHPType\",\"dwUseMP\",\"bUseMPType\",\"bLevel\",\"bNextLevel\","
-        "\"nReuseDelayInc\",\"dwKindDelay\",\"bKind\",\"bSpeedApply\",\"bTargetRange\" "
+        "\"nReuseDelayInc\",\"dwKindDelay\",\"bKind\",\"bSpeedApply\",\"bTargetRange\","
+        "\"dwDuration\",\"dwDurationInc\",\"wPosture\",\"bPositive\",\"bStatic\" "
         "FROM monster_compat.\"TSKILLCHART\" WHERE world_id=:w AND server_id=:s",
         soci::use(world,"w"),soci::use(server,"s"));
      for(const auto& r:rows) {
@@ -65,6 +66,9 @@ void PostgreSQLMapService::LoadNativeMonsterSkills(soci::session& sql) {
         t.bStartLevel=Byte(r,"bLevel");t.bNextLevel=Byte(r,"bNextLevel");t.f1stRateX=rate;
         t.nReuseDelayInc=std::bit_cast<std::int32_t>(Dword(r,"nReuseDelayInc"));t.dwKindDelay=Dword(r,"dwKindDelay");
         t.bKind=Byte(r,"bKind");t.bSpeedApply=Byte(r,"bSpeedApply");t.bTargetRange=Byte(r,"bTargetRange");
+        const NativeMonsterMaintainTemplate maintain{Dword(r,"dwDuration"),Dword(r,"dwDurationInc"),
+            Word(r,"wPosture"),Byte(r,"bPositive"),Byte(r,"bStatic")};
+        if(!c.maintain_templates.emplace(t.wID,maintain).second)throw std::runtime_error("Duplicate source monster maintain template");
         if(!c.skills.emplace(t.wID,std::move(t)).second)throw std::runtime_error("Duplicate source monster skill template");
      }}
     const auto stats=[&](const char* query,const char* key,auto& target) {

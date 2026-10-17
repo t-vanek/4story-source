@@ -1,21 +1,10 @@
 #include "native_monster_ai.h"
 #include "native_monster_skills.h"
-#include <algorithm>
-#include <bit>
 #include <cmath>
 #include <numbers>
 #include <utility>
 
 namespace tmapsvr {
-namespace {
-std::uint32_t FreshMaximum(std::uint32_t raw) {
-    // Even with no effects, CalcAbilityValue casts DWORD to Win32 int and
-    // clamps negatives to0. GetMaxHP/MP then turns0 into1. Preserve the bits
-    // explicitly, including raw values with the sign bit set.
-    const auto signed_value=std::bit_cast<std::int32_t>(raw);
-    return static_cast<std::uint32_t>(std::max(signed_value,std::int32_t{1}));
-}
-}
 NativeMonsterAiExecutor::NativeMonsterAiExecutor(const NativeMonsterCatalog& catalog,const NativeMonsterAiCatalog& ai,
     const BattleRegions& regions,EnterMap enter,LeaveMap leave,Publish publish,FindPlayer find_player,ReadPlayerCountry player_country,ReadPlayerPose player_pose,MoveMap move,
     Schedule schedule,Cancel cancel,Draw draw,std::uint32_t tick)
@@ -73,11 +62,14 @@ bool NativeMonsterAiExecutor::CanRun(const NativeMonsterMap& map,const NativeAiC
         if(slot.status!=1||slot.mode!=1||slot.host!=args.event_host||!slot.target||
            m_catalog.spawns.at(slot.spawn).bRoamType==4||!CheckAttack(slot))return false;
         break; // ordinary FOLLOW, before original base conditions
+    case 10:
+        if(slot.status!=1||slot.host!=args.event_host)return false;
+        break; // REFILL has no mode or attack eligibility predicate
     case 12:return true; // REMOVE bypasses even base conditions
     case 1:case 14: // LEAVE/LOTTERY: first source predicate is DEAD
         if(slot.status!=3)return false;
         throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"dead-object AI/loot lifecycle");
-    case 9:case 10:case 11:case 13:
+    case 9:case 11:case 13:
         // The source first tests WAKEUP in every one of these commands. No
         // actor is admitted in this bounded executor; no-host SetHost never wakes.
         if(slot.status!=1)return false;
@@ -187,6 +179,7 @@ bool NativeMonsterAiExecutor::Execute(NativeMonsterMap& map,std::uint32_t id,con
     if(kind==4)return ChangeHost(map,id,binding,args);
     if(kind==6||kind==7)return Attack(map,id,binding,args,kind==6);
     if(kind==8)return Follow(map,id,binding,args);
+    if(kind==10)return Refill(map,id,binding,args);
     if(kind==5) {
         switch(slot.mode) {
         case 0:slot.mode=1;break;
@@ -297,9 +290,8 @@ bool NativeMonsterAiExecutor::Regen(NativeMonsterMap& map,std::uint32_t id,const
             slot->country=local->second.country;
     }
     slot->next_skill.reset();ResetHost(map,slot->id);
-    const auto& attributes=m_catalog.attributes.at(*slot->attribute);
-    slot->max_hp=slot->hp=FreshMaximum(attributes.hp);
-    slot->max_mp=slot->mp=FreshMaximum(attributes.mp);
+    slot->max_hp=slot->hp=NativeMonsterMaximum(m_catalog,*slot,true);
+    slot->max_mp=slot->mp=NativeMonsterMaximum(m_catalog,*slot,false);
     slot->maxima_ready=true;
     // No source maintained effects/items/host exist in this fresh scope.
     const auto target=slot->id;

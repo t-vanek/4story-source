@@ -51,8 +51,7 @@ bool NativeMonsterCanUseSkillNow(const NativeMonsterCatalog& c,const NativeMonst
     const auto& state=found->second;const auto& t=c.skills.at(id);
     if(!slot.attack_wait_tick)throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"observed attack-wait tick for skill selection");
     const std::uint32_t at=tick+*slot.attack_wait_tick;
-    const std::uint32_t elapsed=at-state.use_tick;
-    if(state.use_tick&&elapsed<state.delay_tick)return false;
+    if(NativeMonsterSkillRemaining(state,at))return false;
     // The original switch's unknown resource type returns0, just like type0.
     const auto cost=[&](std::uint8_t type,std::uint32_t use,std::uint32_t maximum) {
         return type>2?0U:skill_engine::RequiredResource(t,type,use,maximum,state.level);

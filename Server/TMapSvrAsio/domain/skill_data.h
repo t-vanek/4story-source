@@ -75,7 +75,7 @@ enum SkillCureType : std::uint8_t
 // Source NetCode.h status/AI/transform values consumed by CheckAttack and
 // HaveDisguiseBuff/GetCountry. Other source entries are retained as raw bytes.
 enum SkillStatusType : std::uint8_t {
-    SDT_STATUS_BLOCK=3, SDT_STATUS_HOLD=8, SDT_STATUS_FLASH=12,
+    SDT_STATUS_SILENCE=2, SDT_STATUS_BLOCK=3, SDT_STATUS_HOLD=8, SDT_STATUS_FLASH=12, SDT_STATUS_MAGIC=13,
     SDT_STATUS_DARK=45, SDT_STATUS_HYPNOSIS=53,
 };
 enum SkillAiType : std::uint8_t { SDT_RUNAWAY=1 };

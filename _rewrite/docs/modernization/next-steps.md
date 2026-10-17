@@ -11,7 +11,25 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-17), baseline `504511b`: ordinary source
+Local Phase A continuation (2026-10-17), baseline `53a8805`: original BEGINATK
+and ATTACK now dispatch concrete source eligibility, silence, reuse, target,
+selection and completion behavior through the existing native AI executor.
+Actual082 scalar metadata and083 ordered vectors feed source speed formulas,
+instance/buff/cure/remain calculations and actual own-skill/same-kind DWORD clocks.
+Captured12-byte host-only MONATTACK reaches the existing bounded outbox and Asio
+publisher. Conditional commands/calculations are **IMPLEMENTED_UNVERIFIED**;
+metadata and packet connections are **INTEGRATED_UNVERIFIED** within actor
+isolation. The stock client next sends monster SKILLUSE; that request/Defend/
+effect/damage chain, host movement and full hosting remain incomplete. Constructor
+empty remain/null instance are explicit; their full mutation producers are still
+missing. All populated admission/Initialize/ACK and fresh maxima guards remain.
+No new migration/grant/publisher;044–083 and existing grants/publishers remain
+written/unexecuted, next084. No build/test/SQL/import/runtime/push/deployment ran.
+Inventory339 IDs/13 columns and DB map78 rows/6 columns are navigation counts.
+Full Phase A remains **IMPLEMENTING**.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-attack-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `504511b`: ordinary source
 skill availability now also reaches real native player load/full-graph receive,
 trainer lists/learning, quest skill grants, ITEMUSE/ACT and automatic postures.
 One shared immutable surviving-template/query snapshot preserves explicit empty
@@ -193,14 +211,15 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: implement source BeginAtk/CanSilenceAttack/
-SkillUse and host attack/movement using ordered083 metadata, the surviving source
-skill set and current source clocks. Player availability and its initial
-checkpoint/transfer normalization are integrated but unverified; retain the
-missing-template versus present-empty distinction in further producers.
+Immediate implementation dependency: port ordinary FOLLOW and host MONMOVE
+using actual accepted host pose/lifetime, source cells and event order. Then
+connect the stock client's OT_MON SKILLUSE/LOOP/FINISH/DEFEND flow with real
+target/resource/effect/aggro producers; MONATTACK output alone does not complete
+that client cycle. BEGINATK/ATTACK, silence and cooldown/timing paths are written
+and connected conditionally but unverified. Retain their distinct source gates,
+selection/key semantics and all actor coexistence barriers.
 Monster maintained-effect creation/removal/stat recomputation, replica buff/expiry
-producers and combat
-SetAggro with actual damage/heal/skill inputs remain required. PC Enter/Leave/
+producers and combat SetAggro with actual damage/heal/skill inputs remain required. PC Enter/Leave/
 channel/MoveGhost must retain event order and real MONITEMLIST/TAKE lock lifetimes.
 Non-PC/transform/death/loot, non-fresh Regen, dynamic/battle/quest/party-instance
 lifetimes, MOVE stand-hide and position quests stay open. Keep all latched actor

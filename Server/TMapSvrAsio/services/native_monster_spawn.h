@@ -52,7 +52,7 @@ struct NativeMonsterCatalog {
     std::int64_t run_id{};
 };
 
-// Owned source learned object; live Use producers remain a separate contract.
+// Owned source learned object; source AI SkillUse updates these DWORD clocks.
 struct NativeMonsterSkill {
     std::uint8_t level{1};
     std::uint32_t use_tick{},delay_tick{}; // CTSkill constructor, original DWORD reuse clocks
@@ -62,9 +62,9 @@ struct NativeMonsterAggro {
     std::uint32_t object{},host{},value{}; // source TAGGRO, actual mutation producers remain separate
 };
 // Owned source allocation/bootstrap state. A missing template is anonymous,
-// never template0. Bootstrap cell membership is not an admitted live actor or
-// prototype registry entry. The empty inventory/effects/aggro context is enforced by
-// NativeMonsterAiExecutor, which cannot be called for an admitted game actor.
+// never template0. Bootstrap cell membership is not another prototype registry.
+// Populated actor admission remains barred until the complete source gameplay
+// producer/consumer chain exists; conditional AI reads use these owned fields.
 struct NativeMonsterSlot {
     std::uint64_t generation{}; // process-local lifetime, independent of reused source DWORD ID
     std::uint32_t id{},region{};
@@ -81,6 +81,11 @@ struct NativeMonsterSlot {
     std::uint32_t max_hp{},max_mp{},money{};
     bool maxima_ready{}; // actual derived-maxima producer, never missing object -> zero bars
     std::vector<NativeMonsterMaintain> maintained; // CTSkill vector order and raw DWORD clocks
+    // CTObjBase constructor establishes actual empty remain vector/null
+    // instance. These are distinct from learned skills (InitMonster adds no
+    // remain membership). Full Defend/PerformSkill producers remain unported.
+    std::vector<NativeMonsterMaintain> remaining;
+    std::optional<NativeMonsterMaintain> instance_skill;
     std::optional<std::uint32_t> last_attack_tick,attack_wait_tick;
     std::uint32_t recover_hp_tick{},recover_mp_tick{}; // CTObjBase constructor0; ChgMode battle tick+5000
     std::map<std::int64_t,NativeMonsterAggro> aggro;

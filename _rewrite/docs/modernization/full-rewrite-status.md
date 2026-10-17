@@ -13,7 +13,25 @@ Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside G
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–083 are **written, not applied**; next084.
 
-Local Phase A continuation (2026-10-17), baseline `504511b`: ordinary source
+Local Phase A continuation (2026-10-17), baseline `53a8805`: original BEGINATK
+and ATTACK now dispatch concrete source eligibility, silence, reuse, target,
+selection and completion behavior through the existing native AI executor.
+Actual082 scalar metadata and083 ordered vectors feed source speed formulas,
+instance/buff/cure/remain calculations and actual own-skill/same-kind DWORD clocks.
+Captured12-byte host-only MONATTACK reaches the existing bounded outbox and Asio
+publisher. Conditional commands/calculations are **IMPLEMENTED_UNVERIFIED**;
+metadata and packet connections are **INTEGRATED_UNVERIFIED** within actor
+isolation. The stock client next sends monster SKILLUSE; that request/Defend/
+effect/damage chain, host movement and full hosting remain incomplete. Constructor
+empty remain/null instance are explicit; their full mutation producers are still
+missing. All populated admission/Initialize/ACK and fresh maxima guards remain.
+No new migration/grant/publisher;044–083 and existing grants/publishers remain
+written/unexecuted, next084. No build/test/SQL/import/runtime/push/deployment ran.
+Inventory339 IDs/13 columns and DB map78 rows/6 columns are navigation counts.
+Full Phase A remains **IMPLEMENTING**.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-attack-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `504511b`: ordinary source
 skill availability now also reaches real native player load/full-graph receive,
 trainer lists/learning, quest skill grants, ITEMUSE/ACT and automatic postures.
 One shared immutable surviving-template/query snapshot preserves explicit empty
@@ -1297,12 +1315,13 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Exact continuation / implementation gate
 
-The next dependency from the native skill inventory is source BeginAtk/
-CanSilenceAttack/SkillUse, followed by actual host attack/movement. Reuse083
-ordered rows and current source clocks; complete maintained-state/stat producers,
-replica mutation/expiry, combat SetAggro and PC/loot-lock consumers before actor
-coexistence. Keep admission/Initialize/ACK barriers. Player availability is now
-integrated unverified; it does not complete these remaining gameplay paths.
+The next dependency is ordinary FOLLOW and host MONMOVE with actual accepted
+host pose/lifetime and source event order, followed by the stock client's OT_MON
+SKILLUSE/LOOP/FINISH/DEFEND chain. BEGINATK/ATTACK, silence and source reuse/timing
+are implemented conditionally and connected, unverified. Complete real target/
+resource/effect/aggro producers, effect-aware maxima, maintained/remain/instance
+and replica mutation/expiry plus PC/loot-lock consumers before actor coexistence.
+Keep admission/Initialize/ACK barriers; a MONATTACK packet is not full combat.
 
 1. Continue the source-dependent progression/item contracts:
    TMonster::OnDie party and owner IsExpBenefit multiplication; account
@@ -1358,7 +1377,15 @@ integrated unverified; it does not complete these remaining gameplay paths.
 
 ## Activities actually performed
 
-Latest local work based on `504511b`: original player FindTSkill load/receive,
+Latest local work based on `53a8805`: original BeginAtk/Attack/CanSilenceAttack,
+SkillUse/CanUse/reuse/CalcAbilityValue and speed formulas; real boot metadata,
+owned clocks and source instance/remain distinctions; immutable MONATTACK wire,
+client expectation and current unsupported request boundary; CMake/source/
+interface/diff/inventory inspection only. Backup SHA256 and source revision
+re-read. No executable verification;
+[current attack evidence](evidence/phase-a-map-monster-attack-20261017/README.md).
+
+Previous local work based on `504511b`: original player FindTSkill load/receive,
 trainer/quest/item/ACT/posture and ordered skill/buff/stat predicates; immutable
 metadata lifetime, raw admission baseline, owner/account/claim-fenced initial
 normalization, graph Capture/recovery, runtime DELETE grant and actual CMake/

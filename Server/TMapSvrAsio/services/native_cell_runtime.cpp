@@ -45,7 +45,7 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
         if(notice.kind==NativeCellNoticeKind::AddMonster||notice.kind==NativeCellNoticeKind::DeleteMonster||
            notice.kind==NativeCellNoticeKind::MonsterHost||notice.kind==NativeCellNoticeKind::MonsterSkill||
            notice.kind==NativeCellNoticeKind::MonsterMode||notice.kind==NativeCellNoticeKind::MonsterColor||
-           notice.kind==NativeCellNoticeKind::MonsterMove) {
+           notice.kind==NativeCellNoticeKind::MonsterMove||notice.kind==NativeCellNoticeKind::MonsterAttack) {
             if(!notice.monster_generation)throw std::runtime_error("Native monster visibility has no source lifetime");
             if(notice.kind==NativeCellNoticeKind::AddMonster) {
                 const auto observer=ctx.char_state->Get(notice.recipient.char_id);
@@ -60,6 +60,9 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
                 packet=EncodeNativeAddMonAck(*notice.monster,source_observer,notice.flag);
             } else if(notice.kind==NativeCellNoticeKind::DeleteMonster) {
                 opcode=MessageId::CS_DELMON_ACK;packet=EncodeDelMonAck(notice.monster_id,notice.flag?1:0);
+            } else if(notice.kind==NativeCellNoticeKind::MonsterAttack) {
+                if(!notice.attack)throw std::runtime_error("Native MONATTACK has no captured source fields");
+                opcode=MessageId::CS_MONATTACK_ACK;packet=EncodeNativeMonAttackAck(notice.monster_id,*notice.attack);
             } else if(notice.kind==NativeCellNoticeKind::MonsterMode) {
                 opcode=MessageId::CS_CHGMODE_ACK;wire::WritePOD(packet,notice.monster_id);
                 wire::WritePOD<std::uint8_t>(packet,2);wire::WritePOD(packet,notice.mode);

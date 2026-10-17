@@ -59,7 +59,7 @@ private:
     struct Arguments {std::uint32_t event_host{},real_host{};std::uint8_t real_type{};};
     const std::vector<NativeAiBinding>* Bindings(const NativeMonsterSlot&,std::uint8_t,std::uint32_t) const;
     bool Conditions(const NativeAiCommand&,const NativeMonsterSlot&);
-    bool CanRun(const NativeAiCommand&,const NativeMonsterSlot&,Arguments);
+    bool CanRun(const NativeMonsterMap&,const NativeAiCommand&,const NativeMonsterSlot&,Arguments);
     std::uint32_t Delay(const NativeAiBinding&,const NativeMonsterSlot&);
     bool Execute(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
     bool Complete(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
@@ -71,6 +71,7 @@ private:
     bool LeaveAggro(NativeMonsterMap&,std::uint32_t,Arguments);
     void SetEventToFollower(NativeMonsterMap&,std::uint32_t);
     bool ChangeHost(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
+    bool Attack(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments,bool begin);
     bool CheckAttack(const NativeMonsterSlot&) const;
     void ResolveTemplate(NativeMonsterSlot&,const NativeMonsterAllocationTemplate&);
     std::uint32_t Random();

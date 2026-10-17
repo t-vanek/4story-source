@@ -5,13 +5,11 @@
 #include <stdexcept>
 
 namespace tmapsvr {
-namespace {
-const std::vector<SkillDataRow>& Data(const NativeMonsterCatalog& catalog,std::uint16_t skill) {
-    if(!catalog.skills.contains(skill))throw std::runtime_error("Native maintained skill template absent or source-removed");
+const std::vector<SkillDataRow>& NativeMonsterSkillData(const NativeMonsterCatalog& catalog,std::uint16_t skill) {
+    if(!catalog.skills.contains(skill))throw std::runtime_error("Native skill template absent or source-removed");
     const auto data=catalog.skill_data.find(skill);
-    if(data==catalog.skill_data.end())throw std::runtime_error("Native maintained skill has no proven data query");
+    if(data==catalog.skill_data.end())throw std::runtime_error("Native skill has no proven data query");
     return data->second; // present-empty query is distinct from missing template/query authority
-}
 }
 bool NativePlayerSkillAvailable(const CharacterPayload& p,std::uint16_t skill) {
     if(!p.source_skill_data)throw std::runtime_error("Native player source skill catalog was not observed");
@@ -29,7 +27,7 @@ bool FilterNativePlayerSkills(CharacterPayload& p) {
 }
 bool NativeMonsterAttackAllowed(const NativeMonsterCatalog& catalog,const NativeMonsterSlot& slot) {
     if(slot.getaway||!slot.can_attack)return false;
-    for(const auto& effect:slot.maintained)for(const auto& data:Data(catalog,effect.skill)) {
+    for(const auto& effect:slot.maintained)for(const auto& data:NativeMonsterSkillData(catalog,effect.skill)) {
         // TObjBase::CheckAttack for OT_MON. It reads EVERY data row, without
         // action, rank, remaining-duration, or effect-start filtering.
         if(data.bType==SDT_STATUS&&(data.bExec==SDT_STATUS_BLOCK||data.bExec==SDT_STATUS_HOLD||
@@ -39,7 +37,7 @@ bool NativeMonsterAttackAllowed(const NativeMonsterCatalog& catalog,const Native
     return true;
 }
 std::uint8_t NativeHaveDisguiseBuff(const NativeMonsterCatalog& catalog,std::span<const MaintainedEffect> effects) {
-    for(const auto& effect:effects)for(const auto& data:Data(catalog,effect.skill))
+    for(const auto& effect:effects)for(const auto& data:NativeMonsterSkillData(catalog,effect.skill))
         if(data.bType==SDT_TRANS&&(data.bExec==SDT_TRANS_DISGUISE_D||data.bExec==SDT_TRANS_DISGUISE_C||data.bExec==SDT_TRANS_DISGUISE_B))
             return data.bExec; // first actual maintained/data-vector match, not numeric executor order
     return 0;

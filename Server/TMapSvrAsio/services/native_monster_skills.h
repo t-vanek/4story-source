@@ -5,6 +5,10 @@ namespace tmapsvr {
 bool NativeMonsterCheckPrevAct(const NativeMonsterSlot&,std::uint16_t active);
 std::uint32_t NativeMonsterPureMaximum(const NativeMonsterCatalog&,const NativeMonsterSlot&,FormulaType);
 bool NativeMonsterCanUseSkillNow(const NativeMonsterCatalog&,const NativeMonsterSlot&,std::uint16_t,std::uint32_t tick);
+std::uint32_t NativeMonsterSkillRemaining(const NativeMonsterSkill&,std::uint32_t tick);
+bool NativeMonsterCanSilenceAttack(const NativeMonsterCatalog&,const NativeMonsterSlot&,std::uint16_t);
+SkillAttackTiming NativeMonsterAttackTiming(const NativeMonsterCatalog&,const NativeMonsterSlot&,std::uint8_t speed);
+void UseNativeMonsterSkill(const NativeMonsterCatalog&,NativeMonsterSlot&,std::uint16_t,std::uint32_t tick);
 float NativeMonsterTargetDistance(const NativeMonsterMap&,const NativeMonsterSlot&);
 // Null host is the source no-op, distinct from a real host with no chosen skill.
 // Absence of a chosen skill emits no substitute MONSETSKILL packet.

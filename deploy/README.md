@@ -1,11 +1,13 @@
-> Current Phase A: native player skill availability now shares the083 boot
-> snapshot. `sql/map-player-skill-runtime-grants.sql` adds operational
-> TSKILLTABLE DELETE for owner/account/loaded-claim-fenced initial normalization;
-> native startup requires this grant in addition to existing083 SELECT grants.
-> Written only, unexecuted. No new schema migration;044–083 remain unapplied,
-> next084. Actor barriers remain; full effects/hosting and Phase A are incomplete.
-> No build/test/SQL/runtime/deployment or Phase B/C execution.
-> [Scope and handoff](../_rewrite/docs/modernization/evidence/phase-a-native-skill-state-20261017/README.md).
+> Current Phase A: source BEGINATK/ATTACK and source skill timing/clocks now
+> connect through existing native metadata, AI and bounded MONATTACK publication.
+> Client monster skill/Defend, effect producers and full hosting remain open;
+> all populated actor admission/Initialize/ACK guards stay. No new migration,
+> grants or publisher;044–083 and existing grants/publishers remain unexecuted,
+> next084. No build/test/SQL/runtime/deployment or Phase B/C execution.
+> [Scope and handoff](../_rewrite/docs/modernization/evidence/phase-a-map-monster-attack-20261017/README.md).
+>
+> Player availability still requires `sql/map-player-skill-runtime-grants.sql`
+> in addition to the existing083 SELECT grants when Phase B is authorized.
 
 > Previous Phase A: source aggro/CHGHOST/follower/mode work is connected to the
 > existing native executor/outbox and current player snapshots. Admission and

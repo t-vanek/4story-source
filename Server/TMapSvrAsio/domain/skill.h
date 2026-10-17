@@ -79,6 +79,7 @@ struct SkillTemplate
     std::uint32_t action_time{}; // source dwActionTime, milliseconds
     bool action_supported{}; // no unported recall/trap action side effects
     std::uint16_t wMinRange{},wMaxRange{}; // source SelectSkill range, not a radius guess
+    std::uint8_t bTargetRange{}; // source monster attack targets itself when nonzero
 };
 
 struct SkillAttackTiming {

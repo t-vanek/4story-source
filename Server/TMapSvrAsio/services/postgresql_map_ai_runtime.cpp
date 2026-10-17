@@ -59,7 +59,7 @@ void PostgreSQLMapService::StageNativeCellNotices(NativeCellNotices notices) {
     auto bytes=m_native_cell_notice_bytes;
     for(const auto& notice:notices) {
         const std::size_t body=notice.monster?notice.monster->WireSize():
-            notice.kind==NativeCellNoticeKind::MonsterSkill?8:notice.kind==NativeCellNoticeKind::MonsterMode?6:
+            notice.kind==NativeCellNoticeKind::MonsterAttack?12:notice.kind==NativeCellNoticeKind::MonsterSkill?8:notice.kind==NativeCellNoticeKind::MonsterMode?6:
             notice.kind==NativeCellNoticeKind::MonsterColor?7:notice.kind==NativeCellNoticeKind::MonsterMove?26:5;
         const auto charge=sizeof(NativeCellNotice)+body;
         if(charge>max_bytes-bytes)throw std::runtime_error("Native cell publication byte limit");

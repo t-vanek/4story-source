@@ -28,15 +28,14 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): native player load/transfer, trainer,
-quest skill grants, ITEMUSE/ACT and automatic postures share the source skill
-availability and exact083 query order. Initial Ready now normalizes source-absent
-operational skill/effect rows atomically with its checkpoint, preserving drift
-and recovery fences. **INTEGRATED_UNVERIFIED** within existing supported player
-scope; full effects/combat/hosting remain open and populated actor guards stay.
-No new schema migration; additional player DELETE grants written/unexecuted.
-044–083 remain unapplied, next084. Full Phase A remains incomplete.
-[Current scope and handoff](_rewrite/docs/modernization/evidence/phase-a-native-skill-state-20261017/README.md).
+Current Phase A continuation (2026-10-17): source BEGINATK/ATTACK, silence and
+real skill cooldown/timing calculations are connected to the existing native AI
+executor and captured MONATTACK publication. **IMPLEMENTED_UNVERIFIED /
+INTEGRATED_UNVERIFIED** within actor isolation. Client monster skill/Defend,
+effects, host movement and full combat remain open; populated actor guards stay.
+No new migration/grant;044–083 and existing grants/publishers are unexecuted,
+next084. Full Phase A remains incomplete.
+[Current scope and handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-attack-20261017/README.md).
 
 Previous Phase A continuation (2026-10-17): source CHGHOST, owned aggro/target
 state, LeaveAggro and leader/party follower events are connected to the existing

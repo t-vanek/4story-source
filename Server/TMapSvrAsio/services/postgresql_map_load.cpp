@@ -230,7 +230,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.wID=skill.wSkillID;definition.dwReuseDelay=U32(chart,"dwReuseDelay");
         definition.nReuseDelayInc=std::bit_cast<std::int32_t>(U32(chart,"nReuseDelayInc"));
         definition.dwKindDelay=U32(chart,"dwKindDelay");definition.bKind=U8(chart,"bKind");
-        definition.bSpeedApply=U8(chart,"bSpeedApply");
+        definition.bSpeedApply=U8(chart,"bSpeedApply");definition.bTargetRange=U8(chart,"bTargetRange");
         definition.dwLoopDelay=U32(chart,"dwLoopDelay");
         definition.action_time=U32(chart,"dwActionTime");definition.action_supported=true;
         definition.wTargetActiveID=U16(chart,"wTargetActiveID");

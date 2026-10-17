@@ -46,7 +46,7 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
        u8("bTargetRange")||u8("bIsDismount")||row.get_indicator("bRepeatCount")==soci::i_null||u8("bRepeatCount"))
         throw std::runtime_error("Action item requires unsupported source skill/actor semantics");
     SkillTemplate out;out.wID=skill;out.wUseItem=u16("wItemID");out.wMapID=u16("wMapID");
-    out.wPrevActiveID=u16("wPrevActiveID");out.bKind=21;
+    out.wPrevActiveID=u16("wPrevActiveID");out.bKind=21;out.bTargetRange=u8("bTargetRange");
     SkillAttackProfile power;const auto& stats=*s.payload->statistics;
     power.level=s.bLevel;power.aftermath=s.bAftermath;power.rank=0;power.critical=0;
     const auto trigger=u16("wTriggerID");

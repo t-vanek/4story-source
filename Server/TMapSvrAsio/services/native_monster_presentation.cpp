@@ -4,6 +4,12 @@
 #include <stdexcept>
 
 namespace tmapsvr {
+std::vector<std::byte> EncodeNativeMonAttackAck(std::uint32_t monster,const NativeMonsterAttack& attack) {
+    std::vector<std::byte> out;out.reserve(12);
+    wire::WritePOD(out,monster);wire::WritePOD(out,attack.target);
+    wire::WritePOD<std::uint8_t>(out,2);wire::WritePOD(out,attack.target_type);wire::WritePOD(out,attack.skill);
+    return out;
+}
 NativeMonsterColorState ProjectNativeMonsterColor(const NativeMonsterSlot& slot,const NativeMonsterCatalog& catalog,
                                                   const NativeMonsterAiCatalog& ai) {
     NativeMonsterColorState out{slot.keeper,slot.mode,slot.country,slot.aid_country,slot.keeper_type,{}};
@@ -19,7 +25,7 @@ NativeMonsterAppearance ProjectNativeMonsterAppearance(const NativeMonsterSlot& 
         throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"real monster template and derived current maxima for ADDMON");
     // The current derived-maxima producer is fresh empty-state Regen. Effects
     // must not be projected with old unmodified maxima just because they exist.
-    if(!slot.maintained.empty())
+    if(!slot.maintained.empty()||!slot.remaining.empty()||slot.instance_skill)
         throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"effect-aware monster GetMaxHP/GetMaxMP producer");
     const auto& monster=catalog.monsters.at(*slot.monster);
     NativeMonsterAppearance out;

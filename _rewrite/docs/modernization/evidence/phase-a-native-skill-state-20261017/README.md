@@ -1,5 +1,9 @@
 # Ordered skill state, attack eligibility and disguise — Phase A, unverified
 
+Continuation after `53a8805`: source monster attack command/timing work and the
+current handoff are recorded in [the attack evidence](../phase-a-map-monster-attack-20261017/README.md).
+This file retains the preceding player availability and ordered-state scope.
+
 Baseline `504511b`, local `main`, 2026-10-17, continuing the ordered skill-state
 work introduced from `5e835e3`. Native player load/full-graph receive, trainer,
 quest grants, item/ACT and automatic postures now share ordinary source skill

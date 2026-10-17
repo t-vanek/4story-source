@@ -1,6 +1,24 @@
 # Modern server implementation status
 
-Local Phase A continuation (2026-10-17), baseline `504511b`: ordinary source
+Local Phase A continuation (2026-10-17), baseline `53a8805`: original BEGINATK
+and ATTACK now dispatch concrete source eligibility, silence, reuse, target,
+selection and completion behavior through the existing native AI executor.
+Actual082 scalar metadata and083 ordered vectors feed source speed formulas,
+instance/buff/cure/remain calculations and actual own-skill/same-kind DWORD clocks.
+Captured12-byte host-only MONATTACK reaches the existing bounded outbox and Asio
+publisher. Conditional commands/calculations are **IMPLEMENTED_UNVERIFIED**;
+metadata and packet connections are **INTEGRATED_UNVERIFIED** within actor
+isolation. The stock client next sends monster SKILLUSE; that request/Defend/
+effect/damage chain, host movement and full hosting remain incomplete. Constructor
+empty remain/null instance are explicit; their full mutation producers are still
+missing. All populated admission/Initialize/ACK and fresh maxima guards remain.
+No new migration/grant/publisher;044–083 and existing grants/publishers remain
+written/unexecuted, next084. No build/test/SQL/import/runtime/push/deployment ran.
+Inventory339 IDs/13 columns and DB map78 rows/6 columns are navigation counts.
+Full Phase A remains **IMPLEMENTING**.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-attack-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `504511b`: ordinary source
 skill availability now also reaches real native player load/full-graph receive,
 trainer lists/learning, quest skill grants, ITEMUSE/ACT and automatic postures.
 One shared immutable surviving-template/query snapshot preserves explicit empty

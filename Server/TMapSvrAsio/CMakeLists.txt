@@ -158,6 +158,8 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_monsters.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_monster_skills.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_monster_skills.cpp
+    ${TMAPSVR_ASIO_SRC}/services/native_monster_skill_use.cpp
+    ${TMAPSVR_ASIO_SRC}/services/native_monster_attack.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_monster_host.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_monster_aggro.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_skill_state.cpp

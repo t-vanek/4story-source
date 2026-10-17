@@ -3,10 +3,11 @@
 // 27-byte CS_MOVE_ACK to source GetNeighbor recipients. The development adapter
 // retains its older channel-wide presence path.
 //
-// Legacy parity: CSHandler.cpp:439 (OnCS_MOVE_REQ) +
-// CSSender.cpp:599 (SendCS_MOVE_ACK). The legacy speed-hack check
-// (fSpeed > 3.40) and ghost-mode branch are TODO — they need
-// additional source actor state. Native ghost requests are explicitly refused.
+// Source: CSHandler.cpp:439 (OnCS_MOVE_REQ), TPlayer::MoveGhost/CanHost
+// and CSSender.cpp:599 (SendCS_MOVE_ACK). Native PC-only movement includes
+// speed/operator, HP0 keys, ghost/body separation and local host eligibility.
+// Populated monster event/host consumers, hide erasure and position quests
+// remain incomplete; the native process admission barrier stays in force.
 
 #include "handlers.h"
 
@@ -14,7 +15,6 @@
 #include "services/char_state_store.h"
 #include "services/player_service.h"
 #include "services/native_cell_runtime.h"
-#include <cmath>
 #include "services/session_registry.h"
 #include "services/session_validator.h"
 #include "services/world_client.h"
@@ -27,8 +27,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <memory>
 #include <span>
+#include <stdexcept>
 #include <vector>
 
 namespace tmapsvr {
@@ -75,11 +77,8 @@ OnMoveReq(std::shared_ptr<tnetlib::AsioSession> sess,
     //   WORD  wPitch wDIR
     //   BYTE  bMouseDIR bKeyDIR bAction bGhost
     //   FLOAT fSpeed
-    // The legacy code also does speed-hack detection (fSpeed > 3.40)
-    // and ghost-mode handling — both are gameplay-policy work that
-    // wraps the simple broadcast in this phase; folding them in
-    // here would couple F7 to features the player-state service
-    // (F8) hasn't materialized yet. TODO once F8 lands.
+    // Native processing below uses the admitted map rather than the source's
+    // unused wMapID input. The development adapter retains its older path.
     wire::Reader r(body.data(), body.size());
     std::uint16_t wMapID    = 0;
     float fPosX = 0.f, fPosY = 0.f, fPosZ = 0.f;
@@ -124,57 +123,76 @@ OnMoveReq(std::shared_ptr<tnetlib::AsioSession> sess,
             dwCharID);
         co_return;
     }
-    // A MOVE cannot perform a world transfer; the selected map is authoritative.
-    if(entry->map_id!=wMapID)co_return;
     if(ctx.player_service&&ctx.player_service->HasNativeCellAuthority()) {
         const auto identity=ctx.session_reg->Identity(sess.get());
-        auto snapshot=ctx.char_state?ctx.char_state->Get(dwCharID):std::nullopt;
-        if(!identity||identity->phase!=SessionPhase::Ready||!snapshot)co_return;
-        // Ghost positions have a separate source lifecycle and are not normal
-        // actor coordinates. Refuse this unported branch instead of moving a corpse.
-        if(bGhost){sess->Close();co_return;}
-        const auto before=NativeCellAt(entry->pos.x,entry->pos.z),after=NativeCellAt(fPosX,fPosZ);
-        if(!before||!after){sess->Close();co_return;}
-        if(snapshot->dwHP==0){bMouseDIR=4;bKeyDIR=4;} // source TKDIR_N, not direction0
-        if(*before!=*after&&identity->role==MapSessionRole::Primary) {
+        if(!identity||identity->phase!=SessionPhase::Ready||!ctx.char_state)co_return;
+        const auto current_request=[&] {
+            const auto current=ctx.session_reg->Identity(sess.get());
+            return sess->IsOpen()&&current&&current->phase==SessionPhase::Ready&&
+                SameNativeCellPlayer(current->Claim(ctx.expected_group),identity->Claim(ctx.expected_group));
+        };
+        // Source reads wMapID but acts on m_pMAP. Never move maps from that
+        // client field; routing and membership use the actual admitted actor.
+        const auto map=entry->map_id;
+        if(fSpeed>3.40f) {
+            bool allowed=false;
+            try {
+                auto* players=ctx.player_service;
+                allowed=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
+                    [players,claim=identity->Claim(ctx.expected_group),fSpeed] {
+                        return players->AuthorizeNativeMovementSpeed(claim,fSpeed);
+                    });
+            } catch(...) {sess->Close();co_return;}
+            if(!current_request())co_return;
+            if(!allowed){sess->Close();co_return;}
+        }
+        NativePlayerMovePlan plan;
+        try {
+            const auto snapshot=ctx.char_state->Get(dwCharID);
+            if(!snapshot||snapshot->wMapID!=map)throw std::runtime_error("Native MOVE lost actual map state");
+            plan=ctx.player_service->PlanNativePlayerMove(identity->Claim(ctx.expected_group),*snapshot,
+                NativePlayerMoveInput{fPosX,fPosY,fPosZ,fSpeed,wPitch,wDIR,bMouseDIR,bKeyDIR,bAction,bGhost});
+        } catch(...) {sess->Close();co_return;}
+        const auto after=NativeCellAt(plan.x,plan.z);
+        if(!after){sess->Close();co_return;}
+        if(!plan.early_return&&plan.origin_cell!=*after&&identity->role==MapSessionRole::Primary) {
             if(!ctx.validator||!ctx.world_client){sess->Close();co_return;}
             std::optional<std::vector<std::uint8_t>> ids;
             try {
                 auto* validator=ctx.validator;
                 ids=co_await fourstory::db::CoOffloadIf(ctx.db_pool,
-                    [validator,claim=identity->Claim(ctx.expected_group),wMapID,fPosX,fPosZ] {
-                        return validator->MovementServers(claim,wMapID,fPosX,fPosZ);
+                    [validator,claim=identity->Claim(ctx.expected_group),map,x=plan.x,z=plan.z] {
+                        return validator->MovementServers(claim,map,x,z);
                     });
             } catch(...) {sess->Close();co_return;}
-            const auto current=ctx.session_reg->Identity(sess.get());
-            if(!sess->IsOpen()||!current||current->phase!=SessionPhase::Ready||
-               !SameNativeCellPlayer(current->Claim(ctx.expected_group),identity->Claim(ctx.expected_group)))co_return;
+            if(!current_request())co_return;
             if(!ids){sess->Close();co_return;}
             std::vector<std::byte> check;
-            wire::WritePOD(check,dwCharID);wire::WritePOD(check,identity->key);wire::WritePOD(check,identity->channel);wire::WritePOD(check,wMapID);
-            wire::WritePOD(check,fPosX);wire::WritePOD(check,fPosY);wire::WritePOD(check,fPosZ);
+            wire::WritePOD(check,dwCharID);wire::WritePOD(check,identity->key);wire::WritePOD(check,identity->channel);wire::WritePOD(check,map);
+            wire::WritePOD(check,plan.x);wire::WritePOD(check,plan.y);wire::WritePOD(check,plan.z);
             wire::WritePOD<std::uint8_t>(check,static_cast<std::uint8_t>(ids->size()));for(auto id:*ids)wire::WritePOD(check,id);
             if(!co_await ctx.world_client->SendPacket(static_cast<std::uint16_t>(MessageId::MW_CHECKCONNECT_ACK),std::move(check))) {
                 sess->Close();co_return;
             }
-            const auto latest=ctx.session_reg->Identity(sess.get());
-            if(!sess->IsOpen()||!latest||latest->phase!=SessionPhase::Ready||
-               !SameNativeCellPlayer(latest->Claim(ctx.expected_group),identity->Claim(ctx.expected_group)))co_return;
+            if(!current_request())co_return;
         }
-        // All graph/state mutations and packet posts below are synchronous on
-        // the game executor. A slow recipient cannot interleave another cell turn.
+        // Apply fences the preparation's local revision as well as its exact
+        // socket/role/epoch. No state or packet publication suspends below.
         try {
-            const auto notices=ctx.player_service->MoveNativePlayer(identity->Claim(ctx.expected_group),wMapID,fPosX,fPosZ);
+            const auto notices=ctx.player_service->ApplyNativePlayerMove(plan);
             ctx.char_state->Update(dwCharID,[&](CharSnapshot& s) {
-                s.wDIR=wDIR;s.fPosX=fPosX;s.fPosY=fPosY;s.fPosZ=fPosZ;
-                s.movement={wPitch,bMouseDIR,bKeyDIR,bAction};
+                s.wDIR=plan.direction;s.fPosX=plan.x;s.fPosY=plan.y;s.fPosZ=plan.z;s.movement=plan.movement;
             });
-            ctx.presence->UpdatePosition(dwCharID,wMapID,{fPosX,fPosY,fPosZ});
-            const auto ack=EncodeMoveAck(dwCharID,fPosX,fPosY,fPosZ,wPitch,wDIR,bMouseDIR,bKeyDIR,bAction,fSpeed);
+            if(plan.early_return)co_return; // source updates speed/ghost/tick, but no body/MOVE output
+            ctx.presence->UpdatePosition(dwCharID,map,{plan.x,plan.y,plan.z});
+            const auto ack=EncodeMoveAck(dwCharID,plan.x,plan.y,plan.z,plan.movement.pitch,plan.direction,
+                plan.movement.mouse,plan.movement.key,plan.movement.action,plan.movement.speed);
             PublishNativeCellNotices(ctx,notices,ack);
         } catch(...) {sess->Close();}
         co_return;
     }
+    // The older development adapter retains its explicit map header check.
+    if(entry->map_id!=wMapID)co_return;
     const std::uint8_t mover_channel = entry->channel;
     if(ctx.char_state)ctx.char_state->Update(dwCharID,[&](CharSnapshot& s){
         s.wDIR=wDIR;s.fPosX=fPosX;s.fPosY=fPosY;s.fPosZ=fPosZ;

@@ -29,8 +29,11 @@ public:
     bool HasNativeCellAuthority() const override {return true;}
     NativeCellNotices EnterNativePlayer(const MapSessionClaim&,const CharSnapshot&) override;
     NativeCellNotices MoveNativePlayer(const MapSessionClaim&,std::uint16_t,float,float,bool=true) override;
+    NativePlayerMovePlan PlanNativePlayerMove(const MapSessionClaim&,const CharSnapshot&,const NativePlayerMoveInput&) override;
+    NativeCellNotices ApplyNativePlayerMove(const NativePlayerMovePlan&) override;
+    bool AuthorizeNativeMovementSpeed(const MapSessionClaim&,float) override;
     NativeCellNotices LeaveNativePlayer(const MapSessionClaim&) override;
-    NativeCellNotices RebindNativePlayer(const MapSessionClaim&,const MapSessionClaim&,std::uint16_t,float,float) override;
+    NativeCellNotices RebindNativePlayer(const MapSessionClaim&,const MapSessionClaim&,const CharSnapshot&) override;
     std::optional<MapSessionInfo> LookupSession(std::uint32_t user,std::uint32_t key) override;
     std::optional<MapSessionInfo> ClaimSession(const MapSessionClaim&,const MapSessionInfo&) override;
     std::optional<std::vector<std::uint8_t>> NeighborServers(const MapSessionClaim&,std::uint16_t,float,float) override;
@@ -83,6 +86,7 @@ public:
     InventoryMoveCommit MoveInventoryItems(const MapSessionClaim&,const InventoryMoveRequest&,const CharSnapshot&,const CharSnapshot&) override;
     EffectEndCommit EndMaintainedEffect(const MapSessionClaim&,const EffectEndRequest&,const CharSnapshot&) override;
 private:
+    static bool ReadNativeOperator(soci::session&,std::uint8_t world,std::uint32_t character);
     std::optional<TransferredCharacter> AcceptTransferOrConfirm(const MapSessionClaim&,std::span<const std::byte>,bool confirmation_only);
     static std::vector<QuestProgressRow> ReadQuestProgress(soci::session&,const MapSessionClaim&);
     static void HydrateQuestProgress(soci::session&,const MapSessionClaim&,CharacterPayload&);

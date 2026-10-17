@@ -11,7 +11,22 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-17), baseline `7e1339b`: native Map now has
+Local Phase A continuation (2026-10-17), baseline `73a1eea`: native PC-only
+MOVE now preserves source ghost/body separation, HP0 direction keys, raw CanHost
+transitions and the observed DWORD move clock, including ghost early return.
+Strict speed `>3.40f` uses the existing exact PostgreSQL operator publication.
+Owned preparation/application fences route/World waits by connection, role,
+epoch and cell revision; actual load and confirmed handoff retain the source
+local movement/host lifecycle. These paths are **INTEGRATED_UNVERIFIED** within
+ordinary source-empty processes. CanHost geometry and source SetHost candidate
+selection are **IMPLEMENTED_UNVERIFIED**; selected-host assignment, NotifyHost/
+SelectSkill and PC-to-monster events remain incomplete and guarded. No populated
+actor barrier was removed. Full MOVE/gameplay and Phase A remain **IMPLEMENTING**.
+No new migration;044–081 remain written/unapplied, next082. No build, test, SQL,
+import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-player-host-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `7e1339b`: native Map now has
 the complete source ADDMON wire encoder, lazy source GetColor and real-slot
 projection for fresh monsters. Normal monster entry/Remove collect source-ordered
 ADD/DELMON notices; a bounded owned outbox connects actual Regen/Remove callbacks
@@ -112,18 +127,22 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: player EnterPlayer/LeavePlayer interaction
-with existing monster cells and its actual source AT_ENTER/LeaveAggro/AT_LEAVE
-ordering; real PC CanHost/ghost/move-clock producers; TAICmdSetHost host selection,
-NotifyHost/SelectSkill, CS_MONHOST_ACK and actual host request consumers including
-CS_MONMOVE_REQ; concrete awake/dead AI. Use the now written source ADDMON encoder
-and same cell graph/outbox instead of prototype registries. Nonempty monster
-effects also need their real producer and effect-aware GetMaxHP/GetMaxMP; full
-wire encoding alone does not provide them. Preserve the latched admission barrier
-until actual player/monster coexistence is complete. Then continue non-fresh
+Immediate implementation dependency: port CTMonster::SelectSkill with its actual
+learned skill state, CheckPrevAct, GetTargetDistance and CanUseSkillNOW inputs;
+then complete selected-host mutation and NotifyHost/CS_MONHOST_ACK in the same
+source command flow. Existing source SetHost candidate selection and PC-local
+CanHost/ghost/move-clock producers must be consumed without reinitializing them.
+CHKHOST has a different selector; do not reuse SetHost's recency rule for it.
+Complete PC EnterPlayer/LeavePlayer/channel and MoveGhost AT_ENTER/LeaveAggro/
+AT_LEAVE ordering, actual host requests including CS_MONMOVE_REQ, and concrete
+awake/dead AI before enabling player/monster coexistence. Use the existing native
+cell graph, ADDMON encoder and owned outbox. There is no CS_MONHOST_REQ in the
+inspected source. Nonempty monster effects need real mutation/stat producers;
+MOVE stand-hide and position quests remain open. Preserve the latched admission
+barrier until these connected producers/consumers are complete. Continue non-fresh
 Regen/death/loot, dynamic/quest/battle and party-instance lifetime. Full Phase A
-remains IMPLEMENTING. Next free migration082; no Phase B/C execution. See the
-current evidence handoff above.
+remains IMPLEMENTING. Next migration082; Phase B/C execution stays deferred.
+See the current evidence handoff above.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

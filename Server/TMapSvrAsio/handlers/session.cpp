@@ -164,7 +164,7 @@ OnConReadyReq(std::shared_ptr<tnetlib::AsioSession> sess,
                     const auto current=ctx.session_reg->Identity(sess.get());
                     if(!current)throw std::runtime_error("Native cell demotion lost its session");
                     PublishNativeCellNotices(ctx,ctx.player_service->RebindNativePlayer(identity->Claim(ctx.expected_group),
-                        current->Claim(ctx.expected_group),s->wMapID,s->fPosX,s->fPosZ));
+                        current->Claim(ctx.expected_group),*s));
                 } catch(...) {sess->Close();co_return;}
             }
             if(sess->IsOpen()&&ctx.presence){ctx.presence->Bind(identity->char_id,identity->channel,sess);

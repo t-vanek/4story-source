@@ -28,7 +28,18 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): full source ADDMON wire fields and
+Current Phase A continuation (2026-10-17): native PC-only MOVE now implements
+source ghost/body separation, CanHost transitions, observed move clocks and the
+strict speed/operator gate through existing PostgreSQL authority. Load/handoff
+preserve local state; owned move preparation is fenced across DB/World waits.
+**INTEGRATED_UNVERIFIED** in source-empty processes. Source host eligibility and
+SetHost candidate selection are written, **IMPLEMENTED_UNVERIFIED**; NotifyHost/
+SelectSkill, PC/monster events and full hosted AI remain incomplete. Populated
+player admission stays blocked. No new migration;044–081 written/unapplied,
+next082. Full Phase A remains open.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-player-host-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): full source ADDMON wire fields and
 GetColor are written; real fresh monster state and source normal-monster cell
 entry/Remove connect to bounded owned ADD/DELMON publication in the existing Asio
 AI loop. **IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED**, as scoped in the

@@ -13,7 +13,22 @@ Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside G
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–081 are **written, not applied**; next082.
 
-Local Phase A continuation (2026-10-17), baseline `7e1339b`: native Map now has
+Local Phase A continuation (2026-10-17), baseline `73a1eea`: native PC-only
+MOVE now preserves source ghost/body separation, HP0 direction keys, raw CanHost
+transitions and the observed DWORD move clock, including ghost early return.
+Strict speed `>3.40f` uses the existing exact PostgreSQL operator publication.
+Owned preparation/application fences route/World waits by connection, role,
+epoch and cell revision; actual load and confirmed handoff retain the source
+local movement/host lifecycle. These paths are **INTEGRATED_UNVERIFIED** within
+ordinary source-empty processes. CanHost geometry and source SetHost candidate
+selection are **IMPLEMENTED_UNVERIFIED**; selected-host assignment, NotifyHost/
+SelectSkill and PC-to-monster events remain incomplete and guarded. No populated
+actor barrier was removed. Full MOVE/gameplay and Phase A remain **IMPLEMENTING**.
+No new migration;044–081 remain written/unapplied, next082. No build, test, SQL,
+import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-player-host-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `7e1339b`: native Map now has
 the complete source ADDMON wire encoder, lazy source GetColor and real-slot
 projection for fresh monsters. Normal monster entry/Remove collect source-ordered
 ADD/DELMON notices; a bounded owned outbox connects actual Regen/Remove callbacks
@@ -1270,7 +1285,13 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `1fe7404`: original resource recovery, formulas,
+Latest local work based on `73a1eea`: original MOVE/MoveGhost/CanHost/SetHost,
+actual load/replica/handoff inputs, existing operator SQL-text contracts,
+owned state/call/CMake/diff and inventory review only. Actual local backup hashes
+were re-read. No executable validation ran; see
+[current player host evidence](evidence/phase-a-map-player-host-20261017/README.md).
+
+Previous local work based on `1fe7404`: original resource recovery, formulas,
 entry/transfer clocks, client mode/HPMP consumers and actual native timer/cast/
 self-Defend/authority/packet/diff review only. See
 [current recovery evidence](evidence/phase-a-native-recovery-20261015/README.md).
@@ -1319,8 +1340,9 @@ Earlier Phase A compile evidence remains in
 **Not executed:** unit/integration/regression/protocol/PG tests, CTest/pytest,
 sanitisers/fuzz/benchmarks, migrations/import/reconciliation, server/client
 processes, Docker/Podman builds/startups or cluster restart tests. Phase B/C are
-not started. No historical evidence was rewritten. Compilation is the only
-executed code validation for this increment; new gameplay remains unverified.
+not started. No historical evidence was rewritten. Compilation statements above
+belong only to their named historical revisions; no compilation or executable
+validation ran for the current Phase A continuations. New code is unverified.
 
 Only client source exists. No supported executable build/hash or matching asset
 set can be named; real-client/launcher acceptance remains blocked. This is an

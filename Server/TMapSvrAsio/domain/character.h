@@ -27,6 +27,7 @@ struct SourceRecoveryClock {
 struct SourceMovementState {
     std::uint16_t pitch{};
     std::uint8_t mouse{4},key{4},action{};
+    float speed{}; // CTPlayer constructor0; CS_MOVE assigns even on ghost early return
 };
 
 struct CharacterClusterState {

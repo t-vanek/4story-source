@@ -4,6 +4,7 @@
 #include <soci/soci.h>
 #include <bit>
 #include <stdexcept>
+#include <cmath>
 
 namespace tmapsvr {
 namespace {
@@ -39,6 +40,30 @@ bool PostgreSQLMapService::AuthorizeControlKick(const MapSessionClaim& c,const s
         soci::use(world,"w"),soci::use(character,"c"),soci::use(user,"u"),soci::use(decoded,"name"),soci::use(key,"k"),soci::into(found);
     const bool allowed=sql.got_data()&&found==1;tx->commit();return allowed;
 }
+bool PostgreSQLMapService::ReadNativeOperator(soci::session& sql,std::uint8_t world_id,std::uint32_t character_id) {
+    const int world=world_id,character=std::bit_cast<std::int32_t>(character_id);
+    long long published=0,expected=0,operators=0;
+    sql<<"SELECT count(*),COALESCE(max(operator_rows),0) FROM world_compat.operator_release WHERE world_id=:w AND status='verified'",
+        soci::use(world),soci::into(published),soci::into(expected);
+    sql<<"SELECT count(*) FROM app_world.\"TOPERATORTABLE\" WHERE \"bWorldID\"=:w",soci::use(world),soci::into(operators);
+    if(published!=1||expected!=operators)throw std::runtime_error("Native operation requires the exact published source operator catalog");
+    int op=0;
+    sql<<"SELECT count(*) FROM app_world.\"TOPERATORTABLE\" WHERE \"bWorldID\"=:w AND \"dwOperatorID\"=:c",
+        soci::use(world,"w"),soci::use(character,"c"),soci::into(op);
+    return op==1;
+}
+bool PostgreSQLMapService::AuthorizeNativeMovementSpeed(const MapSessionClaim& c,float speed) {
+    if(!std::isfinite(speed))return false;
+    if(speed<=3.40f)return true; // source tests strict positive greater-than, not abs(speed)
+    auto lease=m_pool.Acquire();auto& sql=*lease;
+    auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
+    std::string phase;
+    if(!LockAccount(sql,c))return false;
+    if(c.role==MapSessionRole::Primary){if(!LockClaim(sql,c,phase)||phase!="ready")return false;}
+    else if(!LockReplica(sql,c,phase)||phase!="ready")return false;
+    const bool allowed=ReadNativeOperator(sql,c.group,c.char_id);
+    tx->commit();return allowed;
+}
 std::optional<CommunicationAuthority> PostgreSQLMapService::AuthorizeCommunication(const MapSessionClaim& c,bool chat,std::uint32_t sender,std::uint8_t option) {
     // Only recipient chat delivery can use a partial replica. Its client may
     // never originate a TMS/chat request or receive a primary-only MW fanout.
@@ -72,15 +97,7 @@ std::optional<CommunicationAuthority> PostgreSQLMapService::AuthorizeCommunicati
         out.protected_sender=blocked!=0;
     }
     if(chat) {
-        long long published=0,expected=0,operators=0;
-        sql<<"SELECT count(*),COALESCE(max(operator_rows),0) FROM world_compat.operator_release WHERE world_id=:w AND status='verified'",
-            soci::use(world),soci::into(published),soci::into(expected);
-        sql<<"SELECT count(*) FROM app_world.\"TOPERATORTABLE\" WHERE \"bWorldID\"=:w",soci::use(world),soci::into(operators);
-        if(published!=1||expected!=operators)throw std::runtime_error("Chat requires the exact published source operator catalog");
-        int op=0;
-        sql<<"SELECT count(*) FROM app_world.\"TOPERATORTABLE\" WHERE \"bWorldID\"=:w AND \"dwOperatorID\"=:c",
-            soci::use(world,"w"),soci::use(character,"c"),soci::into(op);
-        out.is_operator=op==1;
+        out.is_operator=ReadNativeOperator(sql,c.group,c.char_id);
         const auto name=native_wire_text::Hex(native_wire_text::Encode(sql,row.get<std::string>(0),m_config.client_text_encoding));
         sql<<"SELECT COALESCE((SELECT ends_at FROM app_world.chat_bans WHERE world_id=:w AND name_bytes=decode(:name,'hex')),0)",
             soci::use(world,"w"),soci::use(name,"name"),soci::into(out.chat_ban_time);

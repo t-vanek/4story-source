@@ -1,6 +1,7 @@
 #include "native_map_cells.h"
 #include "native_monster_spawn.h"
 #include <stdexcept>
+#include <limits>
 
 namespace tmapsvr {
 bool SameNativeCellPlayer(const MapSessionClaim& a,const MapSessionClaim& b) {
@@ -99,6 +100,8 @@ NativeCellNotices MoveNativeCellPlayer(NativeMonsterMap& map,const MapSessionCla
         throw std::runtime_error("Native move has no matching EnterMAP lifetime");
     auto& player=found->second;
     const auto before=Position(player.x,player.z),after=Position(x,z);
+    if(player.revision==std::numeric_limits<std::uint64_t>::max())throw std::runtime_error("Native player cell revision exhausted");
+    ++player.revision;
     NativeCellNotices out;
     if(before!=after) {
         auto old=Enabled(map,before,claim.channel),next=Enabled(map,after,claim.channel);
@@ -136,6 +139,25 @@ NativeCellNotices MoveNativeCellPlayer(NativeMonsterMap& map,const MapSessionCla
                 Notice(out,NativeCellNoticeKind::Move,other->second,player);
         }
     }
+    return out;
+}
+NativeCellNotices ApplyNativePlayerHostMove(NativeMonsterMap& map,const NativePlayerMovePlan& plan,
+                                          const std::vector<std::uint8_t>& channels) {
+    RequirePcMap(map); // real monster event consumers are still a separate missing dependency
+    const auto found=map.players.find(plan.claim.char_id);
+    if(found==map.players.end()||!SameNativeCellPlayer(found->second.claim,plan.claim)||
+       found->second.revision!=plan.revision||map.map_id!=plan.map)
+        throw std::runtime_error("Native move preparation has stale cell lifetime/revision");
+    auto& player=found->second;
+    NativeCellNotices out;
+    if(plan.early_return) {
+        if(player.revision==std::numeric_limits<std::uint64_t>::max())throw std::runtime_error("Native player cell revision exhausted");
+        ++player.revision; // no body/cell/MOVE_ACK change on the source ghost return
+    } else out=MoveNativeCellPlayer(map,plan.claim,plan.x,plan.z,channels,true);
+    player.host=plan.host;
+    const auto position=Position(player.x,player.z);
+    if(auto cell=map.cells.find(position);cell!=map.cells.end())
+        if(auto member=cell->second.players.find(plan.claim.char_id);member!=cell->second.players.end())member->second=player;
     return out;
 }
 void RebindNativeCellPlayer(NativeMonsterMap& map,const MapSessionClaim& previous,const MapSessionClaim& current) {

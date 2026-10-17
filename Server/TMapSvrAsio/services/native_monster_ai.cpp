@@ -168,7 +168,12 @@ bool NativeMonsterAiExecutor::Execute(NativeMonsterMap& map,std::uint32_t id,con
     auto& slot=map.slots.at(id);
     const auto kind=m_ai.commands.at(binding.command).kind;
     if(kind==0)return Regen(map,id,binding,args);
-    if(kind==2) { // actual SetHost with a proven empty actor population
+    if(kind==2) {
+        const auto choice=SelectNativeMonsterHost(map,slot.x,slot.z,m_tick);
+        if(choice.player)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,
+            "actual selected-host SelectSkill/NotifyHost and awake command consumers");
+        // Selected-host mutation remains protected until those real consumers
+        // exist. No synthetic host grant or successful empty skill ACK.
         ++slot.host_key;ResetHost(slot);return false; // no completion event
     }
     if(kind==12) {

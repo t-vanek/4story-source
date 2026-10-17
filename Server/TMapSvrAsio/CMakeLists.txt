@@ -57,8 +57,8 @@
 # Consolidation TODO inventory (post-F17):
 #   F4 — wVersion check + llChecksum verification (legacy formula)
 #   F5 — WorldClient send queue / strand for multi-thread io
-#   F7 — speed-hack check, ghost-mode handling, CS_CONREADY enter-
-#        map flood
+#   F7 — complete populated PC/monster host events, stand-hide and position
+#        quests; native PC-only speed/ghost/cell lifecycle is integrated
 #   F8 — trailing DM_LOADCHAR_ACK sections (secure code, aid table,
 #        PC bang, post info, cabinet, equip, friends, mail, chapter,
 #        pet, recall-mon)
@@ -163,6 +163,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_ai_runtime.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_map_cells.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_player_cells.cpp
+    ${TMAPSVR_ASIO_SRC}/services/native_player_host.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_cell_runtime.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_cells.cpp
     ${TMAPSVR_ASIO_SRC}/services/postgresql_map_monster_ai.cpp

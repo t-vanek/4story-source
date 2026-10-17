@@ -108,11 +108,27 @@ NativeMonsterMap& PostgreSQLMapService::NativePlayerMap(std::uint8_t logical,std
 NativeCellNotices PostgreSQLMapService::EnterNativePlayer(const MapSessionClaim& claim,const CharSnapshot& snapshot) {
     std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
     if(snapshot.dwCharID!=claim.char_id)throw std::runtime_error("Native cell character identity mismatch");
-    return EnterNativeCellPlayer(NativePlayerMap(claim.channel,snapshot.wMapID),{claim,snapshot.fPosX,snapshot.fPosZ},true);
+    NativeCellPlayer player{claim,snapshot.fPosX,snapshot.fPosZ};
+    player.host.hp_zero=!snapshot.payload||snapshot.dwHP==0; // initial replica really retains source CTObjBase HP0
+    return EnterNativeCellPlayer(NativePlayerMap(claim.channel,snapshot.wMapID),player,true);
 }
 NativeCellNotices PostgreSQLMapService::MoveNativePlayer(const MapSessionClaim& claim,std::uint16_t map,float x,float z,bool broadcast_movement) {
     std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
     return MoveNativeCellPlayer(NativePlayerMap(claim.channel,map),claim,x,z,m_cells.channels,broadcast_movement);
+}
+NativePlayerMovePlan PostgreSQLMapService::PlanNativePlayerMove(const MapSessionClaim& claim,const CharSnapshot& snapshot,
+                                                             const NativePlayerMoveInput& input) {
+    std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
+    const auto& map=NativePlayerMap(claim.channel,snapshot.wMapID);
+    if(!map.slots.empty())throw std::runtime_error("Native MOVE requires populated monster event/host consumers");
+    const auto player=map.players.find(claim.char_id);
+    if(player==map.players.end()||!SameNativeCellPlayer(player->second.claim,claim))
+        throw std::runtime_error("Native MOVE has no source player lifetime");
+    return PlanNativePlayerHostMove(player->second,snapshot,input,m_monster_ai_queue.Tick());
+}
+NativeCellNotices PostgreSQLMapService::ApplyNativePlayerMove(const NativePlayerMovePlan& plan) {
+    std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
+    return ApplyNativePlayerHostMove(NativePlayerMap(plan.claim.channel,plan.map),plan,m_cells.channels);
 }
 NativeCellNotices PostgreSQLMapService::LeaveNativePlayer(const MapSessionClaim& claim) {
     // Cleanup remains possible after authority retirement; an old generation
@@ -129,12 +145,16 @@ NativeCellNotices PostgreSQLMapService::LeaveNativePlayer(const MapSessionClaim&
     return {};
 }
 NativeCellNotices PostgreSQLMapService::RebindNativePlayer(const MapSessionClaim& previous,const MapSessionClaim& current,
-                                                         std::uint16_t map,float x,float z) {
+                                                         const CharSnapshot& snapshot) {
     std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
-    auto& state=NativePlayerMap(current.channel,map);
+    if(snapshot.dwCharID!=current.char_id)throw std::runtime_error("Native cell handoff snapshot identity mismatch");
+    auto& state=NativePlayerMap(current.channel,snapshot.wMapID);
     RebindNativeCellPlayer(state,previous,current);
+    // Both handoff directions carry actual former/new primary HP. Preserve
+    // connection-local ghost/CanHost/tick while changing that source HP state.
+    state.players.at(current.char_id).host.hp_zero=snapshot.dwHP==0;
     // CTMap::OnMove is also called by RELEASEMAIN, but the CS_MOVE_REQ-only
     // MOVE_ACK broadcast must not be manufactured by an ownership transition.
-    return MoveNativeCellPlayer(state,current,x,z,m_cells.channels,false);
+    return MoveNativeCellPlayer(state,current,snapshot.fPosX,snapshot.fPosZ,m_cells.channels,false);
 }
 } // namespace tmapsvr

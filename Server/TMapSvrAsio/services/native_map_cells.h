@@ -1,6 +1,7 @@
 #pragma once
 #include "domain/session.h"
 #include "native_monster_presentation.h"
+#include "native_player_host.h"
 #include <memory>
 #include <array>
 #include <cstddef>
@@ -16,6 +17,8 @@ namespace tmapsvr {
 struct NativeCellPlayer {
     MapSessionClaim claim;
     float x{},z{};
+    NativePlayerHostState host;
+    std::uint64_t revision{1}; // process-local mutation fence, never persisted
 };
 enum class NativeCellNoticeKind { Enter, Leave, Move, AddMonster, DeleteMonster };
 struct NativeCellNotice {
@@ -62,6 +65,8 @@ NativeCellNotices MoveNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim&,
                                      const std::vector<std::uint8_t>& source_channels,bool broadcast_movement=true);
 void RebindNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim& previous,const MapSessionClaim& current);
 NativeCellNotices LeaveNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim&);
+NativeCellNotices ApplyNativePlayerHostMove(NativeMonsterMap&,const NativePlayerMovePlan&,
+                                          const std::vector<std::uint8_t>& source_channels);
 // Normal OT_MON cell insertion/removal and captured client notices. The full
 // hosted actor path remains guarded at admission. AT_ENTER is emitted by the
 // executor exactly once AFTER entry returns, not once per recipient.

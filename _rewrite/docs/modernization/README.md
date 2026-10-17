@@ -1,6 +1,21 @@
 # Modern server implementation status
 
-Local Phase A continuation (2026-10-17), baseline `8bc9008`: original Map AI
+Local Phase A continuation (2026-10-17), baseline `73a1eea`: native PC-only
+MOVE now preserves source ghost/body separation, HP0 direction keys, raw CanHost
+transitions and the observed DWORD move clock, including ghost early return.
+Strict speed `>3.40f` uses the existing exact PostgreSQL operator publication.
+Owned preparation/application fences route/World waits by connection, role,
+epoch and cell revision; actual load and confirmed handoff retain the source
+local movement/host lifecycle. These paths are **INTEGRATED_UNVERIFIED** within
+ordinary source-empty processes. CanHost geometry and source SetHost candidate
+selection are **IMPLEMENTED_UNVERIFIED**; selected-host assignment, NotifyHost/
+SelectSkill and PC-to-monster events remain incomplete and guarded. No populated
+actor barrier was removed. Full MOVE/gameplay and Phase A remain **IMPLEMENTING**.
+No new migration;044–081 remain written/unapplied, next082. No build, test, SQL,
+import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-player-host-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `8bc9008`: original Map AI
 requests now reach owned timer/batch queues and actual delayed ACK execution in
 the existing Asio lifecycle. Source timer-before-request order, DWORD elapsed
 arithmetic, delivery-time CanRun, AICOMPLETE/repeat sequencing and current host-key

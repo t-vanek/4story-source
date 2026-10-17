@@ -49,10 +49,19 @@ public:
     virtual NativeCellNotices MoveNativePlayer(const MapSessionClaim&,std::uint16_t,float,float,bool=true) {
         throw std::runtime_error("Native player cells unavailable");
     }
+    virtual NativePlayerMovePlan PlanNativePlayerMove(const MapSessionClaim&,const CharSnapshot&,const NativePlayerMoveInput&) {
+        throw std::runtime_error("Native player host state unavailable");
+    }
+    virtual NativeCellNotices ApplyNativePlayerMove(const NativePlayerMovePlan&) {
+        throw std::runtime_error("Native player host state unavailable");
+    }
+    virtual bool AuthorizeNativeMovementSpeed(const MapSessionClaim&,float) {
+        throw std::runtime_error("Native movement operator authority unavailable");
+    }
     virtual NativeCellNotices LeaveNativePlayer(const MapSessionClaim&) {
         throw std::runtime_error("Native player cells unavailable");
     }
-    virtual NativeCellNotices RebindNativePlayer(const MapSessionClaim&,const MapSessionClaim&,std::uint16_t,float,float) {
+    virtual NativeCellNotices RebindNativePlayer(const MapSessionClaim&,const MapSessionClaim&,const CharSnapshot&) {
         throw std::runtime_error("Native player cell handoff unavailable");
     }
     virtual std::optional<PartyAuthority> AuthorizeParty(const MapSessionClaim&,const CharSnapshot&,

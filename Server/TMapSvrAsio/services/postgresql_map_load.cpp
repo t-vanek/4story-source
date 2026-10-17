@@ -636,6 +636,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     HydrateItemCooldowns(sql,claim,s,p);
     p.security=ReadSecurity(sql,claim);
     RebaseAftermath(s,p,SkillClockMs());DeriveStats(sql,s,p);s.payload=std::move(payload);
+    s.movement.action=s.dwHP?0:7; // source full LOADCHAR establishes TA_DEAD on zero actual HP
     sql<<"UPDATE app_world.map_sessions SET phase='loaded',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
     tx->commit();return s;
 }
@@ -698,6 +699,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
      p.last_title_selection_id=static_cast<std::uint64_t>(head);
 }
     RebaseAftermath(s,p,SkillClockMs());DeriveStats(sql,s,p);
+    s.movement.action=s.dwHP?0:7; // recovered/full hydrated object; receiver-local state is restored by handoff handler
     // Never silently clamp unsaved transferred core to an incomplete derived
     // stat model. Active-effect stat derivation remains a gameplay dependency.
     if(s.dwHP!=t.character.dwHP||s.dwMP!=t.character.dwMP)throw std::runtime_error("Transferred vitals exceed derived state");

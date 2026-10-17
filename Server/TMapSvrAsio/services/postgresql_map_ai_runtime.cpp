@@ -6,10 +6,11 @@
 #include <utility>
 
 namespace tmapsvr {
-void PostgreSQLMapService::BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer lookup) {
+void PostgreSQLMapService::BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer lookup,NativeMonsterAiExecutor::ReadPlayerCountry country) {
     std::lock_guard lock(m_monster_ai_mutex);
-    if(!lookup||m_native_player_lookup||m_native_ai_retired)throw std::runtime_error("Native global actor lookup cannot be missing/replaced/retired");
-    m_native_player_lookup=std::move(lookup);
+    if(!lookup||!country||m_native_player_lookup||m_native_player_country||m_native_ai_retired)
+        throw std::runtime_error("Native actor/country lookup cannot be missing/replaced/retired");
+    m_native_player_lookup=std::move(lookup);m_native_player_country=std::move(country);
 }
 NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::uint32_t tick) {
     return NativeMonsterAiExecutor(m_monster_catalog,m_monster_ai,m_battles,
@@ -24,6 +25,10 @@ NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::u
             if(!id)return {}; // native accepted character IDs are nonzero, including during boot
             if(!m_native_player_lookup)throw std::runtime_error("Native ResetHost requires actual global actor lookup");
             return m_native_player_lookup(id);
+        },
+        [this](const MapSessionClaim& claim) {
+            if(!m_native_player_country)throw std::runtime_error("Native CHGHOST requires actual current player country state");
+            return m_native_player_country(claim);
         },
         [this,tick](NativeMonsterMap& map,std::uint32_t id,float x,float z) {
             auto moved=MoveNativeMonster(map,id,x,z,m_monster_catalog,m_monster_ai,m_cells.channels,tick);
@@ -104,7 +109,7 @@ void PostgreSQLMapService::DispatchNativeMonsterAi() {
 void PostgreSQLMapService::StopNativeMonsterAi() {
     m_native_ai_retired=true;
     std::lock_guard lock(m_monster_ai_mutex);m_monster_ai_queue.Stop();
-    m_native_player_lookup={};
+    m_native_player_lookup={};m_native_player_country={};
     m_native_cell_notices.clear();m_native_cell_notice_bytes=0;
 }
 } // namespace tmapsvr

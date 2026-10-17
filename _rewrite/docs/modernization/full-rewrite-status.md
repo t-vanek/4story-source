@@ -13,7 +13,24 @@ Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside G
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–082 are **written, not applied**; next083.
 
-Local Phase A continuation (2026-10-17), baseline `f006388`: native ResetHost
+Local Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
+now produces owned aggro/target state, follows source notification/skill ordering
+and invokes real LeaveAggro/reset/re-entry on a missing new host. LeaveAggro keeps
+signed-key ties, raw-country filtering and recursive return semantics; leader/
+party follower events use current real spawn vectors and source query order.
+CHGMODE now consumes original eligibility/host arguments, mode transitions,
+recovery/output helper and base completion. These conditional command/recipient
+paths are **IMPLEMENTED_UNVERIFIED** and wired to the existing executor/factory/
+outbox, **INTEGRATED_UNVERIFIED** within actor isolation. Actual current player
+country reads use the accepted lifetime and native snapshot, refusing unsupported
+or unloaded disguise state. CheckAttack supports the real empty-effect branch;
+nonempty monster status metadata is still missing. Combat SetAggro, PC monster
+events/loot locks, remaining awake/dead commands and full hosting remain
+**IMPLEMENTING**. All admission/actual-player AI guards remain. No new migration;
+044–082 are written/unapplied, next083. No build/test/SQL/import/runtime/push or
+deployment ran. [Source contracts and handoff](evidence/phase-a-map-monster-aggro-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `f006388`: native ResetHost
 now resolves the actual global accepted actor, captures per-recipient mode/color
 before clearing host/target/aggro/damage, and queues source far-from-start resets
 through the existing shared AI FIFO and batch ACK. Ordinary monster cell movement
@@ -1316,7 +1333,14 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `f006388`: original ResetHost/ChgMode/reset FIFO/
+Latest local work based on `fbc91a7`: original LeaveAggro/AddAggro/CHGHOST/
+follower and CHGMODE/CheckAttack/GetCountry contracts; actual native snapshot/
+accepted-lifetime callbacks, ownership/reentrancy/output/queue paths and CMake/
+diff/inventory inspection only. Actual backup SHA256 and source revision re-read.
+No executable verification ran; see
+[current aggro evidence](evidence/phase-a-map-monster-aggro-20261017/README.md).
+
+Previous local work based on `f006388`: original ResetHost/ChgMode/reset FIFO/
 batch/monster movement and client wire consumers, actual registry/teardown/cell/
 AI ownership and callback paths, CMake/diff/inventory inspection only. Actual
 backup hashes were re-read. No executable verification ran; see

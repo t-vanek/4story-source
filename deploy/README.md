@@ -1,4 +1,11 @@
-> Current Phase A: native reset/mode/return-to-spawn work uses existing AI/batch
+> Current Phase A: source aggro/CHGHOST/follower/mode work is connected to the
+> existing native executor/outbox and current player snapshots. Admission and
+> actual-player AI guards remain pending real effects, combat and PC/loot-lock
+> producers. No new migration/grant/publisher;044–082 written/unapplied, next083.
+> No build/test/SQL/runtime, Phase B/C execution or deployment.
+> [Scope and handoff](../_rewrite/docs/modernization/evidence/phase-a-map-monster-aggro-20261017/README.md).
+
+> Previous Phase A: native reset/mode/return-to-spawn work uses existing AI/batch
 > queues, source cells and Asio output. No new migration/grant/publisher.044–082
 > remain written/unapplied, next083. Populated actor admission and AI guards stay
 > until PC monster events, live aggro and remaining host/awake/dead flows exist.

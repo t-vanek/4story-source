@@ -202,6 +202,7 @@ int main(int argc, char** argv)
         // Existing registry also supplies source global FindChar. It outlives
         // the native Map callbacks and retains failed-save reservations.
         tmapsvr::InMemorySessionRegistry session_reg;
+        tmapsvr::InMemoryCharStateStore char_state; // current host-country state also outlives native callbacks
         std::unique_ptr<tmapsvr::PostgreSQLMapOwner> native_owner;
         std::unique_ptr<tmapsvr::PostgreSQLMapService> native_map;
 
@@ -368,9 +369,6 @@ int main(int argc, char** argv)
         // channel members.
         tmapsvr::InMemoryChannelPresence presence;
 
-        // Live char snapshot store — populated on DM_LOADCHAR_REQ,
-        // read by the MapServer teardown hook to call SaveChar.
-        tmapsvr::InMemoryCharStateStore char_state;
         tmapsvr::TitleRelayQueue title_relays;
 
         // Per-(char, skill) cooldown gate — records last-use stamps so the
@@ -395,6 +393,18 @@ int main(int argc, char** argv)
         if(native_map)native_map->BindNativePlayerLookup([&session_reg,group=cfg.cluster.group_id](std::uint32_t id) {
             const auto actor=session_reg.FindActor(id);
             return actor?std::optional{actor->Claim(group)}:std::nullopt;
+        },[&session_reg,&char_state,group=cfg.cluster.group_id](const tmapsvr::MapSessionClaim& claim) {
+            const auto actor=session_reg.FindActor(claim.char_id);
+            if(!actor||!tmapsvr::SameNativeCellPlayer(actor->Claim(group),claim))
+                throw std::runtime_error("Native CHGHOST country lookup has stale accepted player lifetime");
+            const auto snapshot=char_state.Get(claim.char_id);
+            // SupportedPostures proves the actual maintained collection has
+            // no disguise transform. An unloaded/unsupported graph is not an
+            // empty collection or the character's unmodified country.
+            if(!snapshot||snapshot->dwCharID!=claim.char_id||!snapshot->payload||!tmapsvr::SupportedPostures(*snapshot->payload))
+                throw std::runtime_error("Native CHGHOST requires actual supported player disguise/effect state");
+            const auto aid=snapshot->payload->aid_country;
+            return tmapsvr::NativeMonsterHostCountry{snapshot->bCountry,aid!=3?aid:snapshot->bCountry};
         });
         ctx.route_resolver    = native_map.get();
         ctx.inventory_service = inventory_service.get();

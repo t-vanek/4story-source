@@ -71,7 +71,7 @@ public:
     // The IO executor serializes timer/batch turns; authority reads run on a
     // separate SOCI lease. No gameplay callback executes on a DB worker.
     void CheckNativeMonsterAiAuthority();
-    void BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer);
+    void BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer,NativeMonsterAiExecutor::ReadPlayerCountry);
     void AdvanceNativeMonsterAi(std::uint32_t tick);
     void DispatchNativeMonsterAi();
     NativeCellNotices TakeNativeCellNotices();
@@ -248,6 +248,7 @@ private:
     mutable std::mutex m_monster_ai_mutex;
     NativeMonsterAiQueue m_monster_ai_queue;
     NativeMonsterAiExecutor::FindPlayer m_native_player_lookup;
+    NativeMonsterAiExecutor::ReadPlayerCountry m_native_player_country;
     NativeCellNotices m_native_cell_notices;
     std::size_t m_native_cell_notice_bytes{}; // conservative per-recipient charge, even for shared projections
     std::atomic<bool> m_native_ai_retired{false};

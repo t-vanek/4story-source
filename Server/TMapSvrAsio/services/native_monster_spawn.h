@@ -89,6 +89,7 @@ struct NativeMonsterSlot {
     std::uint16_t pitch{},direction{},regen_delete_spawn{};
     std::uint8_t mouse{4},key{4}; // TKDIR_N, initialized by CTObjBase
     bool remove{},entered_map{}; // EnterMAP publication, not existence of the owning map
+    bool getaway{}; // CTObjBase constructor FALSE; separate Getaway command remains unported
     std::uint8_t can_attack{1},special{};
     float x{},y{},z{},start_x{},start_y{},start_z{},next_x{},next_y{},next_z{},size{0.5f}; // OBJECT_SIZE/2
     // Original default inventory always exists and initially has no items;

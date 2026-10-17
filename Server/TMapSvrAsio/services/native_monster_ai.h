@@ -23,6 +23,7 @@ struct NativeMonsterAiCatalog {
     std::string order_sha256;
 };
 enum class NativeAiMessageKind { Command, ResetHost };
+struct NativeMonsterHostCountry {std::uint8_t country{},war_country{};};
 struct NativeAiInvocation {
     std::uint64_t binding{},generation{};
     std::uint32_t monster{},host_key{},event_host{},real_host{},delay{};
@@ -42,12 +43,15 @@ public:
     using LeaveMap=std::function<void(NativeMonsterMap&,std::uint32_t,bool)>;
     using Publish=std::function<void(NativeCellNotices)>;
     using FindPlayer=std::function<std::optional<MapSessionClaim>(std::uint32_t)>;
+    // Reads actual current source GetCountry/GetWarCountry inputs, not cached
+    // cell-country defaults. Unsupported disguise state must refuse.
+    using ReadPlayerCountry=std::function<NativeMonsterHostCountry(const MapSessionClaim&)>;
     using MoveMap=std::function<bool(NativeMonsterMap&,std::uint32_t,float,float)>;
     using Schedule=std::function<void(const NativeAiInvocation&)>;
     using Cancel=std::function<void(const NativeAiInvocation&)>;
     using Draw=std::function<std::uint32_t()>;
     NativeMonsterAiExecutor(const NativeMonsterCatalog&,const NativeMonsterAiCatalog&,
-                           const BattleRegions&,EnterMap,LeaveMap,Publish,FindPlayer,MoveMap,Schedule,Cancel,Draw,std::uint32_t tick);
+                           const BattleRegions&,EnterMap,LeaveMap,Publish,FindPlayer,ReadPlayerCountry,MoveMap,Schedule,Cancel,Draw,std::uint32_t tick);
     void Initialize(NativeMonsterMap&,std::uint32_t);
     void Acknowledge(NativeMonsterMap&,const NativeAiInvocation&);
     void ResetHostAcknowledgement(NativeMonsterMap&,const NativeAiInvocation&);
@@ -55,7 +59,7 @@ private:
     struct Arguments {std::uint32_t event_host{},real_host{};std::uint8_t real_type{};};
     const std::vector<NativeAiBinding>* Bindings(const NativeMonsterSlot&,std::uint8_t,std::uint32_t) const;
     bool Conditions(const NativeAiCommand&,const NativeMonsterSlot&);
-    bool CanRun(const NativeAiCommand&,const NativeMonsterSlot&);
+    bool CanRun(const NativeAiCommand&,const NativeMonsterSlot&,Arguments);
     std::uint32_t Delay(const NativeAiBinding&,const NativeMonsterSlot&);
     bool Execute(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
     bool Complete(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
@@ -64,6 +68,10 @@ private:
     void DoCommand(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
     void ResetHost(NativeMonsterMap&,std::uint32_t);
     void ChangeMode(NativeMonsterMap&,std::uint32_t,std::uint8_t);
+    bool LeaveAggro(NativeMonsterMap&,std::uint32_t,Arguments);
+    void SetEventToFollower(NativeMonsterMap&,std::uint32_t);
+    bool ChangeHost(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
+    bool CheckAttack(const NativeMonsterSlot&) const;
     void ResolveTemplate(NativeMonsterSlot&,const NativeMonsterAllocationTemplate&);
     std::uint32_t Random();
     void Step();
@@ -74,6 +82,7 @@ private:
     LeaveMap m_leave;
     Publish m_publish;
     FindPlayer m_find_player;
+    ReadPlayerCountry m_player_country;
     MoveMap m_move;
     Schedule m_schedule;
     Cancel m_cancel;

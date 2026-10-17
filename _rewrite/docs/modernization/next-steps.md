@@ -11,7 +11,24 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-17), baseline `f006388`: native ResetHost
+Local Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
+now produces owned aggro/target state, follows source notification/skill ordering
+and invokes real LeaveAggro/reset/re-entry on a missing new host. LeaveAggro keeps
+signed-key ties, raw-country filtering and recursive return semantics; leader/
+party follower events use current real spawn vectors and source query order.
+CHGMODE now consumes original eligibility/host arguments, mode transitions,
+recovery/output helper and base completion. These conditional command/recipient
+paths are **IMPLEMENTED_UNVERIFIED** and wired to the existing executor/factory/
+outbox, **INTEGRATED_UNVERIFIED** within actor isolation. Actual current player
+country reads use the accepted lifetime and native snapshot, refusing unsupported
+or unloaded disguise state. CheckAttack supports the real empty-effect branch;
+nonempty monster status metadata is still missing. Combat SetAggro, PC monster
+events/loot locks, remaining awake/dead commands and full hosting remain
+**IMPLEMENTING**. All admission/actual-player AI guards remain. No new migration;
+044–082 are written/unapplied, next083. No build/test/SQL/import/runtime/push or
+deployment ran. [Source contracts and handoff](evidence/phase-a-map-monster-aggro-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `f006388`: native ResetHost
 now resolves the actual global accepted actor, captures per-recipient mode/color
 before clearing host/target/aggro/damage, and queues source far-from-start resets
 through the existing shared AI FIFO and batch ACK. Ordinary monster cell movement
@@ -158,18 +175,18 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: port CTMonster::LeaveAggro and its actual
-aggro/target producers and transitions, then PC EnterPlayer/LeavePlayer/channel/
-MoveGhost AT_ENTER/LeaveAggro/AT_LEAVE ordering, including source inventory-lock
-release producers. Reuse the now connected ResetHost/ChgMode/shared reset ACK/
-normal monster cell movement path. Complete actual CS_MONMOVE_REQ and remaining
-host/attack/skill Use lifecycles plus CheckAttack and awake/dead commands; the
-AC_CHGMODE command's own CanRun/transition is separate from its implemented
-monster ChgMode output helper. Non-PC/effect/transform/loot, non-fresh Regen,
-dynamic/battle/quest/party-instance lifetimes, MOVE stand-hide and position quests
-remain open. Keep latched admission and all actual-player AI guards until real
-coexistence is implemented. No CS_MONHOST_REQ exists in the inspected source.
-Full Phase A remains IMPLEMENTING; next migration083; Phase B/C stays deferred.
+Immediate implementation dependency: complete source monster maintained-status
+inputs/CheckAttack and original GetCountry disguise/replica state, then real
+host movement/attack/skill Use and remaining awake/dead commands. Implement
+combat SetAggro with its actual hit/heal/skill producers; reuse the now connected
+AddAggro/LeaveAggro/CHGHOST/follower/mode paths. PC Enter/Leave/channel/MoveGhost
+must preserve source event order and real loot inventory lock-release producers;
+no empty lock state may stand in for the missing source MONITEMLIST/TAKE lifetime.
+Non-PC/effect/transform/loot, non-fresh Regen, dynamic/battle/quest/party-instance
+lifetimes, MOVE stand-hide and position quests remain open. Keep latched admission
+and actual-player Initialize/ACK guards until coexistence is implemented. No
+CS_MONHOST_REQ exists in the inspected source. Full Phase A remains IMPLEMENTING;
+next migration083; Phase B/C stays deferred.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

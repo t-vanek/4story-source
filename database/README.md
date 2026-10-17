@@ -5,7 +5,16 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `f006388`:** source monster reset/mode/cell movement
+**Current Phase A, baseline `fbc91a7`:** CHGHOST/AddAggro/LeaveAggro, follower
+routing and CHGMODE consume existing native catalog, process-local object state
+and current accepted player snapshots. No new migration/grant/publisher or aggro
+persistence table; no archive/historical layer changes. Existing079–082 and
+character effect proofs remain prerequisites; missing full manifests/query-order
+receipts and unsupported status/disguise inputs stay explicit blockers.044–082
+remain unexecuted, next083. No SQL/build/test/runtime run.
+[Source contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-monster-aggro-20261017/README.md).
+
+**Previous Phase A, baseline `f006388`:** source monster reset/mode/cell movement
 and global actor retirement use RAM lifecycle state and the existing pinned079–082
 catalog/owner path. No dynamic host/job tables, SQL Server dependency, new migration
 or archive changes. Source reset FIFO/batch work stays volatile; native teardown

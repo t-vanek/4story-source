@@ -28,7 +28,17 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): source ResetHost, monster mode/color
+Current Phase A continuation (2026-10-17): source CHGHOST, owned aggro/target
+state, LeaveAggro and leader/party follower events are connected to the existing
+native AI executor. CHGMODE now has its source eligibility and transitions;
+actual player-country reads preserve accepted lifetime and refuse unsupported
+disguise state. **IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED** within actor
+isolation. Combat SetAggro, PC monster events/loot locks, nonempty monster status
+metadata and remaining hosted gameplay are incomplete; player guards remain.
+No new migration;044–082 written/unapplied, next083. Full Phase A remains open.
+[Current scope and handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-aggro-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): source ResetHost, monster mode/color
 output and queued return-to-spawn now connect through native global actor lookup,
 existing AI/batch queues, actual monster cells and Asio publication. Global actor
 retirement is separate from a dirty retained reservation. **INTEGRATED_UNVERIFIED /

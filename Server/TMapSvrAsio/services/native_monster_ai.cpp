@@ -17,12 +17,12 @@ std::uint32_t FreshMaximum(std::uint32_t raw) {
 }
 }
 NativeMonsterAiExecutor::NativeMonsterAiExecutor(const NativeMonsterCatalog& catalog,const NativeMonsterAiCatalog& ai,
-    const BattleRegions& regions,EnterMap enter,LeaveMap leave,Publish publish,FindPlayer find_player,MoveMap move,
+    const BattleRegions& regions,EnterMap enter,LeaveMap leave,Publish publish,FindPlayer find_player,ReadPlayerCountry player_country,MoveMap move,
     Schedule schedule,Cancel cancel,Draw draw,std::uint32_t tick)
     :m_catalog(catalog),m_ai(ai),m_regions(regions),m_enter(std::move(enter)),
-     m_leave(std::move(leave)),m_publish(std::move(publish)),m_find_player(std::move(find_player)),m_move(std::move(move)),
+     m_leave(std::move(leave)),m_publish(std::move(publish)),m_find_player(std::move(find_player)),m_player_country(std::move(player_country)),m_move(std::move(move)),
      m_schedule(std::move(schedule)),m_cancel(std::move(cancel)),m_draw(std::move(draw)),m_tick(tick) {
-    if(!m_enter||!m_leave||!m_publish||!m_find_player||!m_move||!m_schedule||!m_cancel||!m_draw)
+    if(!m_enter||!m_leave||!m_publish||!m_find_player||!m_player_country||!m_move||!m_schedule||!m_cancel||!m_draw)
         throw std::invalid_argument("Actual source AI side-effect consumers required");
 }
 void NativeMonsterAiExecutor::Step() {
@@ -55,16 +55,20 @@ bool NativeMonsterAiExecutor::Conditions(const NativeAiCommand& command,const Na
     }
     return true;
 }
-bool NativeMonsterAiExecutor::CanRun(const NativeAiCommand& command,const NativeMonsterSlot& slot) {
+bool NativeMonsterAiExecutor::CanRun(const NativeAiCommand& command,const NativeMonsterSlot& slot,Arguments args) {
     switch(command.kind) {
     case 0:if(slot.status!=0||slot.remove)return false;break; // REGEN
     case 2:if(slot.mode==1||slot.status==3)return false;break; // SETHOST
     case 3:if(slot.status!=1)return false;break; // CHKHOST; distinct selector below
+    case 4:if(slot.status!=1)return false;break; // CHGHOST
+    case 5:
+        if(slot.status!=1||slot.host!=args.event_host||(slot.mode==0&&!CheckAttack(slot)))return false;
+        break; // CHGMODE: host and NORMAL-only CheckAttack before base conditions
     case 12:return true; // REMOVE bypasses even base conditions
     case 1:case 14: // LEAVE/LOTTERY: first source predicate is DEAD
         if(slot.status!=3)return false;
         throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"dead-object AI/loot lifecycle");
-    case 4:case 5:case 6:case 7:case 8:case 9:case 10:case 11:case 13:
+    case 6:case 7:case 8:case 9:case 10:case 11:case 13:
         // The source first tests WAKEUP in every one of these commands. No
         // actor is admitted in this bounded executor; no-host SetHost never wakes.
         if(slot.status!=1)return false;
@@ -88,6 +92,7 @@ std::uint32_t NativeMonsterAiExecutor::Delay(const NativeAiBinding& binding,cons
 }
 void NativeMonsterAiExecutor::Initialize(NativeMonsterMap& map,std::uint32_t id) {
     if(!map.players.empty())throw std::runtime_error("Native Initialize requires full hosted actor AI before player coexistence");
+    const auto generation=map.slots.at(id).generation;
     // Capture this vector once, as source Initialize does. Regen can replace
     // the monster/AI type but does not change this iteration's command list.
     const auto* bindings=Bindings(map.slots.at(id),6,0); // AT_DELETE
@@ -95,8 +100,8 @@ void NativeMonsterAiExecutor::Initialize(NativeMonsterMap& map,std::uint32_t id)
     for(const auto& binding:*bindings) {
         Step();
         const auto found=map.slots.find(id);
-        if(found==map.slots.end())return; // do not reproduce use-after-Remove
-        if(CanRun(m_ai.commands.at(binding.command),found->second))
+        if(found==map.slots.end()||found->second.generation!=generation)return; // no use-after-Remove or replacement object
+        if(CanRun(m_ai.commands.at(binding.command),found->second,{}))
             (void)Execute(map,id,binding,{}); // direct, delay/repeat ignored
     }
 }
@@ -107,12 +112,13 @@ void NativeMonsterAiExecutor::Event(NativeMonsterMap& map,std::uint32_t id,std::
     struct Depth {std::size_t& value;~Depth(){--value;}} depth{m_depth};
     const auto found=map.slots.find(id);
     if(found==map.slots.end())return;
+    const auto generation=found->second.generation;
     const auto* bindings=Bindings(found->second,trigger,trigger_id);
     if(!bindings)return;
     for(const auto& binding:*bindings) {
         Step();
         const auto current=map.slots.find(id);
-        if(current==map.slots.end())return;
+        if(current==map.slots.end()||current->second.generation!=generation)return;
         DoCommand(map,id,binding,arguments);
     }
 }
@@ -124,7 +130,7 @@ void NativeMonsterAiExecutor::DoCommand(NativeMonsterMap& map,std::uint32_t id,c
     if(delay) {
         m_schedule({binding.source_row,slot.generation,id,slot.host_key,args.event_host,args.real_host,
             delay,map.map_id,map.party,map.physical_channel,args.real_type});
-    }else if(CanRun(command,slot)) {
+    }else if(CanRun(command,slot,args)) {
         (void)Execute(map,id,binding,args); // source synchronous repeat ignored
     }
 }
@@ -136,7 +142,7 @@ void NativeMonsterAiExecutor::Acknowledge(NativeMonsterMap& map,const NativeAiIn
     const auto binding=m_ai.by_source_row.find(call.binding);
     if(binding==m_ai.by_source_row.end())throw std::runtime_error("Native AI ACK command-instance identity absent");
     const Arguments args{call.event_host,call.real_host,call.real_type};
-    if(CanRun(m_ai.commands.at(binding->second.command),found->second)&&Execute(map,call.monster,binding->second,args)) {
+    if(CanRun(m_ai.commands.at(binding->second.command),found->second,args)&&Execute(map,call.monster,binding->second,args)) {
         const auto current=map.slots.find(call.monster);
         if(current!=map.slots.end()&&current->second.generation==call.generation)
             DoCommand(map,call.monster,binding->second,args);
@@ -145,9 +151,10 @@ void NativeMonsterAiExecutor::Acknowledge(NativeMonsterMap& map,const NativeAiIn
     }
 }
 bool NativeMonsterAiExecutor::Complete(NativeMonsterMap& map,std::uint32_t id,const NativeAiBinding& binding,Arguments args) {
+    const auto generation=map.slots.at(id).generation;
     Event(map,id,0,binding.command,args); // AT_AICOMPLETE before GetDelay
     const auto found=map.slots.find(id);
-    if(found==map.slots.end())return false; // source's later dereference is unsafe
+    if(found==map.slots.end()||found->second.generation!=generation)return false; // no later dereference of removed/replaced source object
     return binding.loop&&Delay(binding,found->second)!=0;
 }
 void NativeMonsterAiExecutor::ResolveTemplate(NativeMonsterSlot& slot,const NativeMonsterAllocationTemplate& monster) {
@@ -168,6 +175,17 @@ bool NativeMonsterAiExecutor::Execute(NativeMonsterMap& map,std::uint32_t id,con
     auto& slot=map.slots.at(id);
     const auto kind=m_ai.commands.at(binding.command).kind;
     if(kind==0)return Regen(map,id,binding,args);
+    if(kind==4)return ChangeHost(map,id,binding,args);
+    if(kind==5) {
+        switch(slot.mode) {
+        case 0:slot.mode=1;break;
+        case 1:slot.mode=2;slot.target=0;slot.target_type=0;break;
+        case 2:slot.mode=0;slot.target=0;slot.target_type=0;break;
+        default:break; // source still calls ChgMode and increments key for an unknown mode
+        }
+        ChangeMode(map,id,slot.mode);++slot.host_key;
+        return Complete(map,id,binding,args);
+    }
     if(kind==2||kind==3) {
         std::optional<MapSessionClaim> old;
         NativeMonsterHostChoice choice;

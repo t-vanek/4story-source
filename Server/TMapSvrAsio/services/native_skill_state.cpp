@@ -1,5 +1,7 @@
 #include "native_skill_state.h"
 #include "native_monster_spawn.h"
+#include "domain/character_payload.h"
+#include <algorithm>
 #include <stdexcept>
 
 namespace tmapsvr {
@@ -10,6 +12,20 @@ const std::vector<SkillDataRow>& Data(const NativeMonsterCatalog& catalog,std::u
     if(data==catalog.skill_data.end())throw std::runtime_error("Native maintained skill has no proven data query");
     return data->second; // present-empty query is distinct from missing template/query authority
 }
+}
+bool NativePlayerSkillAvailable(const CharacterPayload& p,std::uint16_t skill) {
+    if(!p.source_skill_data)throw std::runtime_error("Native player source skill catalog was not observed");
+    return p.source_skill_data->contains(skill);
+}
+const std::vector<SkillDataRow>& NativePlayerSkillData(const CharacterPayload& p,std::uint16_t skill) {
+    if(!NativePlayerSkillAvailable(p,skill))throw std::runtime_error("Native player skill template absent or source-removed");
+    return p.source_skill_data->at(skill);
+}
+bool FilterNativePlayerSkills(CharacterPayload& p) {
+    if(!p.source_skill_data||!p.effects)throw std::runtime_error("Source skill filtering requires observed catalog and effects");
+    const auto skills=std::erase_if(p.skills,[&](const auto& s){return !NativePlayerSkillAvailable(p,s.wSkillID);});
+    const auto effects=std::erase_if(*p.effects,[&](const auto& e){return !NativePlayerSkillAvailable(p,e.skill);});
+    return skills||effects;
 }
 bool NativeMonsterAttackAllowed(const NativeMonsterCatalog& catalog,const NativeMonsterSlot& slot) {
     if(slot.getaway||!slot.can_attack)return false;

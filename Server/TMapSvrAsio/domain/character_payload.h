@@ -3,6 +3,7 @@
 #include "domain/secure_code.h"
 #include "domain/quest.h"
 #include "domain/skill.h"
+#include "domain/skill_data.h"
 #include "domain/character_statistics.h"
 #include "domain/maintained_effect.h"
 #include "domain/during_item.h"
@@ -46,6 +47,11 @@ struct CharacterPet { std::uint16_t id{}; std::string name; std::int64_t used_at
 // belong to their fenced repositories; core movement/save never replaces mail,
 // inventory or skills with empty/unloaded collections.
 struct CharacterPayload {
+    std::shared_ptr<const SourceSkillDataCatalog> source_skill_data;
+    // Exact raw PostgreSQL admission observations, only when source FindTSkill
+    // omitted saved rows. Ready normalizes them atomically with its checkpoint.
+    struct SkillLoadBaseline {std::string skills,effects;};
+    std::optional<SkillLoadBaseline> source_skill_load_baseline;
     ChatFloodState chat_log;
     SecureCodeState security;
     // Full typed source graph retained across primary tenures. Its nested

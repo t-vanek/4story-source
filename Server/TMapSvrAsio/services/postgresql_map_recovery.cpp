@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_skill_state.h"
 #include "posture_effects.h"
 #include "MessageId.h"
 #include <soci/soci.h>
@@ -26,10 +27,8 @@ void PostgreSQLMapService::AdvanceRecovery(soci::session& sql,const MapSessionCl
         throw std::runtime_error("Recovery requires supported actual statistics and local clocks");
     // HaveStopRecover scans actual maintained templates, independent of action.
     for(const auto& effect:*s.payload->effects) {
-        const int skill=std::bit_cast<std::int16_t>(effect.skill);int stopped=0;
-        sql<<"SELECT count(*) FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:skill AND \"bType\"=6 AND \"bExec\"=48",
-            soci::use(skill),soci::into(stopped);
-        if(stopped)return;
+        for(const auto& d:NativePlayerSkillData(*s.payload,effect.skill))
+            if(d.bType==SDT_STATUS&&d.bExec==48)return;
     }
     const auto tick=static_cast<std::uint32_t>(now);bool changed=false;
     const auto advance=[&](std::uint32_t& current,std::uint32_t maximum,std::uint32_t rate,std::uint32_t& previous) {

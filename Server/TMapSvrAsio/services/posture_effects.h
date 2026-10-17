@@ -1,5 +1,6 @@
 #pragma once
 #include "domain/character.h"
+#include "native_skill_state.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -38,6 +39,7 @@ void ApplyEquipmentPostures(CharSnapshot& s,std::uint16_t automatic,InventoryMov
         const auto id=p->effects->at(i).skill;p->effects->erase(p->effects->begin()+i);
         update();events.push_back({false,id,std::make_shared<const CharSnapshot>(s)});
     };
+    if(automatic&&!NativePlayerSkillAvailable(*p,automatic))automatic=0; // ForceMaintain(NULL)
     if(automatic&&std::none_of(p->effects->begin(),p->effects->end(),[&](const auto& e){return e.skill==automatic;})) {
         // Both supported templates are positive postures. Source UpdateBuffSkill
         // erases every old posture in vector order before pushing the new one.

@@ -78,7 +78,7 @@ std::uint8_t PostgreSQLMapService::ItemMutationProbability(soci::session& sql,co
     std::optional<std::size_t> first_matching;
     std::uint16_t probability=0;
     for(std::size_t i=0;i<s.payload->effects->size();++i) {
-        const auto raw=NativeItemBuffValue(sql,s.payload->effects->at(i).skill,status);
+        const auto raw=NativeItemBuffValue(*s.payload,s.payload->effects->at(i).skill,status);
         if(!raw)continue;
         if(!first_matching)first_matching=i;
         probability=*raw;

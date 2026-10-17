@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_skill_state.h"
 #include "postgresql_map_owner.h"
 #include "native_wire_text.h"
 #include <soci/soci.h>
@@ -140,12 +141,9 @@ std::optional<PartyAuthority> PostgreSQLMapService::AuthorizeParty(const MapSess
         // CTObjBase::IsActionBlock examines every maintained skill's template,
         // including entries awaiting the normal simulation expiry producer.
         for(const auto& effect:*s.payload->effects) {
-            const int skill=std::bit_cast<std::int16_t>(effect.skill);int exists=0,blocked=0;
-            sql<<"SELECT count(*) FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(skill),soci::into(exists);
-            if(exists!=1)throw std::runtime_error("Party invitation effect has no original skill template");
-            sql<<"SELECT count(*) FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id "
-                 "AND (\"bType\"=3 OR (\"bType\"=6 AND \"bExec\" IN (3,8)))",soci::use(skill),soci::into(blocked);
-            out.action_blocked=out.action_blocked||blocked!=0;
+            for(const auto& d:NativePlayerSkillData(*s.payload,effect.skill))
+                if(d.bType==SDT_TRANS||(d.bType==SDT_STATUS&&(d.bExec==SDT_STATUS_BLOCK||d.bExec==SDT_STATUS_HOLD)))
+                    out.action_blocked=true;
         }
         const int source=std::bit_cast<std::int32_t>(inviter);int blocked=0;
         sql<<"SELECT count(*) FROM app_world.\"TPROTECTEDTABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c "

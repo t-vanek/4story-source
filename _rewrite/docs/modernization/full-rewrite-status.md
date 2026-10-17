@@ -13,22 +13,23 @@ Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside G
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–083 are **written, not applied**; next084.
 
-Local Phase A continuation (2026-10-17), baseline `5e835e3`: written083,
-SELECT grants and the offline skill-data publisher now define complete original
-per-skill query order, explicit empty results, full/active source equality and
-ordinary TPREMIUMSKILLCHART removals. Actual native boot loads all eight data
-fields, applies source template removals and pins the release on subsequent
-owner/battle/AI reads. CheckAttack consumes real status/AI rows; ordered disguise
-and GetCountry feed CHGHOST and native NPC access. Initial replica constructor
-effects and retained demotion effects are distinct from unloaded state. These
-paths are **IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED** in their documented
-scope; all populated admission/actual-player AI guards remain. General effect/
-replica mutation and expiry, combat SetAggro, host attack/skill/movement, PC events/
-loot locks and full hosting remain incomplete. Existing player learn/load/use/item
-readers also need the same source premium-availability contract. Full Phase A
-remains **IMPLEMENTING**.083/grants/publisher are written only;044–083 unapplied,
-next084. No build/test/SQL/import/runtime/push/deployment ran.
-[Source contracts and handoff](evidence/phase-a-native-skill-state-20261017/README.md).
+Local Phase A continuation (2026-10-17), baseline `504511b`: ordinary source
+skill availability now also reaches real native player load/full-graph receive,
+trainer lists/learning, quest skill grants, ITEMUSE/ACT and automatic postures.
+One shared immutable surviving-template/query snapshot preserves explicit empty
+results and the original083 data order in player stats, multi-attack, action
+cures, item buffs, quest EXP and status predicates. Fresh admission records the
+raw saved baseline; `MarkReady` validates it under ownership/account/claim locks
+and normalizes only source-absent operational rows atomically with its initial
+checkpoint. Transfer/recovery captures surviving skills/buffs in the existing
+full graph. These paths are **INTEGRATED_UNVERIFIED** within existing supported
+player/effect scope; all populated admission/actual-player AI guards remain.
+Full skills/effects/combat/hosted gameplay and Phase A remain **IMPLEMENTING**.
+No new schema migration; the additional player DELETE grant is written only.
+044–083 and grants/publishers remain unapplied, next084. No build/test/SQL/import/
+runtime/push/deployment ran. Inventory335 IDs/13 columns; DB map78 rows/6 columns
+are navigation counts, not completion metrics.
+[Source contracts and exact handoff](evidence/phase-a-native-skill-state-20261017/README.md).
 
 Previous Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
 now produces owned aggro/target state, follows source notification/skill ordering
@@ -1296,6 +1297,13 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Exact continuation / implementation gate
 
+The next dependency from the native skill inventory is source BeginAtk/
+CanSilenceAttack/SkillUse, followed by actual host attack/movement. Reuse083
+ordered rows and current source clocks; complete maintained-state/stat producers,
+replica mutation/expiry, combat SetAggro and PC/loot-lock consumers before actor
+coexistence. Keep admission/Initialize/ACK barriers. Player availability is now
+integrated unverified; it does not complete these remaining gameplay paths.
+
 1. Continue the source-dependent progression/item contracts:
    TMonster::OnDie party and owner IsExpBenefit multiplication; account
    TDURINGITEMTABLE + TGetPcBangData/TSetPcBangData and premium/daily/pet behavior.
@@ -1350,11 +1358,12 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `5e835e3`: original CTBLSkillData/skill-template
-removal, CheckAttack/HaveDisguiseBuff/GetCountry and replica constructor/release
-contracts; native loader/owner checks/NPC/host/entry/demotion/wire boundaries;
-SQL-text/publisher AST/interface/CMake/diff/inventory inspection only. Actual
-source revision and local backup SHA256 re-read. No executable verification;
+Latest local work based on `504511b`: original player FindTSkill load/receive,
+trainer/quest/item/ACT/posture and ordered skill/buff/stat predicates; immutable
+metadata lifetime, raw admission baseline, owner/account/claim-fenced initial
+normalization, graph Capture/recovery, runtime DELETE grant and actual CMake/
+source/interface/diff/inventory inspection only. Backup SHA256 and source
+revision re-read. No executable verification;
 [current skill-state evidence](evidence/phase-a-native-skill-state-20261017/README.md).
 
 Previous local work based on `fbc91a7`: original LeaveAggro/AddAggro/CHGHOST/

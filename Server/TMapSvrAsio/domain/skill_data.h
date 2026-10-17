@@ -7,6 +7,8 @@
 // 4Story's wire + chart encoding, do not renumber.
 
 #include <cstdint>
+#include <map>
+#include <vector>
 
 namespace tmapsvr {
 
@@ -94,5 +96,9 @@ struct SkillDataRow
     std::uint16_t wValueInc  = 0;   // per-level increment (calc modes 1/3)
     std::uint8_t  bCalc      = 0;   // 0 const / 1 linear / 2 exponential / 3 falling
 };
+
+// Source LoadData's surviving template identities, including proven empty data
+// vectors. Shared immutable process metadata; never serialized as player state.
+using SourceSkillDataCatalog = std::map<std::uint16_t,std::vector<SkillDataRow>>;
 
 } // namespace tmapsvr

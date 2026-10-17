@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_skill_state.h"
 #include "character_titles.h"
 #include "skill_learning.h"
 #include "MessageId.h"
@@ -138,14 +139,16 @@ std::uint8_t PostgreSQLMapService::CompleteQuestRewards(soci::session& sql,const
         }
         case RT_SKILL:case RT_SKILLUP: {
             auto p=std::make_shared<CharacterPayload>(*s.payload);s.payload=p;
-            const auto skill=static_cast<std::uint16_t>(reward.dwRewardID);const int id=std::bit_cast<std::int16_t>(skill);
+            const auto skill=static_cast<std::uint16_t>(reward.dwRewardID);
+            if(!NativePlayerSkillAvailable(*p,skill))break;
+            const int id=std::bit_cast<std::int16_t>(skill);
             auto found=std::find_if(p->skills.begin(),p->skills.end(),[&](const auto& row){return row.wSkillID==skill;});
             const bool upgrade=reward.bRewardType==RT_SKILLUP;
             if(upgrade&&found==p->skills.end())break;
             if(!upgrade) {
                 int classes=0;
                 sql << "SELECT \"dwClassID\" FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(classes);
-                if(!sql.got_data())break;
+                if(!sql.got_data())throw std::runtime_error("Available reward skill missing from pinned character catalog");
                 if(s.bClass>=32)throw std::runtime_error("Quest skill class shift out of range");
                 if(!(static_cast<std::uint32_t>(classes)&(std::uint32_t{1}<<s.bClass))||found!=p->skills.end())break;
                 p->skills.push_back({skill,1,0});found=std::prev(p->skills.end());
@@ -171,10 +174,9 @@ std::uint8_t PostgreSQLMapService::CompleteQuestRewards(soci::session& sql,const
             if(!s.payload->effects)throw std::runtime_error("Quest experience requires hydrated maintained skills");
             std::uint16_t bonus=0;
             for(const auto& effect:*s.payload->effects) {
-                const int id=std::bit_cast<std::int16_t>(effect.skill);int value=0;
-                sql << "SELECT \"wValue\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=6 AND \"bExec\"=63 "
-                    "ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\" LIMIT 1",soci::use(id),soci::into(value);
-                if(sql.got_data()&&(bonus=static_cast<std::uint16_t>(value)))break;
+                for(const auto& d:NativePlayerSkillData(*s.payload,effect.skill))
+                    if(d.bType==SDT_STATUS&&d.bExec==63){bonus=d.wValue;break;}
+                if(bonus)break;
             }
             const std::uint32_t gain=reward.dwRewardID+static_cast<std::uint32_t>(reward.dwRewardID*bonus)/100U;
             GainQuestExperience(sql,c,s,gain,event,packets);break;

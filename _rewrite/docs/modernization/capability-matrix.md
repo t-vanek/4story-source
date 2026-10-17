@@ -2,22 +2,23 @@
 
 ## Active Phase A changes, starting at `2fa2396`
 
-Local Phase A continuation (2026-10-17), baseline `5e835e3`: written083,
-SELECT grants and the offline skill-data publisher now define complete original
-per-skill query order, explicit empty results, full/active source equality and
-ordinary TPREMIUMSKILLCHART removals. Actual native boot loads all eight data
-fields, applies source template removals and pins the release on subsequent
-owner/battle/AI reads. CheckAttack consumes real status/AI rows; ordered disguise
-and GetCountry feed CHGHOST and native NPC access. Initial replica constructor
-effects and retained demotion effects are distinct from unloaded state. These
-paths are **IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED** in their documented
-scope; all populated admission/actual-player AI guards remain. General effect/
-replica mutation and expiry, combat SetAggro, host attack/skill/movement, PC events/
-loot locks and full hosting remain incomplete. Existing player learn/load/use/item
-readers also need the same source premium-availability contract. Full Phase A
-remains **IMPLEMENTING**.083/grants/publisher are written only;044–083 unapplied,
-next084. No build/test/SQL/import/runtime/push/deployment ran.
-[Source contracts and handoff](evidence/phase-a-native-skill-state-20261017/README.md).
+Local Phase A continuation (2026-10-17), baseline `504511b`: ordinary source
+skill availability now also reaches real native player load/full-graph receive,
+trainer lists/learning, quest skill grants, ITEMUSE/ACT and automatic postures.
+One shared immutable surviving-template/query snapshot preserves explicit empty
+results and the original083 data order in player stats, multi-attack, action
+cures, item buffs, quest EXP and status predicates. Fresh admission records the
+raw saved baseline; `MarkReady` validates it under ownership/account/claim locks
+and normalizes only source-absent operational rows atomically with its initial
+checkpoint. Transfer/recovery captures surviving skills/buffs in the existing
+full graph. These paths are **INTEGRATED_UNVERIFIED** within existing supported
+player/effect scope; all populated admission/actual-player AI guards remain.
+Full skills/effects/combat/hosted gameplay and Phase A remain **IMPLEMENTING**.
+No new schema migration; the additional player DELETE grant is written only.
+044–083 and grants/publishers remain unapplied, next084. No build/test/SQL/import/
+runtime/push/deployment ran. Inventory335 IDs/13 columns; DB map78 rows/6 columns
+are navigation counts, not completion metrics.
+[Source contracts and exact handoff](evidence/phase-a-native-skill-state-20261017/README.md).
 
 Previous Phase A continuation (2026-10-17), baseline `fbc91a7`: source CHGHOST
 now produces owned aggro/target state, follows source notification/skill ordering

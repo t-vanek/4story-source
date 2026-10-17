@@ -170,7 +170,7 @@ bool PostgreSQLMapService::SellNativeItem(soci::session& sql,const MapSessionCla
     // HaveItemProbBuff(PRICEUP65) returns the first nonzero raw wValue, not a
     // recalculated skill magnitude. Other status types never alter sale price.
     for(const auto& effect:*s.payload->effects) {
-        const auto value=NativeItemBuffValue(sql,effect.skill,65);
+        const auto value=NativeItemBuffValue(*s.payload,effect.skill,65);
         if(value&&*value) {
             money+=static_cast<std::uint32_t>(money*(*value))/100U;break;
         }

@@ -9,6 +9,7 @@
 #include <array>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -40,6 +41,7 @@ struct NativeMonsterCatalog {
     std::map<std::uint32_t,NativeMonsterBaseVitals> attributes; // MAKELONG(attribute FAMILY,level)
     std::map<std::uint16_t,SkillTemplate> skills;
     std::map<std::uint16_t,std::vector<SkillDataRow>> skill_data; // exact CTBLSkillData query order; present-empty is explicit
+    std::shared_ptr<const SourceSkillDataCatalog> player_skill_data;
     std::string skill_data_order_sha256;
     std::set<std::uint16_t> items,extra_spawn_ids;
     std::set<std::uint8_t> levels;

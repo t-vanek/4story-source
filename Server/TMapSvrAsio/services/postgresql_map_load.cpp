@@ -9,6 +9,7 @@
 #include "services/item_expiration.h"
 #include "services/native_item_row.h"
 #include "services/native_wire_text.h"
+#include "services/native_skill_state.h"
 #include <set>
 #include <soci/soci.h>
 #include <algorithm>
@@ -57,9 +58,9 @@ Formula ReadFormula(soci::session& sql,int id){
     return {U32(r,"dwinit"),rate("fRateX"),rate("fRateY")};
 }
 using Passive=AbilityEffect;
-AbilityEffect ReadAbility(const soci::row& data,const SkillTemplate& skill,std::uint8_t rank) {
-    int value=U16(data,"wValue"),increment=U16(data,"wValueInc");
-    switch(U8(data,"bCalc")) {
+AbilityEffect ReadAbility(const SkillDataRow& data,const SkillTemplate& skill,std::uint8_t rank) {
+    int value=data.wValue,increment=data.wValueInc;
+    switch(data.bCalc) {
     case 0:break;
     case 1:value+=(rank-1)*increment;break;
     case 2:{const int exponent=rank?skill.bStartLevel+(rank-1)*skill.bNextLevel:0;
@@ -70,27 +71,28 @@ AbilityEffect ReadAbility(const soci::row& data,const SkillTemplate& skill,std::
     case 3:value-=(rank-1)*increment;break;
     default:throw std::runtime_error("Unsupported skill ability calculation");
     }
-    return {U8(data,"bExec"),U8(data,"bInc"),value};
+    return {data.bExec,data.bInc,value};
 }
 void ReadPostures(soci::session& sql,CharacterPayload& p) {
     for(int id=131;id<=132;++id) {
+        auto& def=p.posture_templates[id-131];def={};
+        if(!NativePlayerSkillAvailable(p,id))continue;
         soci::row chart;sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
         if(!sql.got_data()||U32(chart,"dwDuration")||U32(chart,"dwDurationInc")||
            !U8(chart,"bStatic")||U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||
            !U8(chart,"bIsuse")||U8(chart,"bEraseAct")||U8(chart,"bEraseHide")||U8(chart,"bIsHideSkill"))
             throw std::runtime_error("Pinned automatic posture requires additional effect semantics");
-        auto& def=p.posture_templates[id-131];def={static_cast<std::uint16_t>(id),U32(chart,"dwWeaponID"),{}};
+        def={static_cast<std::uint16_t>(id),U32(chart,"dwWeaponID"),{}};
         bool posture=false;
-        soci::rowset<soci::row> data=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
-        for(const auto& d:data) {
-            const auto type=U8(d,"bType"),exec=U8(d,"bExec");
-            if(U8(d,"bAction")!=3)throw std::runtime_error("Automatic posture has an unsupported action");
+        for(const auto& d:NativePlayerSkillData(p,id)) {
+            const auto type=d.bType,exec=d.bExec;
+            if(d.bAction!=3)throw std::runtime_error("Automatic posture has an unsupported action");
             if(type==6&&(exec==7||exec==26||exec==27)){posture=true;continue;}
-            if(type!=1||(exec!=7&&exec!=8&&exec!=9&&exec!=16)||U8(d,"bCalc")>1||U8(d,"bInc")>5)
+            if(type!=1||(exec!=7&&exec!=8&&exec!=9&&exec!=16)||d.bCalc>1||d.bInc>5)
                 throw std::runtime_error("Automatic posture has unsupported stat effects");
             // Automatic/recovered postures are rank 1: original Calc 0/1 both
             // evaluate to wValue. Values always come from the pinned backup.
-            def.abilities.push_back({exec,U8(d,"bInc"),U16(d,"wValue")});
+            def.abilities.push_back({exec,d.bInc,d.wValue});
         }
         if(!posture)throw std::runtime_error("Automatic skill is not a source posture");
     }
@@ -100,8 +102,9 @@ void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
     // Pinned progression statuses, including the EXP entitlement visual903.
     // Account premium/PCBang admission is checked independently by its loader.
     for(const int id:{820,903,905,911,912,913,918,919,921,922,923,939}) {
+        if(!NativePlayerSkillAvailable(p,id))continue;
         soci::row chart;sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
-        if(!sql.got_data())continue; // source FindTSkill's missing-template branch
+        if(!sql.got_data())throw std::runtime_error("Available progression template missing from pinned character catalog");
         if(!U8(chart,"bStatic")||U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||
            (U8(chart,"bIsuse")!=(id==820?1:0))||U8(chart,"bEraseAct")||U8(chart,"bEraseHide")||U8(chart,"bIsHideSkill")||U32(chart,"dwWeaponID")||
            U32(chart,"dwDurationInc")||U8(chart,"bCanCancel")||U8(chart,"bIsDismount"))
@@ -110,12 +113,11 @@ void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
         def.duration=U32(chart,"dwDuration");
         def.erase_at_zero_mp=U8(chart,"bIsuse")&&!def.duration;
         unsigned count=0;
-        soci::rowset<soci::row> rows=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
-        for(const auto& row:rows) {
-            if(++count!=1||U8(row,"bAction")!=3||U8(row,"bType")!=6||U8(row,"bAttr")!=(id==820?1:0)||
-               U8(row,"bExec")!=(id==820?73:id==903?41:id==911?60:id==912?58:id==913?59:id==918?63:id==919?64:id==923?67:42)||U8(row,"bCalc")||U16(row,"wValueInc"))
+        for(const auto& row:NativePlayerSkillData(p,id)) {
+            if(++count!=1||row.bAction!=3||row.bType!=6||row.bAttr!=(id==820?1:0)||
+               row.bExec!=(id==820?73:id==903?41:id==911?60:id==912?58:id==913?59:id==918?63:id==919?64:id==923?67:42)||row.bCalc||row.wValueInc)
                 throw std::runtime_error("Progression effect has unsupported skill data");
-            def.status=U8(row,"bExec");def.value=U16(row,"wValue");def.attribute=U8(row,"bAttr");
+            def.status=row.bExec;def.value=row.wValue;def.attribute=row.bAttr;
         }
         if(count!=1)throw std::runtime_error("Progression effect has no source maintained row");
         p.progress_effect_templates.push_back(def);
@@ -125,11 +127,12 @@ void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
     p.revival_effect_exists=p.revival_effect_supported=false;
     p.avoid_effect_exists=p.avoid_effect_supported=false;
     for(const int id:{800,802}) {
+        if(!NativePlayerSkillAvailable(p,id))continue;
         auto& exists=id==800?p.revival_effect_exists:p.avoid_effect_exists;
         auto& supported=id==800?p.revival_effect_supported:p.avoid_effect_supported;
         soci::row chart;
         sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
-        if(!sql.got_data())continue;
+        if(!sql.got_data())throw std::runtime_error("Available forced-marker template missing from pinned character catalog");
         exists=true;
         if(U8(chart,"bPositive")%2!=1||U8(chart,"bORadius")||U16(chart,"wPosture")||U8(chart,"bIsHideSkill")||
            U8(chart,"bEraseHide")||U32(chart,"dwDurationInc")||U32(chart,"dwWeaponID")||U8(chart,"bIsDismount")||U8(chart,"bEraseAct")>3)continue;
@@ -137,10 +140,9 @@ void ReadProgressEffects(soci::session& sql,CharacterPayload& p) {
         def.erase_at_zero_mp=U8(chart,"bIsuse")&&!def.duration;def.erase_act=U8(chart,"bEraseAct");
         def.is_static=U8(chart,"bStatic")!=0;
         unsigned count=0;bool valid=true;
-        soci::rowset<soci::row> rows=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id",soci::use(id));
-        for(const auto& row:rows) {
+        for(const auto& row:NativePlayerSkillData(p,id)) {
             ++count;
-            if(U8(row,"bAction")!=3||U8(row,"bType")!=6||U8(row,"bExec")!=0)valid=false;
+            if(row.bAction!=3||row.bType!=6||row.bExec!=0)valid=false;
         }
         if(!count||!valid)continue; // supported positive STATUS_NONE marker only
         supported=true;p.progress_effect_templates.push_back(std::move(def));
@@ -222,8 +224,8 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         const int id=std::bit_cast<std::int16_t>(skill.wSkillID);soci::row chart;
         sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(chart);
         if(!sql.got_data())throw std::runtime_error("Learned skill has no source template");
-        {soci::rowset<int> kinds=(sql.prepare<<"SELECT \"bExec\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=0",soci::use(id));
-         for(int kind:kinds)if(kind>=0&&kind<256)p.equipment_kinds[kind]=true;}
+        const auto& source_data=NativePlayerSkillData(p,skill.wSkillID);
+        for(const auto& d:source_data)if(d.bType==SDT_EQUIP)p.equipment_kinds[d.bExec]=true;
         SkillTemplate definition;
         definition.wID=skill.wSkillID;definition.dwReuseDelay=U32(chart,"dwReuseDelay");
         definition.nReuseDelayInc=std::bit_cast<std::int32_t>(U32(chart,"nReuseDelayInc"));
@@ -256,7 +258,7 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
         definition.bUseHPType=U8(chart,"bUseHPType");definition.dwUseHP=U32(chart,"dwUseHP");
         definition.bStartLevel=U8(chart,"bLevel");definition.bNextLevel=U8(chart,"bNextLevel");
         definition.bMaxLevel=U8(chart,"bMaxLevel");definition.f1stRateX=growth.rate;
-        definition.multi_attack=ReadNativeMultiAttack(sql,definition,skill.bLevel,U8(chart,"bTargetHit"));
+        definition.multi_attack=ReadNativeMultiAttack(p,definition,skill.bLevel,U8(chart,"bTargetHit"));
         auto& instance=instances[skill.wSkillID];bool final_type=false;
         bool instant_cure=U8(chart,"bCanLearn")==1&&U8(chart,"bRunFromServer")==0&&
             U16(chart,"wTriggerID")==skill.wSkillID&&U8(chart,"bCheckAttacker")!=3&&
@@ -266,16 +268,13 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
             U16(chart,"wTargetActiveID")==0&&U16(chart,"wPosture")==0&&U8(chart,"bTargetRange")==0&&
             U8(chart,"bIsDismount")==0&&
             (chart.get_indicator("bRepeatCount")==soci::i_null||U8(chart,"bRepeatCount")==0);
-        // The original query has no ORDER BY. Use the recovered source key
-        // explicitly instead of relying on PostgreSQL's selected access path.
-        soci::rowset<soci::row> all_data=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id "
-            "ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\"",soci::use(id));
-        for(const auto& data:all_data) {
-            const auto attr=U8(data,"bAttr"),type=U8(data,"bType"),exec=U8(data,"bExec");
+        // Exact CTBLSkillData order captured by publication083.
+        for(const auto& data:source_data) {
+            const auto attr=data.bAttr,type=data.bType,exec=data.bExec;
             if(type==SDT_TRAP||type==SDT_RECALL)definition.action_supported=false;
-            if(U8(data,"bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP))instant_cure=false;
-            definition.instant_cure.push_back({U8(data,"bAction"),type,attr,exec,U8(data,"bInc"),
-                U16(data,"wValue"),U16(data,"wValueInc"),U8(data,"bCalc")});
+            if(data.bAction!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP))instant_cure=false;
+            definition.instant_cure.push_back({data.bAction,type,attr,exec,data.bInc,
+                data.wValue,data.wValueInc,data.bCalc});
             // CTSkillTemp::GetAttackType: physical/long and MAGICNO return
             // immediately; elemental magic only sets the fallback result.
             if(!final_type) {
@@ -297,12 +296,17 @@ void DeriveStats(soci::session& sql,CharSnapshot& s,CharacterPayload& p) {
                  "WHERE \"wID\"=:id AND \"bLevel\">=1 AND \"bLevel\"<=:rank",soci::use(id,"id"),soci::use(rank,"rank"),soci::into(used);
             p.skill_points[group]=static_cast<std::uint16_t>(p.skill_points[group]+used);
         }
-        // Original IsRemainType only adds skills having a SA_CONTINUE row.
-        soci::rowset<soci::row> data=(sql.prepare<<"SELECT d.* FROM character_compat.\"TSKILLDATA\" d WHERE d.\"wSkillID\"=:id "
-            "AND d.\"bAction\" IN (1,4) AND d.\"bType\"=1 AND d.\"bExec\" IN (1,2,3,4,5,6,7,8,9,11,12,13,16,17,19,20,21,32,33,50,51,54,55,56,86,87) "
-            "AND EXISTS (SELECT 1 FROM character_compat.\"TSKILLDATA\" a WHERE a.\"wSkillID\"=:id AND a.\"bAction\"=1)",soci::use(id,"id"));
-        for(const auto& d:data) {
-            passives.push_back(ReadAbility(d,definition,skill.bLevel));
+        // IsRemainType reads the whole vector; CalcAbilityValue preserves its
+        // order while selecting supported SA_CONTINUE/SA_PASSIVE abilities.
+        const bool remains=std::any_of(source_data.begin(),source_data.end(),[](const auto& d){return d.bAction==SA_CONTINUE;});
+        if(remains)for(const auto action:{SA_CONTINUE,SA_PASSIVE})
+        for(const auto& d:source_data)if(d.bAction==action&&d.bType==SDT_ABILITY) {
+            switch(d.bExec) {
+            case 1:case 2:case 3:case 4:case 5:case 6:case 7:case 8:case 9:case 11:case 12:case 13:case 16:case 17:
+            case 19:case 20:case 21:case 32:case 33:case 50:case 51:case 54:case 55:case 56:case 86:case 87:
+                passives.push_back(ReadAbility(d,definition,skill.bLevel));break;
+            default:break;
+            }
         }
     }
     std::vector<AbilityEffect> active;
@@ -473,9 +477,8 @@ void PostgreSQLMapService::RefreshEquipment(soci::session& sql,CharSnapshot& s,b
     }
     p->equipment_kinds.fill(false);
     for(const auto& skill:p->skills) {
-        const int id=std::bit_cast<std::int16_t>(skill.wSkillID);
-        soci::rowset<int> kinds=(sql.prepare<<"SELECT \"bExec\" FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND \"bType\"=0",soci::use(id));
-        for(int kind:kinds)if(kind>=0&&kind<256)p->equipment_kinds[kind]=true;
+        for(const auto& d:NativePlayerSkillData(*p,skill.wSkillID))
+            if(d.bType==SDT_EQUIP)p->equipment_kinds[d.bExec]=true;
     }
     if(derive) {
         DeriveStats(sql,s,*p);
@@ -547,6 +550,7 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     if(s.szNAME.empty()||s.szNAME.size()>50)throw std::runtime_error("Native character name exceeds its source wire width");
     if(!std::isfinite(s.fPosX)||!std::isfinite(s.fPosY)||!std::isfinite(s.fPosZ))throw std::runtime_error("Invalid character position");
     auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
+    p.source_skill_data=m_monster_catalog.player_skill_data;
     p.effects.emplace();
     {soci::rowset<soci::row> effects=(sql.prepare<<"SELECT * FROM app_world.map_maintained_effects WHERE world_id=:w AND char_id=:c ORDER BY ordinal",
         soci::use(world,"w"),soci::use(character,"c"));
@@ -557,8 +561,6 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
         e.host_id=U32(r,"host_id");e.attack_country=U8(r,"attack_country");
         e.sampled_ms=e.charge_ms=SkillClockMs();p.effects->push_back(e);
      }}
-    ReadProgressEffects(sql,p);
-    if(!SupportedPostures(p))throw std::runtime_error("Fresh maintained effect needs unimplemented native simulation");
     p.rank_point=U32(row,"dwRankPoint");
     int lucky=0;sql<<"SELECT \"bLuckyNumber\" FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k",soci::use(key),soci::into(lucky);
     p.lucky_number=static_cast<std::uint8_t>(lucky);
@@ -583,6 +585,15 @@ std::optional<CharSnapshot> PostgreSQLMapService::LoadAuthorized(const MapSessio
     }
     for(const auto& r:children("TSKILLTABLE","dwCharID",""," ORDER BY (\"wSkillID\"::integer & 65535)"))
         p.skills.push_back({U16(r,"wSkillID"),U8(r,"bLevel"),U32(r,"dwRemainTick")});
+    if(FilterNativePlayerSkills(p)) {
+        CharacterPayload::SkillLoadBaseline baseline;
+        sql<<"SELECT app_world.map_skill_state(CAST(:w AS smallint),CAST(:c AS integer))::text,"
+             "app_world.map_maintain_state(CAST(:w AS smallint),CAST(:c AS integer))::text",
+            soci::use(world,"w"),soci::use(character,"c"),soci::into(baseline.skills),soci::into(baseline.effects);
+        p.source_skill_load_baseline=std::move(baseline);
+    }
+    ReadProgressEffects(sql,p);
+    if(!SupportedPostures(p))throw std::runtime_error("Fresh maintained effect needs unimplemented native simulation");
     for(const auto& r:children("THOTKEYTABLE","dwCharID",""," ORDER BY \"bInvenID\"")) {
         CharacterHotkeys h;h.inventory=U8(r,"bInvenID");
         for(int i=0;i<12;++i){auto suffix=std::to_string(i+1);h.keys[i]={U8(r,"bType"+suffix),U16(r,"wID"+suffix)};}
@@ -645,6 +656,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     CharSnapshot s=t.character;s.payload.reset();s.recovery.reset();s.rps={};auto payload=std::make_shared<CharacterPayload>();auto& p=*payload;
     auto graph=std::make_shared<transfer::State>(t);graph->character.payload.reset();graph->character.recovery.reset();graph->character.rps={};
     p.transfer_state=std::move(graph);p.transfer_received_ms=SkillClockMs();
+    p.source_skill_data=m_monster_catalog.player_skill_data;
     HydrateNativePosts(sql,claim,p);
     HydrateNativeProtected(sql,claim,p);
     HydrateQuestProgress(sql,claim,p);
@@ -674,6 +686,7 @@ CharSnapshot PostgreSQLMapService::HydrateTransfer(soci::session& sql,const tran
     }
     std::set<std::uint16_t> skills;
     for(const auto& skill:p.skills)if(!skills.insert(skill.wSkillID).second)throw std::runtime_error("Duplicate transferred skill");
+    FilterNativePlayerSkills(p); // Capture/StoreTransferCheckpoint uses these surviving rows atomically.
     p.selected_title=LoadedTitle(p.titles);
     p.previous_level=static_cast<std::uint8_t>(s.bLevel-1);
     for(int i=0;i<2;++i){const int level=static_cast<int>(s.bLevel)-1+i;int experience=0;

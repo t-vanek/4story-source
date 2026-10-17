@@ -220,6 +220,7 @@ private:
     static ConsumptionKind ValidateSkillConsumption(soci::session&,const MapSessionClaim&,std::uint16_t,std::uint8_t,const std::vector<SkillItemDebit>&,const CharSnapshot&,const transfer::State*);
     friend int RecoverPreparedMapTransfers(soci::session&,int,int,const std::string&);
     static void StoreSkillCheckpoint(soci::session&,const MapSessionClaim&,const CharSnapshot&);
+    static void NormalizeAdmissionSkills(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static bool SkillCheckpointMatches(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static bool MaintainCheckpointMatches(soci::session&,const MapSessionClaim&,const CharSnapshot&);
     static void CheckMaintainedTimers(soci::session&,const MapSessionClaim&,const CharSnapshot&);

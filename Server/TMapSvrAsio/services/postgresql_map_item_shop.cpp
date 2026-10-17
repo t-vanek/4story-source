@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_skill_state.h"
 #include "native_npc_discount.h"
 #include "native_quest_magic_item.h"
 #include "quest_conditions.h"
@@ -94,10 +95,12 @@ std::vector<std::pair<std::uint16_t,std::uint32_t>> TrainerOffers(soci::session&
     }
     std::vector<std::pair<std::uint16_t,std::uint32_t>> out;
     for(auto value:ids) {
-        const auto id=static_cast<std::uint16_t>(value);const int key=std::bit_cast<std::int16_t>(id);soci::row row;
+        const auto id=static_cast<std::uint16_t>(value);
+        if(!NativePlayerSkillAvailable(*s.payload,id))continue;
+        const int key=std::bit_cast<std::int16_t>(id);soci::row row;
         sql << "SELECT \"wParentSkillID\",\"bLevel\",\"bNextLevel\",\"bMaxLevel\",\"bKind\",\"dwClassID\",\"fPrice\" "
             "FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(key),soci::into(row);
-        if(!sql.got_data())continue;
+        if(!sql.got_data())throw std::runtime_error("Available trainer skill missing from pinned character catalog");
         const auto mine=std::find_if(s.payload->skills.begin(),s.payload->skills.end(),[&](const auto& skill){return skill.wSkillID==id;});
         const bool learned=mine!=s.payload->skills.end();const auto rank=static_cast<std::uint8_t>(learned?mine->bLevel+1:1);
         const auto need=points.find({id,rank});const auto cost=need==points.end()?std::pair<std::uint8_t,std::uint8_t>{}:need->second;

@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_skill_state.h"
 #include "services/skill_reagent.h"
 #include "services/posture_effects.h"
 #include "services/maintained_effects.h"
@@ -20,9 +21,11 @@ void PostgreSQLMapService::RequireSkillContext(soci::session& sql,std::uint16_t 
     if(guild)throw std::runtime_error("Guild skill requires native guild-role authority");
 }
 std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::session& sql,const CharSnapshot& s,std::uint16_t skill) const {
+    if(!s.payload)throw std::runtime_error("Action item requires native source skill authority");
+    if(!NativePlayerSkillAvailable(*s.payload,skill))return {};
     const int id=std::bit_cast<std::int16_t>(skill);soci::row row;
     sql<<"SELECT * FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(row);
-    if(!sql.got_data())return {};
+    if(!sql.got_data())throw std::runtime_error("Available action-item template missing from pinned catalog");
     RequireSkillContext(sql,skill);
     const auto u8=[&](const char* column){return static_cast<std::uint8_t>(row.get<int>(column));};
     const auto u16=[&](const char* column){return static_cast<std::uint16_t>(row.get<int>(column));};
@@ -64,17 +67,15 @@ std::optional<SkillTemplate> PostgreSQLMapService::ReadActItemSkill(soci::sessio
     power.physical_min=stats.min_physical;power.physical_max=stats.max_physical;
     power.magic_min=stats.min_magic;power.magic_max=stats.max_magic;
     bool final_type=false;
-    soci::rowset<soci::row> data=(sql.prepare<<"SELECT * FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id "
-        "ORDER BY \"bAction\",\"bType\",\"bAttr\",\"bExec\"",soci::use(id));
-    for(const auto& d:data) {
-        const auto type=static_cast<std::uint8_t>(d.get<int>("bType")),exec=static_cast<std::uint8_t>(d.get<int>("bExec"));
-        const auto attr=static_cast<std::uint8_t>(d.get<int>("bAttr"));
-        const auto calc=static_cast<std::uint8_t>(d.get<int>("bCalc"));
-        const auto inc=static_cast<std::uint8_t>(d.get<int>("bInc"));
-        if(d.get<int>("bAction")!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP))
+    for(const auto& d:NativePlayerSkillData(*s.payload,skill)) {
+        const auto type=d.bType,exec=d.bExec;
+        const auto attr=d.bAttr;
+        const auto calc=d.bCalc;
+        const auto inc=d.bInc;
+        if(d.bAction!=SA_ONCE||type!=SDT_CURE||(exec!=SCT_HP&&exec!=SCT_MP))
             throw std::runtime_error("Action item effects require unsupported Defend behavior");
-        out.instant_cure.push_back({SA_ONCE,type,attr,exec,inc,static_cast<std::uint16_t>(d.get<int>("wValue")),
-            static_cast<std::uint16_t>(d.get<int>("wValueInc")),calc});
+        out.instant_cure.push_back({SA_ONCE,type,attr,exec,inc,d.wValue,
+            d.wValueInc,calc});
         if(!final_type) {
             if(attr==1||attr==2){power.attack_type=1;final_type=true;}
             else if(attr==3){power.attack_type=3;final_type=true;}
@@ -144,6 +145,8 @@ bool PostgreSQLMapService::UseNativeActItems(soci::session& sql,const MapSession
     if(s.cluster.riding){reply(28);return false;}
     if(CellOwner(sql,c,s.wMapID,s.fPosX,s.fPosZ)!=m_config.server)
         throw std::runtime_error("Action item actor is outside its physical Map owner");
+    if(!s.payload)throw std::runtime_error("Action item actor has no source skill authority");
+    if(!NativePlayerSkillAvailable(*s.payload,ack.skill_id)){reply(SKILL_NOTFOUND);return false;}
     const auto hp=s.dwHP,mp=s.dwMP;
     RefreshEquipment(sql,s,true);
     if(s.dwHP!=hp||s.dwMP!=mp)throw std::runtime_error("Action item resources exceed actual source maxima");

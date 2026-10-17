@@ -20,6 +20,9 @@ PostgreSQLMapService::PostgreSQLMapService(fourstory::db::SessionPool& pool,Post
         LoadNativeMonsterAi(*lease);
         LoadNativeCellCatalog(*lease);
         LoadNativeBattleRegions(*lease);
+        int skill_delete=0;
+        *lease<<"SELECT CASE WHEN has_table_privilege(current_user,'app_world.\"TSKILLTABLE\"','DELETE') THEN 1 ELSE 0 END",soci::into(skill_delete);
+        if(skill_delete!=1)throw std::runtime_error("Native Map requires source skill admission DELETE grant");
         InitializeNativeCells();
         AllocateNativeMonsters();
         // These native paths require migration 067. Keep all existing catalog
@@ -58,6 +61,9 @@ void PostgreSQLMapService::CheckCatalogs(soci::session& sql) const {
     if(n!=1)throw std::runtime_error("Native Map process topology changed or unavailable");
     sql<<"SELECT count(*) FROM actor_compat.statistics_release",soci::into(n);
     if(n!=1)throw std::runtime_error("Native Map requires the four-table actor release");
+    // The constructor first checks base releases, then requires/loads083 before
+    // returning. Subsequent catalog checks also pin that completed snapshot.
+    if(m_monster_catalog.player_skill_data)CheckNativeSkillDataRelease(sql);
 }
 bool PostgreSQLMapService::LockAccount(soci::session& sql,const MapSessionClaim& c) const {
     if(c.group!=m_config.world||!c.user_id||!c.key||!c.char_id||!c.connection_id||

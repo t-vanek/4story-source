@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_skill_state.h"
 #include "posture_effects.h"
 #include "MessageId.h"
 #include <soci/soci.h>
@@ -89,13 +90,11 @@ bool PostgreSQLMapService::ReviveNative(soci::session& sql,const MapSessionClaim
 void PostgreSQLMapService::EraseNativeActionEffects(soci::session& sql,const MapSessionClaim& c,CharSnapshot& s,
     std::uint16_t skill,bool defend,QuestPackets& packets,std::vector<EquipmentEffectEvent>* ended) {
     if(!skill||IsNativePosture(skill))return;
-    const int id=static_cast<std::int16_t>(skill),attack=defend?0:1;int exempt=0;
-    // Source IsRecall excludes SER_SKILL12. Only attack erasure has this
-    // recall exception; both attack and defend skip actual posture skills.
-    sql<<"SELECT count(*) FROM character_compat.\"TSKILLDATA\" WHERE \"wSkillID\"=:id AND "
-         "((\"bType\"=6 AND \"bExec\" IN (7,26,27)) OR (:attack=1 AND \"bType\"=2 AND \"bExec\"<>12))",
-        soci::use(id,"id"),soci::use(attack,"attack"),soci::into(exempt);
-    if(exempt)return;
+    // IsPosture and the attack-only IsRecall exception inspect every source
+    // row; SER_SKILL12 is deliberately excluded from that recall predicate.
+    for(const auto& d:NativePlayerSkillData(*s.payload,skill))
+        if((d.bType==SDT_STATUS&&(d.bExec==7||d.bExec==26||d.bExec==27))||
+           (!defend&&d.bType==SDT_RECALL&&d.bExec!=12))return;
     for(std::size_t i=0;i<s.payload->effects->size();) {
         const auto effect=s.payload->effects->at(i).skill;
         const auto definition=std::find_if(s.payload->progress_effect_templates.begin(),s.payload->progress_effect_templates.end(),[&](const auto& d){return d.skill==effect;});

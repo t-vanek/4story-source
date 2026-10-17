@@ -59,9 +59,9 @@ bool HasOptionKind(soci::session& sql,const transfer::Item& item) {
     }
     return false;
 }
-std::uint16_t HaveBuff(soci::session& sql,const CharSnapshot& s,int status) {
+std::uint16_t HaveBuff(const CharSnapshot& s,int status) {
     if(!SupportedPostures(*s.payload))throw std::runtime_error("Item upgrade requires supported maintained effects");
-    for(const auto& effect:*s.payload->effects)if(const auto value=NativeItemBuffValue(sql,effect.skill,status);value&&*value)return *value;
+    for(const auto& effect:*s.payload->effects)if(const auto value=NativeItemBuffValue(*s.payload,effect.skill,status);value&&*value)return *value;
     return 0;
 }
 std::uint8_t EquipLevel(const transfer::Item& item,const soci::row& chart) {
@@ -116,7 +116,7 @@ std::uint16_t PostgreSQLMapService::UpgradeItemProbability(soci::session& sql,co
     CharSnapshot& s,int kind,std::uint8_t base,std::uint8_t bonus,const QuestMapFacts& facts,QuestPackets& packets) {
     const bool guard=kind==0;
     const int status=guard?64:kind==Upgrade?42:60; // ITEMGUARD / ITEMUPGRADE / MAGICPROB
-    const auto buff=HaveBuff(sql,s,status);
+    const auto buff=HaveBuff(s,status);
     std::uint16_t probability=guard?buff:static_cast<std::uint16_t>(base+bonus);
     if(!guard) {
         if(!facts.world_registered||!facts.world_events||!facts.world_events->connection)
@@ -130,7 +130,7 @@ std::uint16_t PostgreSQLMapService::UpgradeItemProbability(soci::session& sql,co
             throw std::runtime_error("Upgrade PCBang authority is not integrated");
     }
     if(guard||buff)for(std::size_t i=0;i<s.payload->effects->size();++i)
-        if(NativeItemBuffValue(sql,s.payload->effects->at(i).skill,status)) {
+        if(NativeItemBuffValue(*s.payload,s.payload->effects->at(i).skill,status)) {
             EraseProgressEffect(sql,c,s,i,packets);break; // first matching row, even when its value is zero
         }
     return std::min<std::uint16_t>(probability,100);
@@ -283,7 +283,7 @@ bool PostgreSQLMapService::UpgradeNativeItem(soci::session& sql,const MapSession
     }
     case MagicGrade:case RareGrade: {
         RequireUpgradeCatalog(sql);
-        const auto buff=HaveBuff(sql,s,60);const auto chance=probability(kind,material_grade);
+        const auto buff=HaveBuff(s,60);const auto chance=probability(kind,material_grade);
         if(LegacyRandom15()%100U<chance&&MakeNativeScrollMagic(sql,s,raw,kind==RareGrade,buff!=0)) {
             save();magic_ack(Success,Find(s,bag,slot));
         }else {if(kind==RareGrade)erase();magic_ack(MagicFail);}

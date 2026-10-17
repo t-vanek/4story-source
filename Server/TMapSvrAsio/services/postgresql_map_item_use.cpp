@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_skill_state.h"
 #include "domain/main_transfer.h"
 #include "services/skill_cooldown.h"
 #include "secure_code.h"
@@ -118,13 +119,16 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
         const auto skill=static_cast<std::uint16_t>(chart.get<int>(8));
         if(!skill)return false; // source zero wUseValue: no response or debit
         const auto hp=s.dwHP,mp=s.dwMP;
-        RefreshEquipment(sql,s,true);
-        if(s.dwHP!=hp||s.dwMP!=mp)throw std::runtime_error("Action item initiation resources exceed source maxima");
+        if(NativePlayerSkillAvailable(*s.payload,skill)) {
+            RefreshEquipment(sql,s,true);
+            if(s.dwHP!=hp||s.dwMP!=mp)throw std::runtime_error("Action item initiation resources exceed source maxima");
+        }
         // Original IT_ACTITEMS is outside IT_USE's common bUsed block. It
         // initiates an action only; ACTITEMSUSE later arms reuse and consumes.
         const auto definition=ReadActItemSkill(sql,s,skill);
-        if(!definition)throw std::runtime_error("Action item has no pinned skill definition");
-        PreflightActItemCure(s,*definition);
+        // IT_ACTITEMS broadcasts its nonzero use value even when FindTSkill
+        // will fail in ACTITEMSUSE. That later request returns SKILL_NOTFOUND.
+        if(definition)PreflightActItemCure(s,*definition);
         packets.emplace_back(static_cast<std::uint16_t>(MessageId::CS_ACTION_ACK),
             EncodeActionAck(0,c.char_id,1,255,0xffffffffU,0xffffffffU,skill),QuestAudience::Nearby);
         return false;
@@ -134,6 +138,7 @@ bool PostgreSQLMapService::UseNativeItem(soci::session& sql,const MapSessionClai
     if(kind!=56&&(use&0x40))throw std::runtime_error("Item kind requires additional during-item semantics");
     if(kind==33) {
         const auto skill=static_cast<std::uint16_t>(chart.get<int>(8));
+        if(!NativePlayerSkillAvailable(*p,skill)){reply(3,delay);return false;}
         if(!IsNativeItemProbabilitySkill(skill))throw std::runtime_error("ITEMUSE skill requires its remaining native Defend contract");
         if(!SupportedPostures(*p)||!p->statistics)throw std::runtime_error("Item status requires supported source effects/statistics");
         const auto definition=std::find_if(p->progress_effect_templates.begin(),p->progress_effect_templates.end(),

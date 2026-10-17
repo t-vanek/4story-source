@@ -1,4 +1,5 @@
 #include "postgresql_map_service.h"
+#include "native_skill_state.h"
 #include "main_transfer_codec.h"
 #include "main_transfer_runtime.h"
 #include "skill_reagent.h"
@@ -25,6 +26,8 @@ std::string PostgreSQLMapService::GraphItemFingerprint(const transfer::Item& ite
 }
 PostgreSQLMapService::ConsumptionKind PostgreSQLMapService::ValidateSkillConsumption(soci::session& sql,const MapSessionClaim& c,
     std::uint16_t skill,std::uint8_t hits,const std::vector<SkillItemDebit>& debits,const CharSnapshot& after,const transfer::State* graph) {
+    if(!after.payload)throw std::runtime_error("Consumption requires native source skill authority");
+    (void)NativePlayerSkillData(*after.payload,skill);
     const int sid=std::bit_cast<std::int16_t>(skill);int reagent=0,mask=0,start=0,next=0,target_hit=0;
     sql<<"SELECT \"wItemID\",\"dwWeaponID\",\"bLevel\",\"bNextLevel\",\"bTargetHit\" FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",
         soci::use(sid),soci::into(reagent),soci::into(mask),soci::into(start),soci::into(next),soci::into(target_hit);
@@ -48,7 +51,7 @@ PostgreSQLMapService::ConsumptionKind PostgreSQLMapService::ValidateSkillConsump
     sql<<"SELECT \"fRateX\" FROM character_compat.\"TFORMULACHART\" WHERE \"bID\"=34",soci::into(growth);
     if(!sql.got_data())throw std::runtime_error("Consumption skill growth formula missing");
     t.f1stRateX=static_cast<float>(growth);
-    const auto multi=ReadNativeMultiAttack(sql,t,rank,target_hit);
+    const auto multi=ReadNativeMultiAttack(*after.payload,t,rank,target_hit);
     if(multi&&(!multi->count||multi->count>16||hits!=multi->count))throw std::runtime_error("Expanded ammunition count disagrees with learned skill");
     struct Entry {std::uint64_t id;int bag,slot,kind,use,count;bool powered;std::string hash;int item,stack;};
     std::vector<Entry> items;

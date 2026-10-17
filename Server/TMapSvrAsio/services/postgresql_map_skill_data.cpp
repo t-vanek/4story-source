@@ -89,6 +89,7 @@ void PostgreSQLMapService::LoadNativeSkillData(soci::session& sql) {
         c.skill_data.erase(skill);c.skills.erase(skill);
      }}
     if(premium!=expected_premium)throw std::runtime_error("Incomplete source premium skill removals");
+    c.player_skill_data=std::make_shared<const SourceSkillDataCatalog>(c.skill_data);
     CheckNativeSkillDataRelease(sql);
 }
 } // namespace tmapsvr

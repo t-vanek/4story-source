@@ -1,8 +1,10 @@
-> Current Phase A:083, skill-data SELECT grants and the offline publisher are
-> written, unexecuted. Native startup now requires the complete per-skill order
-> publication after079/082, with original premium-template removals. Effects,
-> replica lifecycle and hosted gameplay remain incomplete; actor guards stay.
->044–083 written/unapplied, next084. No build/test/SQL/runtime/deployment or Phase B/C.
+> Current Phase A: native player skill availability now shares the083 boot
+> snapshot. `sql/map-player-skill-runtime-grants.sql` adds operational
+> TSKILLTABLE DELETE for owner/account/loaded-claim-fenced initial normalization;
+> native startup requires this grant in addition to existing083 SELECT grants.
+> Written only, unexecuted. No new schema migration;044–083 remain unapplied,
+> next084. Actor barriers remain; full effects/hosting and Phase A are incomplete.
+> No build/test/SQL/runtime/deployment or Phase B/C execution.
 > [Scope and handoff](../_rewrite/docs/modernization/evidence/phase-a-native-skill-state-20261017/README.md).
 
 > Previous Phase A: source aggro/CHGHOST/follower/mode work is connected to the

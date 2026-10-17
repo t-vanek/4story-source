@@ -1,5 +1,6 @@
 #include "postgresql_map_service.h"
 #include "native_npc_discount.h"
+#include "native_skill_state.h"
 #include "postgresql_map_owner.h"
 #include "maintained_effects.h"
 #include "posture_effects.h"
@@ -94,6 +95,56 @@ void PostgreSQLMapService::CheckMaintainedTimers(soci::session& sql,const MapSes
     }
     CheckMaintainedProjection(stored,*s.payload);
 }
+void PostgreSQLMapService::NormalizeAdmissionSkills(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
+    if(!s.payload)throw std::runtime_error("Admission normalization requires native hydration");
+    const auto& p=*s.payload;
+    if(!p.source_skill_load_baseline)return;
+    if(p.transfer_state)throw std::runtime_error("Normalized admission baseline cannot replace a transfer graph");
+    const int world=c.group,character=SqlInt32Identity(c.char_id);
+    // Same effects -> learned lock order as StoreSkillCheckpoint. Account,
+    // current-user and loaded claim locks are already held by MarkReady.
+    std::vector<MaintainedEffect> effects;
+    {soci::rowset<soci::row> rows=(sql.prepare<<
+        "SELECT skill_id,skill_level,remaining,attack_type,attack_id,host_type,host_id,attack_country "
+        "FROM app_world.map_maintained_effects WHERE world_id=:w AND char_id=:c ORDER BY ordinal FOR UPDATE",
+        soci::use(world,"w"),soci::use(character,"c"));
+     for(const auto& row:rows) {
+        MaintainedEffect e;e.skill=static_cast<std::uint16_t>(row.get<int>(0));e.level=static_cast<std::uint8_t>(row.get<int>(1));
+        e.remaining=static_cast<std::uint32_t>(row.get<long long>(2));e.attack_type=static_cast<std::uint8_t>(row.get<int>(3));
+        e.attack_id=static_cast<std::uint32_t>(row.get<long long>(4));e.host_type=static_cast<std::uint8_t>(row.get<int>(5));
+        e.host_id=static_cast<std::uint32_t>(row.get<long long>(6));e.attack_country=static_cast<std::uint8_t>(row.get<int>(7));
+        if(NativePlayerSkillAvailable(p,e.skill))effects.push_back(e);
+     }}
+    const auto skills=OrderedSkills(s);std::size_t survivors=0;std::vector<int> omitted;
+    {soci::rowset<soci::row> rows=(sql.prepare<<
+        "SELECT \"wSkillID\",\"bLevel\" FROM app_world.\"TSKILLTABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c "
+        "ORDER BY (\"wSkillID\"::integer & 65535) FOR UPDATE",soci::use(world,"w"),soci::use(character,"c"));
+     for(const auto& row:rows) {
+        const auto id=static_cast<std::uint16_t>(row.get<int>(0));
+        if(!NativePlayerSkillAvailable(p,id)){omitted.push_back(row.get<int>(0));continue;}
+        if(survivors>=skills.size()||skills[survivors].wSkillID!=id||skills[survivors].bLevel!=row.get<int>(1))
+            throw std::runtime_error("Admission learned rows differ from the source-filtered load");
+        ++survivors;
+     }}
+    if(survivors!=skills.size())throw std::runtime_error("Admission source-filtered learned row missing");
+    int matches=0;
+    sql<<"SELECT CASE WHEN app_world.map_skill_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:skills AS jsonb) "
+         "AND app_world.map_maintain_state(CAST(:w AS smallint),CAST(:c AS integer))=CAST(:effects AS jsonb) THEN 1 ELSE 0 END",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(p.source_skill_load_baseline->skills,"skills"),
+        soci::use(p.source_skill_load_baseline->effects,"effects"),soci::into(matches);
+    if(matches!=1)throw std::runtime_error("Saved skills/effects drifted during source admission filtering");
+    CheckMaintainedProjection(effects,p); // no unrelated addition/rank/identity may be smuggled through Ready
+    for(int id:omitted)sql<<"DELETE FROM app_world.\"TSKILLTABLE\" WHERE \"bWorldID\"=:w AND \"dwCharID\"=:c AND \"wSkillID\"=:id",
+        soci::use(world,"w"),soci::use(character,"c"),soci::use(id,"id");
+    // CONREADY has already sampled real elapsed time. Normalize raw survivor
+    // durations first, so StoreSkillCheckpoint can validate that sample against
+    // its original before-vector and write current timers exactly once.
+    auto raw_payload=std::make_shared<CharacterPayload>(p);raw_payload->effects=std::move(effects);raw_payload->effect_sample.reset();
+    auto raw=s;raw.payload=std::move(raw_payload);
+    WriteMaintainedEffects(sql,c,raw); // dense source survivor ordinals, original durable durations
+    // The caller records core/children/recovery receipt and Ready in this same
+    // transaction. Any error rolls back both normalization and admission.
+}
 void PostgreSQLMapService::WriteMaintainedEffects(soci::session& sql,const MapSessionClaim& c,const CharSnapshot& s) {
     const int world=c.group,character=SqlInt32Identity(c.char_id);const auto json=MaintainJson(s);
     sql<<"DELETE FROM app_world.map_maintained_effects WHERE world_id=:w AND char_id=:c",soci::use(world,"w"),soci::use(character,"c");
@@ -160,13 +211,17 @@ void PostgreSQLMapService::RecordCheckpoint(soci::session& sql,const MapSessionC
 void PostgreSQLMapService::MarkReady(const MapSessionClaim& claim,const CharSnapshot& s){
     RequireNativeActorAdmission();
     if(claim.role==MapSessionRole::Replica){MarkReplicaReady(claim);return;}
+    if(!s.payload||!m_monster_catalog.player_skill_data||s.payload->source_skill_data!=m_monster_catalog.player_skill_data)
+        throw std::runtime_error("Map admission does not own the current source skill snapshot");
     const auto fingerprint=Fingerprint(claim,s);
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;
     if(!LockAccount(sql,claim)||!LockClaim(sql,claim,phase)||phase!="loaded")throw std::runtime_error("Map admission claim is not loaded");
+    CheckCatalogs(sql);
     const int key=SqlInt32Identity(claim.key);int n=0;
     sql<<"SELECT 1 FROM app_global.\"TCURRENTUSER\" WHERE \"dwKEY\"=:k AND \"bLocked\"=0",soci::use(key),soci::into(n);
     if(!sql.got_data())throw std::runtime_error("Map admission session was revoked");
+    NormalizeAdmissionSkills(sql,claim,s);
     WriteCore(sql,claim,s,0);RecordCheckpoint(sql,claim,0,fingerprint,"active");StoreTransferCheckpoint(sql,claim,s);
     sql<<"UPDATE app_world.map_sessions SET phase='ready',updated_at=clock_timestamp() WHERE session_key=:k",soci::use(key);
     tx->commit();
@@ -261,6 +316,7 @@ std::vector<std::string> PostgreSQLMapService::CommitSkillMutation(const MapSess
     const bool graph=after.payload&&after.payload->transfer_state;
     if(c.role!=MapSessionRole::Primary||(!graph&&c.authority_epoch)||!after.payload||(!cast&&debits.empty())||debits.size()>16)
         throw std::runtime_error("Unsupported native consumption transaction");
+    (void)NativePlayerSkillData(*after.payload,skill);
     if(std::none_of(after.payload->skills.begin(),after.payload->skills.end(),[&](const auto& row){return row.wSkillID==skill&&row.bLevel;}))
         throw std::runtime_error("Consumption skill is not learned");
     std::vector<std::uint64_t> seen;
@@ -799,9 +855,10 @@ QuestCommit PostgreSQLMapService::ChangeQuest(const MapSessionClaim& c,std::uint
                 if(quest_runtime::CanRun(after,*payload,def,chart,inputs,level))return;
                 std::uint16_t skill=0;std::uint8_t rank=0;
                 for(const auto& t:def.terms)if(t.bTermType==QTT_SKILLID){skill=static_cast<std::uint16_t>(t.dwTermID);rank=t.bGoalCount;}
+                if(!NativePlayerSkillAvailable(*payload,skill))return;
                 const int id=std::bit_cast<std::int16_t>(skill);int classes=0;
                 sql << "SELECT \"dwClassID\" FROM character_compat.\"TSKILLCHART\" WHERE \"wID\"=:id",soci::use(id),soci::into(classes);
-                if(!sql.got_data())return;
+                if(!sql.got_data())throw std::runtime_error("Available quest skill missing from pinned character catalog");
                 if(after.bClass>=32)throw std::runtime_error("Quest skill class shift out of range");
                 if(!(static_cast<std::uint32_t>(classes)&(std::uint32_t{1}<<after.bClass)))return;
                 if(std::any_of(payload->skills.begin(),payload->skills.end(),[&](const auto& s){return s.wSkillID==skill;}))return;
@@ -1095,11 +1152,12 @@ SkillPurchaseCommit PostgreSQLMapService::PurchaseSkill(const MapSessionClaim& c
             sql<<"SELECT 1 FROM character_compat.\"TNPCITEMCHART\" WHERE (\"wNpcID\"::integer & 65535)=:npc AND (\"dwItemID\" & 65535)=:skill LIMIT 1",
                 soci::use(npc,"npc"),soci::use(skill,"skill"),soci::into(found);catalog.offered=sql.got_data();}
      }}
-    {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wParentSkillID\",\"bLevel\",\"bNextLevel\",\"bMaxLevel\",\"bKind\",\"dwClassID\",\"fPrice\"::double precision FROM character_compat.\"TSKILLCHART\" WHERE (\"wID\"::integer & 65535)=:id",soci::use(skill));
+    if(NativePlayerSkillAvailable(*before.payload,req.skill)){soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wParentSkillID\",\"bLevel\",\"bNextLevel\",\"bMaxLevel\",\"bKind\",\"dwClassID\",\"fPrice\"::double precision FROM character_compat.\"TSKILLCHART\" WHERE (\"wID\"::integer & 65535)=:id",soci::use(skill));
      for(const auto& r:rows){if(catalog.skill)throw std::runtime_error("Duplicate source skill");
         catalog.skill=LearningSkill{req.skill,static_cast<std::uint16_t>(r.get<int>(0)),static_cast<std::uint8_t>(r.get<int>(1)),
             static_cast<std::uint8_t>(r.get<int>(2)),static_cast<std::uint8_t>(r.get<int>(3)),static_cast<std::uint8_t>(r.get<int>(4)),
-            static_cast<std::uint32_t>(r.get<int>(5)),static_cast<float>(r.get<double>(6))};}}
+            static_cast<std::uint32_t>(r.get<int>(5)),static_cast<float>(r.get<double>(6))};}
+     if(!catalog.skill)throw std::runtime_error("Available learning skill missing from pinned character catalog");}
     {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wID\",\"bLevel\",\"bSkillPoint\",\"bGroupPoint\",\"bPrevSkillLevel\" FROM actor_compat.\"TSKILLPOINTCHART\"");
      for(const auto& r:rows)catalog.points.emplace(std::make_pair(static_cast<std::uint16_t>(r.get<int>(0)),static_cast<std::uint8_t>(r.get<int>(1))),
          LearningPoint{static_cast<std::uint8_t>(r.get<int>(2)),static_cast<std::uint8_t>(r.get<int>(3)),static_cast<std::uint8_t>(r.get<int>(4))});}

@@ -401,6 +401,14 @@ int main(int argc, char** argv)
             if(!snapshot||snapshot->dwCharID!=claim.char_id)
                 throw std::runtime_error("Native CHGHOST requires current player object state");
             return native->NativePlayerCountry(*snapshot,claim.role);
+        },[&session_reg,&char_state,group=cfg.cluster.group_id](const tmapsvr::MapSessionClaim& claim) {
+            const auto actor=session_reg.FindActor(claim.char_id);
+            if(!actor||!tmapsvr::SameNativeCellPlayer(actor->Claim(group),claim))
+                throw std::runtime_error("Native FOLLOW pose lookup has stale accepted player lifetime");
+            const auto snapshot=char_state.Get(claim.char_id);
+            if(!snapshot||snapshot->dwCharID!=claim.char_id)
+                throw std::runtime_error("Native FOLLOW requires current player object pose");
+            return tmapsvr::NativeMonsterHostPose{snapshot->wMapID,snapshot->fPosX,snapshot->fPosY,snapshot->fPosZ};
         });
         ctx.route_resolver    = native_map.get();
         ctx.inventory_service = inventory_service.get();

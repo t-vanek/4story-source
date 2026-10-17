@@ -26,6 +26,7 @@ struct NativeMonsterAllocationTemplate {
     std::array<std::uint16_t,4> skills{};
     std::uint8_t ai_type{},can_attack{},special{},remove{};
     float size{};
+    std::uint16_t chase_range{}; // actual TMONSTERCHART.wChaseRange, not MAX_ROAMRANGE
 };
 struct NativeMonsterBaseVitals {std::uint32_t hp{},mp{};};
 

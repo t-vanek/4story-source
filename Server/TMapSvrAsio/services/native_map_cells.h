@@ -22,7 +22,7 @@ struct NativeCellPlayer {
     float size{0.5f}; // actual CTObjBase constructor OBJECT_SIZE/2; transform producer remains missing
 };
 enum class NativeCellNoticeKind { Enter, Leave, Move, AddMonster, DeleteMonster, MonsterHost, MonsterSkill,
-                                 MonsterMode, MonsterColor, MonsterMove, MonsterAttack };
+                                 MonsterMode, MonsterColor, MonsterMove, MonsterAttack, MonsterAction, MonsterMoveBatch };
 struct NativeCellNotice {
     NativeCellNoticeKind kind;
     MapSessionClaim recipient,actor;
@@ -36,6 +36,8 @@ struct NativeCellNotice {
     std::optional<NativeMonsterMotion> motion;
     bool accepted_recipient{}; // source global FindChar old host, including pre-Ready/other-map actors
     std::optional<NativeMonsterAttack> attack; // captured target/type/skill before SkillUse and reselection
+    std::optional<NativeMonsterAction> monster_action;
+    std::shared_ptr<const std::vector<NativeMonsterMoveRecord>> monster_moves;
 };
 using NativeCellNotices=std::vector<NativeCellNotice>;
 bool SameNativeCellPlayer(const MapSessionClaim&,const MapSessionClaim&);

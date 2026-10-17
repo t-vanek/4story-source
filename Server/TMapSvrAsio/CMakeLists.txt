@@ -113,6 +113,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/handlers/dispatch.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/session.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/movement.cpp
+    ${TMAPSVR_ASIO_SRC}/handlers/monster_movement.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/npc.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/skill.cpp
     ${TMAPSVR_ASIO_SRC}/handlers/inventory.cpp
@@ -160,6 +161,7 @@ add_library(tmapsvr_asio_core STATIC
     ${TMAPSVR_ASIO_SRC}/services/native_monster_skills.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_monster_skill_use.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_monster_attack.cpp
+    ${TMAPSVR_ASIO_SRC}/services/native_monster_motion.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_monster_host.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_monster_aggro.cpp
     ${TMAPSVR_ASIO_SRC}/services/native_skill_state.cpp

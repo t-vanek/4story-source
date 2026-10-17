@@ -1,5 +1,6 @@
 #pragma once
 #include "native_monster_spawn.h"
+#include "native_monster_motion.h"
 #include <cstddef>
 #include <tuple>
 
@@ -24,6 +25,7 @@ struct NativeMonsterAiCatalog {
 };
 enum class NativeAiMessageKind { Command, ResetHost };
 struct NativeMonsterHostCountry {std::uint8_t country{},war_country{};};
+struct NativeMonsterHostPose {std::uint16_t map{};float x{},y{},z{};};
 struct NativeAiInvocation {
     std::uint64_t binding{},generation{};
     std::uint32_t monster{},host_key{},event_host{},real_host{},delay{};
@@ -32,9 +34,9 @@ struct NativeAiInvocation {
     NativeAiMessageKind kind{NativeAiMessageKind::Command};
 };
 
-// The existing bootstrap executor extended to delayed ACKs. Still restricted
-// to a PROVEN actor-free population. LoadData supplies tick0; runtime supplies
-// the AI thread's current DWORD clock. Actor admission must enforce this scope.
+// Bootstrap and delayed ACKs remain restricted to a proven actor-free population.
+// Conditional hosted commands/requests do not lift the service admission barrier.
+// LoadData supplies tick0; runtime supplies the AI thread's current DWORD clock.
 class NativeMonsterAiExecutor {
 public:
     // Publishes cells/visibility only; Event(AT_ENTER) is emitted here once
@@ -46,15 +48,19 @@ public:
     // Reads actual current source GetCountry/GetWarCountry inputs, not cached
     // cell-country defaults. Unsupported disguise state must refuse.
     using ReadPlayerCountry=std::function<NativeMonsterHostCountry(const MapSessionClaim&)>;
+    using ReadPlayerPose=std::function<NativeMonsterHostPose(const MapSessionClaim&)>;
     using MoveMap=std::function<bool(NativeMonsterMap&,std::uint32_t,float,float)>;
     using Schedule=std::function<void(const NativeAiInvocation&)>;
     using Cancel=std::function<void(const NativeAiInvocation&)>;
     using Draw=std::function<std::uint32_t()>;
     NativeMonsterAiExecutor(const NativeMonsterCatalog&,const NativeMonsterAiCatalog&,
-                           const BattleRegions&,EnterMap,LeaveMap,Publish,FindPlayer,ReadPlayerCountry,MoveMap,Schedule,Cancel,Draw,std::uint32_t tick);
+                           const BattleRegions&,EnterMap,LeaveMap,Publish,FindPlayer,ReadPlayerCountry,ReadPlayerPose,MoveMap,Schedule,Cancel,Draw,std::uint32_t tick);
     void Initialize(NativeMonsterMap&,std::uint32_t);
     void Acknowledge(NativeMonsterMap&,const NativeAiInvocation&);
     void ResetHostAcknowledgement(NativeMonsterMap&,const NativeAiInvocation&);
+    // Conditional ordinary OT_MON request flow. The service retains populated
+    // actor admission guards until all target/death/effect producers exist.
+    void MoveHostedMonsters(NativeMonsterMap&,const MapSessionClaim&,std::span<const NativeMonsterMoveInput>);
 private:
     struct Arguments {std::uint32_t event_host{},real_host{};std::uint8_t real_type{};};
     const std::vector<NativeAiBinding>* Bindings(const NativeMonsterSlot&,std::uint8_t,std::uint32_t) const;
@@ -72,6 +78,7 @@ private:
     void SetEventToFollower(NativeMonsterMap&,std::uint32_t);
     bool ChangeHost(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
     bool Attack(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments,bool begin);
+    bool Follow(NativeMonsterMap&,std::uint32_t,const NativeAiBinding&,Arguments);
     bool CheckAttack(const NativeMonsterSlot&) const;
     void ResolveTemplate(NativeMonsterSlot&,const NativeMonsterAllocationTemplate&);
     std::uint32_t Random();
@@ -84,6 +91,7 @@ private:
     Publish m_publish;
     FindPlayer m_find_player;
     ReadPlayerCountry m_player_country;
+    ReadPlayerPose m_player_pose;
     MoveMap m_move;
     Schedule m_schedule;
     Cancel m_cancel;

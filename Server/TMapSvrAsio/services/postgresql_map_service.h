@@ -31,6 +31,7 @@ public:
     NativeCellNotices MoveNativePlayer(const MapSessionClaim&,std::uint16_t,float,float,bool=true) override;
     NativePlayerMovePlan PlanNativePlayerMove(const MapSessionClaim&,const CharSnapshot&,const NativePlayerMoveInput&) override;
     NativeCellNotices ApplyNativePlayerMove(const NativePlayerMovePlan&) override;
+    NativeCellNotices MoveNativeMonsters(const MapSessionClaim&,std::uint16_t,const std::vector<NativeMonsterMoveInput>&) override;
     bool AuthorizeNativeMovementSpeed(const MapSessionClaim&,float) override;
     NativeCellNotices LeaveNativePlayer(const MapSessionClaim&) override;
     NativeCellNotices RebindNativePlayer(const MapSessionClaim&,const MapSessionClaim&,const CharSnapshot&) override;
@@ -71,7 +72,7 @@ public:
     // The IO executor serializes timer/batch turns; authority reads run on a
     // separate SOCI lease. No gameplay callback executes on a DB worker.
     void CheckNativeMonsterAiAuthority();
-    void BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer,NativeMonsterAiExecutor::ReadPlayerCountry);
+    void BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer,NativeMonsterAiExecutor::ReadPlayerCountry,NativeMonsterAiExecutor::ReadPlayerPose);
     NativeMonsterHostCountry NativePlayerCountry(const CharSnapshot&,MapSessionRole) const;
     void AdvanceNativeMonsterAi(std::uint32_t tick);
     void DispatchNativeMonsterAi();
@@ -79,7 +80,7 @@ public:
     bool NativeMonsterAiPending() const;
     bool NativeMonsterAiImmediateWork() const;
     bool NativeMonsterAiStopped() const {return m_native_ai_retired.load();}
-    void StopNativeMonsterAi();
+    void StopNativeMonsterAi() override;
     bool BattleRegionsCurrent() const override {return m_battle_current;}
     TitleChangeCommit SelectTitle(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
     SkillPurchaseCommit PurchaseSkill(const MapSessionClaim&,std::span<const std::byte>,const CharSnapshot&) override;
@@ -253,6 +254,7 @@ private:
     NativeMonsterAiQueue m_monster_ai_queue;
     NativeMonsterAiExecutor::FindPlayer m_native_player_lookup;
     NativeMonsterAiExecutor::ReadPlayerCountry m_native_player_country;
+    NativeMonsterAiExecutor::ReadPlayerPose m_native_player_pose;
     NativeCellNotices m_native_cell_notices;
     std::size_t m_native_cell_notice_bytes{}; // conservative per-recipient charge, even for shared projections
     std::atomic<bool> m_native_ai_retired{false};

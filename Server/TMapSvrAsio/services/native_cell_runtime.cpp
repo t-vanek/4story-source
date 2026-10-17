@@ -42,10 +42,16 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
         if(!recipient)continue;
         std::vector<std::byte> packet;
         MessageId opcode;
-        if(notice.kind==NativeCellNoticeKind::AddMonster||notice.kind==NativeCellNoticeKind::DeleteMonster||
+        if(notice.kind==NativeCellNoticeKind::MonsterMoveBatch) {
+            if(!notice.monster_moves)throw std::runtime_error("Native MONMOVE batch has no owned source projection");
+            packet=EncodeNativeMonMoveAck(*notice.monster_moves);
+            if(packet.empty())continue; // source map sender suppresses empty output
+            opcode=MessageId::CS_MONMOVE_ACK;
+        } else if(notice.kind==NativeCellNoticeKind::AddMonster||notice.kind==NativeCellNoticeKind::DeleteMonster||
            notice.kind==NativeCellNoticeKind::MonsterHost||notice.kind==NativeCellNoticeKind::MonsterSkill||
            notice.kind==NativeCellNoticeKind::MonsterMode||notice.kind==NativeCellNoticeKind::MonsterColor||
-           notice.kind==NativeCellNoticeKind::MonsterMove||notice.kind==NativeCellNoticeKind::MonsterAttack) {
+           notice.kind==NativeCellNoticeKind::MonsterMove||notice.kind==NativeCellNoticeKind::MonsterAttack||
+           notice.kind==NativeCellNoticeKind::MonsterAction) {
             if(!notice.monster_generation)throw std::runtime_error("Native monster visibility has no source lifetime");
             if(notice.kind==NativeCellNoticeKind::AddMonster) {
                 const auto observer=ctx.char_state->Get(notice.recipient.char_id);
@@ -63,6 +69,9 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
             } else if(notice.kind==NativeCellNoticeKind::MonsterAttack) {
                 if(!notice.attack)throw std::runtime_error("Native MONATTACK has no captured source fields");
                 opcode=MessageId::CS_MONATTACK_ACK;packet=EncodeNativeMonAttackAck(notice.monster_id,*notice.attack);
+            } else if(notice.kind==NativeCellNoticeKind::MonsterAction) {
+                if(!notice.monster_action)throw std::runtime_error("Native MONACTION has no captured source fields");
+                opcode=MessageId::CS_MONACTION_ACK;packet=EncodeNativeMonActionAck(notice.monster_id,*notice.monster_action);
             } else if(notice.kind==NativeCellNoticeKind::MonsterMode) {
                 opcode=MessageId::CS_CHGMODE_ACK;wire::WritePOD(packet,notice.monster_id);
                 wire::WritePOD<std::uint8_t>(packet,2);wire::WritePOD(packet,notice.mode);
@@ -77,11 +86,8 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
                 wire::WritePOD(packet,NativeMonsterColor(*notice.color,source_observer));wire::WritePOD(packet,notice.color->country);
             } else if(notice.kind==NativeCellNoticeKind::MonsterMove) {
                 if(!notice.motion)throw std::runtime_error("Native MONMOVE requires captured source motion");
-                const auto& m=*notice.motion;opcode=MessageId::CS_MONMOVE_ACK;
-                wire::WritePOD<std::uint16_t>(packet,1);wire::WritePOD(packet,notice.monster_id);wire::WritePOD<std::uint8_t>(packet,2);
-                wire::WritePOD(packet,m.x);wire::WritePOD(packet,m.y);wire::WritePOD(packet,m.z);
-                wire::WritePOD(packet,m.pitch);wire::WritePOD(packet,m.direction);
-                wire::WritePOD(packet,m.mouse);wire::WritePOD(packet,m.key);wire::WritePOD(packet,m.action);
+                opcode=MessageId::CS_MONMOVE_ACK;
+                packet=EncodeNativeMonMoveAck({{notice.monster_id,notice.monster_generation,*notice.motion}});
             } else {
                 wire::WritePOD(packet,notice.monster_id);
                 if(notice.kind==NativeCellNoticeKind::MonsterHost) {

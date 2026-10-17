@@ -28,14 +28,23 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): source BEGINATK/ATTACK, silence and
-real skill cooldown/timing calculations are connected to the existing native AI
+Current Phase A continuation (2026-10-17): source FOLLOW now reads the actual
+accepted host XYZ and publishes source MONACTION before skill reselection.
+Conditional normal-monster MONMOVE connects real dispatch, cells/events, chase
+range and final batch capture to the existing Asio publisher.
+**IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED** within actor isolation; full
+MONMOVE remains **IMPLEMENTING** pending OnDie/Transform/rewards/loot and non-PC
+actor/target registries. All populated actor guards remain. No new migration;
+044–083 and existing grants/publishers remain unexecuted, next084. Full Phase A
+remains incomplete.
+[Current scope and handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-motion-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): source BEGINATK/ATTACK, silence and
+real skill cooldown/timing calculations connect to the existing native AI
 executor and captured MONATTACK publication. **IMPLEMENTED_UNVERIFIED /
 INTEGRATED_UNVERIFIED** within actor isolation. Client monster skill/Defend,
-effects, host movement and full combat remain open; populated actor guards stay.
-No new migration/grant;044–083 and existing grants/publishers are unexecuted,
-next084. Full Phase A remains incomplete.
-[Current scope and handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-attack-20261017/README.md).
+effects and full combat remain open; populated actor guards stay.
+[Prior scope](_rewrite/docs/modernization/evidence/phase-a-map-monster-attack-20261017/README.md).
 
 Previous Phase A continuation (2026-10-17): source CHGHOST, owned aggro/target
 state, LeaveAggro and leader/party follower events are connected to the existing

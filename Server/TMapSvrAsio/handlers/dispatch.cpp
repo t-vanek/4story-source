@@ -64,7 +64,7 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         if (!identity || identity->phase != SessionPhase::Ready) { sess->Close(); co_return; }
         // Secondary gameplay contracts are ported independently. Never run a
         // full-graph mutation on the source's deliberately partial replica.
-        if(identity->role==MapSessionRole::Replica && id!=MessageId::CS_MOVE_REQ&&id!=MessageId::CS_SKILLEND_REQ)co_return;
+        if(identity->role==MapSessionRole::Replica && id!=MessageId::CS_MOVE_REQ&&id!=MessageId::CS_MONMOVE_REQ&&id!=MessageId::CS_SKILLEND_REQ)co_return;
         // A periodic snapshot must finish before a new immediate durable cast.
         // Wait rather than dropping a packet while the checkpoint owns the lease.
         boost::asio::steady_timer wait(co_await boost::asio::this_coro::executor);
@@ -94,6 +94,8 @@ DispatchInner(std::shared_ptr<tnetlib::AsioSession> sess,
         co_await OnConReadyReq(sess, std::move(body), ctx); break;
     case MessageId::CS_MOVE_REQ:
         co_await OnMoveReq(sess, std::move(body), ctx); break;
+    case MessageId::CS_MONMOVE_REQ:
+        co_await OnMonMoveReq(sess, std::move(body), ctx); break;
     case MessageId::CS_MOVEITEM_REQ:
         co_await OnMoveItemReq(sess, std::move(body), ctx); break;
     case MessageId::CS_ITEMUSE_REQ:

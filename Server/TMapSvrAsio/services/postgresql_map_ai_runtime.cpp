@@ -20,11 +20,12 @@ NativeMonsterHostCountry PostgreSQLMapService::NativePlayerCountry(const CharSna
     } else throw std::runtime_error("Native player country has no actual primary/replica effect authority");
     return {NativeDisguisedCountry(m_monster_catalog,snapshot.bCountry,effects),aid!=3?aid:snapshot.bCountry};
 }
-void PostgreSQLMapService::BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer lookup,NativeMonsterAiExecutor::ReadPlayerCountry country) {
+void PostgreSQLMapService::BindNativePlayerLookup(NativeMonsterAiExecutor::FindPlayer lookup,NativeMonsterAiExecutor::ReadPlayerCountry country,
+                                                NativeMonsterAiExecutor::ReadPlayerPose pose) {
     std::lock_guard lock(m_monster_ai_mutex);
-    if(!lookup||!country||m_native_player_lookup||m_native_player_country||m_native_ai_retired)
-        throw std::runtime_error("Native actor/country lookup cannot be missing/replaced/retired");
-    m_native_player_lookup=std::move(lookup);m_native_player_country=std::move(country);
+    if(!lookup||!country||!pose||m_native_player_lookup||m_native_player_country||m_native_player_pose||m_native_ai_retired)
+        throw std::runtime_error("Native actor/country/pose lookup cannot be missing/replaced/retired");
+    m_native_player_lookup=std::move(lookup);m_native_player_country=std::move(country);m_native_player_pose=std::move(pose);
 }
 NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::uint32_t tick) {
     return NativeMonsterAiExecutor(m_monster_catalog,m_monster_ai,m_battles,
@@ -44,6 +45,10 @@ NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::u
             if(!m_native_player_country)throw std::runtime_error("Native CHGHOST requires actual current player country state");
             return m_native_player_country(claim);
         },
+        [this](const MapSessionClaim& claim) {
+            if(!m_native_player_pose)throw std::runtime_error("Native FOLLOW requires actual current player pose");
+            return m_native_player_pose(claim);
+        },
         [this,tick](NativeMonsterMap& map,std::uint32_t id,float x,float z) {
             auto moved=MoveNativeMonster(map,id,x,z,m_monster_catalog,m_monster_ai,m_cells.channels,tick);
             StageNativeCellNotices(std::move(moved.notices));return moved.changed;
@@ -59,6 +64,7 @@ void PostgreSQLMapService::StageNativeCellNotices(NativeCellNotices notices) {
     auto bytes=m_native_cell_notice_bytes;
     for(const auto& notice:notices) {
         const std::size_t body=notice.monster?notice.monster->WireSize():
+            notice.monster_moves?2+24*notice.monster_moves->size():notice.kind==NativeCellNoticeKind::MonsterAction?22:
             notice.kind==NativeCellNoticeKind::MonsterAttack?12:notice.kind==NativeCellNoticeKind::MonsterSkill?8:notice.kind==NativeCellNoticeKind::MonsterMode?6:
             notice.kind==NativeCellNoticeKind::MonsterColor?7:notice.kind==NativeCellNoticeKind::MonsterMove?26:5;
         const auto charge=sizeof(NativeCellNotice)+body;
@@ -123,7 +129,7 @@ void PostgreSQLMapService::DispatchNativeMonsterAi() {
 void PostgreSQLMapService::StopNativeMonsterAi() {
     m_native_ai_retired=true;
     std::lock_guard lock(m_monster_ai_mutex);m_monster_ai_queue.Stop();
-    m_native_player_lookup={};m_native_player_country={};
+    m_native_player_lookup={};m_native_player_country={};m_native_player_pose={};
     m_native_cell_notices.clear();m_native_cell_notice_bytes=0;
 }
 } // namespace tmapsvr

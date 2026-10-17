@@ -13,7 +13,23 @@ Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside G
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–083 are **written, not applied**; next084.
 
-Local Phase A continuation (2026-10-17), baseline `53a8805`: original BEGINATK
+Local Phase A continuation (2026-10-17), baseline `1070f72`: ordinary FOLLOW
+now preserves source eligibility, actual accepted host XYZ, host-only MONACTION,
+skill reselection, key and completion order. Host MONMOVE has a conditional normal
+monster path through real dispatch/claim/map, owned cells, AT_LEAVE/ATHOME,
+LeaveAggro, actual079 chase range and final whole-batch state capture. FOLLOW is
+**IMPLEMENTED_UNVERIFIED**; pose/wire connections are **INTEGRATED_UNVERIFIED**
+within actor isolation. Full MONMOVE remains **IMPLEMENTING**: source out-of-roam
+OnDie/Transform/rewards/loot and non-PC actors/targets are still missing. Empty
+batches emit no packet; sender/client agree on three FLOAT in MONACTION despite
+the stale shared WORD comment. All populated admission/Initialize/ACK and effect
+maxima guards remain. No new migration/grant/publisher;044–083 and existing grants/
+publishers are written/unexecuted, next084. No build/test/SQL/import/runtime/push/
+deployment ran. Inventory343 IDs/13 columns and DB map78 rows/6 columns are
+navigation counts. Full Phase A remains **IMPLEMENTING**.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-motion-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `53a8805`: original BEGINATK
 and ATTACK now dispatch concrete source eligibility, silence, reuse, target,
 selection and completion behavior through the existing native AI executor.
 Actual082 scalar metadata and083 ordered vectors feed source speed formulas,

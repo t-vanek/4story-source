@@ -12,10 +12,28 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <bit>
+#include <limits>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace tmapsvr::wire {
+
+// Explicit scalar little-endian access for newly ported source contracts.
+// Keep the older POD API independent; never serialize a native struct here.
+template <class T>
+inline void WriteLE(std::vector<std::byte>& out, T value)
+{
+    if constexpr (std::is_same_v<T,float>) {
+        static_assert(sizeof(float)==4&&std::numeric_limits<float>::is_iec559);
+        WriteLE(out,std::bit_cast<std::uint32_t>(value));
+    } else {
+        static_assert(std::is_unsigned_v<T>&&std::is_integral_v<T>&&sizeof(T)<=8);
+        for(std::size_t i=0;i<sizeof(T);++i)
+            out.push_back(static_cast<std::byte>((value>>(8*i))&255U));
+    }
+}
 
 template <class T>
 inline void WritePOD(std::vector<std::byte>& out, T v)
@@ -49,6 +67,25 @@ public:
     bool Eof()               const { return m_off >= m_size; }
     std::size_t Remaining()  const { return m_size > m_off ? m_size - m_off : 0; }
     std::size_t Offset()     const { return m_off; }
+
+    template <class T>
+    bool ReadLE(T& out)
+    {
+        if constexpr (std::is_same_v<T,float>) {
+            static_assert(sizeof(float)==4&&std::numeric_limits<float>::is_iec559);
+            std::uint32_t bits{};
+            if(!ReadLE(bits))return false;
+            out=std::bit_cast<float>(bits);
+        } else {
+            static_assert(std::is_unsigned_v<T>&&std::is_integral_v<T>&&sizeof(T)<=8);
+            if(sizeof(T)>Remaining())return false;
+            std::uint64_t value{};
+            for(std::size_t i=0;i<sizeof(T);++i)
+                value|=std::uint64_t{std::to_integer<unsigned>(m_data[m_off++])}<<(8*i);
+            out=static_cast<T>(value);
+        }
+        return true;
+    }
 
     template <class T>
     bool Read(T& out)

@@ -21,6 +21,7 @@
 #include "services/quest_runtime.h"
 #include "domain/party.h"
 #include "native_map_cells.h"
+#include "native_monster_motion.h"
 
 #include <cstdint>
 #include <optional>
@@ -54,6 +55,12 @@ public:
     }
     virtual NativeCellNotices ApplyNativePlayerMove(const NativePlayerMovePlan&) {
         throw std::runtime_error("Native player host state unavailable");
+    }
+    virtual NativeCellNotices MoveNativeMonsters(const MapSessionClaim&,std::uint16_t,const std::vector<NativeMonsterMoveInput>&) {
+        throw std::runtime_error("Native hosted monster movement unavailable");
+    }
+    virtual void StopNativeMonsterAi() {
+        throw std::runtime_error("Native monster authority retirement unavailable");
     }
     virtual bool AuthorizeNativeMovementSpeed(const MapSessionClaim&,float) {
         throw std::runtime_error("Native movement operator authority unavailable");

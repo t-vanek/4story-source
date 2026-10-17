@@ -130,6 +130,22 @@ NativeCellNotices PostgreSQLMapService::ApplyNativePlayerMove(const NativePlayer
     std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
     return ApplyNativePlayerHostMove(NativePlayerMap(plan.claim.channel,plan.map),plan,m_cells.channels);
 }
+NativeCellNotices PostgreSQLMapService::MoveNativeMonsters(const MapSessionClaim& claim,std::uint16_t map,
+                                                        const std::vector<NativeMonsterMoveInput>& records) {
+    std::lock_guard lock(m_monster_ai_mutex);RequireNativeActorAdmission();
+    try {
+        auto executor=MakeNativeMonsterAiExecutor(m_monster_ai_queue.Tick());
+        executor.MoveHostedMonsters(NativePlayerMap(claim.channel,map),claim,records);
+        // Same owned FIFO as cell/AI side effects; publish all preceding notices
+        // before the batch, without suspending between mutation and capture.
+        m_native_cell_notice_bytes=0;return std::exchange(m_native_cell_notices,{});
+    } catch(...) {
+        // No success after partial synchronous event/cell mutation. The actor
+        // graph is retired rather than reused with an incomplete event history.
+        m_native_ai_retired=true;m_monster_ai_queue.Stop();
+        m_native_cell_notices.clear();m_native_cell_notice_bytes=0;throw;
+    }
+}
 NativeCellNotices PostgreSQLMapService::LeaveNativePlayer(const MapSessionClaim& claim) {
     // Cleanup remains possible after authority retirement; an old generation
     // cannot remove its replacement. No SQL or actor publication is required.

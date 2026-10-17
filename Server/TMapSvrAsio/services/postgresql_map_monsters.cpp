@@ -112,7 +112,7 @@ void PostgreSQLMapService::LoadNativeMonsterCatalog(soci::session& sql) {
         throw std::runtime_error("Incomplete source candidate/party queries");
     {soci::rowset<soci::row> rows=(sql.prepare<<
         "SELECT \"wID\",\"wMonAttr\",\"bLevel\",\"bClass\",\"bRace\",\"wSkill1\",\"wSkill2\",\"wSkill3\",\"wSkill4\","
-        "\"bAIType\",\"bCanAttack\",\"bIsSpecial\",\"bRemove\",\"fSize\" "
+        "\"bAIType\",\"bCanAttack\",\"bIsSpecial\",\"bRemove\",\"fSize\",\"wChaseRange\" "
         "FROM monster_compat.\"TMONSTERCHART\" WHERE world_id=:w AND server_id=:s",
         soci::use(world,"w"),soci::use(server,"s"));
      for(const auto& row:rows) {
@@ -121,6 +121,7 @@ void PostgreSQLMapService::LoadNativeMonsterCatalog(soci::session& sql) {
         p.skills={Word(row,"wSkill1"),Word(row,"wSkill2"),Word(row,"wSkill3"),Word(row,"wSkill4")};
         p.ai_type=Byte(row,"bAIType");p.can_attack=Byte(row,"bCanAttack");
         p.special=Byte(row,"bIsSpecial");p.remove=Byte(row,"bRemove");p.size=Real(row,"fSize");
+        p.chase_range=Word(row,"wChaseRange");
         if(!catalog.monsters.emplace(p.wID,p).second)throw std::runtime_error("Duplicate source monster template");
      }}
     {soci::rowset<soci::row> rows=(sql.prepare<<

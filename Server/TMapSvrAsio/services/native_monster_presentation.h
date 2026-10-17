@@ -36,6 +36,17 @@ struct NativeMonsterAttack {
     std::uint8_t target_type{};
     std::uint16_t skill{};
 };
+struct NativeMonsterAction {
+    std::uint8_t action{};
+    float x{},y{},z{};
+    std::uint32_t target{};
+    std::uint8_t target_type{};
+};
+struct NativeMonsterMoveRecord {
+    std::uint32_t id{};
+    std::uint64_t generation{}; // lifetime fence only, never sent
+    NativeMonsterMotion motion;
+};
 // Immutable wire projection, captured before the following source AI event.
 // It survives slot deletion/reuse; only the original BYTE-sized effect prefix
 // is retained. It is not another monster registry or authoritative actor.
@@ -60,4 +71,6 @@ NativeMonsterAppearance ProjectNativeMonsterAppearance(const NativeMonsterSlot&,
 std::uint8_t NativeMonsterColor(const NativeMonsterAppearance&,const NativeMonsterObserver&);
 std::vector<std::byte> EncodeNativeAddMonAck(const NativeMonsterAppearance&,const NativeMonsterObserver&,bool new_member);
 std::vector<std::byte> EncodeNativeMonAttackAck(std::uint32_t monster,const NativeMonsterAttack&);
+std::vector<std::byte> EncodeNativeMonActionAck(std::uint32_t monster,const NativeMonsterAction&);
+std::vector<std::byte> EncodeNativeMonMoveAck(const std::vector<NativeMonsterMoveRecord>&);
 } // namespace tmapsvr

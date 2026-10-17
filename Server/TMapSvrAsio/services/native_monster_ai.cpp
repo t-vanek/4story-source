@@ -17,12 +17,13 @@ std::uint32_t FreshMaximum(std::uint32_t raw) {
 }
 }
 NativeMonsterAiExecutor::NativeMonsterAiExecutor(const NativeMonsterCatalog& catalog,const NativeMonsterAiCatalog& ai,
-    const BattleRegions& regions,EnterMap enter,LeaveMap leave,Publish publish,FindPlayer find_player,ReadPlayerCountry player_country,MoveMap move,
+    const BattleRegions& regions,EnterMap enter,LeaveMap leave,Publish publish,FindPlayer find_player,ReadPlayerCountry player_country,ReadPlayerPose player_pose,MoveMap move,
     Schedule schedule,Cancel cancel,Draw draw,std::uint32_t tick)
     :m_catalog(catalog),m_ai(ai),m_regions(regions),m_enter(std::move(enter)),
-     m_leave(std::move(leave)),m_publish(std::move(publish)),m_find_player(std::move(find_player)),m_player_country(std::move(player_country)),m_move(std::move(move)),
+     m_leave(std::move(leave)),m_publish(std::move(publish)),m_find_player(std::move(find_player)),m_player_country(std::move(player_country)),
+     m_player_pose(std::move(player_pose)),m_move(std::move(move)),
      m_schedule(std::move(schedule)),m_cancel(std::move(cancel)),m_draw(std::move(draw)),m_tick(tick) {
-    if(!m_enter||!m_leave||!m_publish||!m_find_player||!m_player_country||!m_move||!m_schedule||!m_cancel||!m_draw)
+    if(!m_enter||!m_leave||!m_publish||!m_find_player||!m_player_country||!m_player_pose||!m_move||!m_schedule||!m_cancel||!m_draw)
         throw std::invalid_argument("Actual source AI side-effect consumers required");
 }
 void NativeMonsterAiExecutor::Step() {
@@ -68,11 +69,15 @@ bool NativeMonsterAiExecutor::CanRun(const NativeMonsterMap& map,const NativeAiC
         if(slot.status!=1||slot.mode!=1||!slot.target||!FindNativeMonsterHost(map,slot.x,slot.z,slot.host))return false;
         if(command.kind==6&&!CheckAttack(slot))return false; // ATTACK deliberately has no CheckAttack predicate
         break;
+    case 8:
+        if(slot.status!=1||slot.mode!=1||slot.host!=args.event_host||!slot.target||
+           m_catalog.spawns.at(slot.spawn).bRoamType==4||!CheckAttack(slot))return false;
+        break; // ordinary FOLLOW, before original base conditions
     case 12:return true; // REMOVE bypasses even base conditions
     case 1:case 14: // LEAVE/LOTTERY: first source predicate is DEAD
         if(slot.status!=3)return false;
         throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"dead-object AI/loot lifecycle");
-    case 8:case 9:case 10:case 11:case 13:
+    case 9:case 10:case 11:case 13:
         // The source first tests WAKEUP in every one of these commands. No
         // actor is admitted in this bounded executor; no-host SetHost never wakes.
         if(slot.status!=1)return false;
@@ -181,6 +186,7 @@ bool NativeMonsterAiExecutor::Execute(NativeMonsterMap& map,std::uint32_t id,con
     if(kind==0)return Regen(map,id,binding,args);
     if(kind==4)return ChangeHost(map,id,binding,args);
     if(kind==6||kind==7)return Attack(map,id,binding,args,kind==6);
+    if(kind==8)return Follow(map,id,binding,args);
     if(kind==5) {
         switch(slot.mode) {
         case 0:slot.mode=1;break;

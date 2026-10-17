@@ -1,5 +1,7 @@
 #pragma once
 #include "domain/session.h"
+#include "native_monster_presentation.h"
+#include <memory>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -15,11 +17,14 @@ struct NativeCellPlayer {
     MapSessionClaim claim;
     float x{},z{};
 };
-enum class NativeCellNoticeKind { Enter, Leave, Move };
+enum class NativeCellNoticeKind { Enter, Leave, Move, AddMonster, DeleteMonster };
 struct NativeCellNotice {
     NativeCellNoticeKind kind;
     MapSessionClaim recipient,actor;
-    bool flag{}; // Enter: new member; Leave: exit map
+    bool flag{}; // Enter/AddMonster: new member; Leave/DeleteMonster: exit map
+    std::uint32_t monster_id{};
+    std::uint64_t monster_generation{};
+    std::shared_ptr<const NativeMonsterAppearance> monster{};
 };
 using NativeCellNotices=std::vector<NativeCellNotice>;
 bool SameNativeCellPlayer(const MapSessionClaim&,const MapSessionClaim&);
@@ -42,6 +47,7 @@ struct NativeMapCell {
     bool IsEnabled(std::uint8_t channel) const;
 };
 using NativeMapCells=std::map<std::uint32_t,NativeMapCell>;
+std::vector<std::uint32_t> NativeNeighborCells(const NativeMapCells&,std::uint32_t position);
 NativeMapCells BuildNativeMapCells(const NativeCellCatalog&,std::uint16_t map,
     const std::set<std::uint16_t>& units,std::uint8_t server,std::size_t maximum_cells);
 // Explicit WORD(float)/CELL_SIZE, refusing undefined out-of-range conversions.
@@ -56,9 +62,10 @@ NativeCellNotices MoveNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim&,
                                      const std::vector<std::uint8_t>& source_channels,bool broadcast_movement=true);
 void RebindNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim& previous,const MapSessionClaim& current);
 NativeCellNotices LeaveNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim&);
-// These consumers require a proven actor-free population, during LoadData or
-// the native AI loop while all player-admission paths remain blocked.
-// AT_ENTER remains the bootstrap executor's responsibility, exactly once.
-void EnterNativeBootstrapMonster(NativeMonsterMap&,std::uint32_t);
-void LeaveNativeBootstrapMonster(NativeMonsterMap&,std::uint32_t);
+// Normal OT_MON cell insertion/removal and captured client notices. The full
+// hosted actor path remains guarded at admission. AT_ENTER is emitted by the
+// executor exactly once AFTER entry returns, not once per recipient.
+NativeCellNotices EnterNativeMonster(NativeMonsterMap&,std::uint32_t,const NativeMonsterCatalog&,
+                                   const NativeMonsterAiCatalog&,std::uint32_t tick);
+NativeCellNotices LeaveNativeMonster(NativeMonsterMap&,std::uint32_t,bool exit_map);
 } // namespace tmapsvr

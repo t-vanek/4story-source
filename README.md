@@ -28,7 +28,16 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): source PC cell membership and ordered
+Current Phase A continuation (2026-10-17): full source ADDMON wire fields and
+GetColor are written; real fresh monster state and source normal-monster cell
+entry/Remove connect to bounded owned ADD/DELMON publication in the existing Asio
+AI loop. **IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED**, as scoped in the
+inventory. Nonempty effect/stat producers and hosted player/monster coexistence
+are incomplete; populated processes still block player admission. No new
+migration;044–081 remain written/unapplied, next082. Full Phase A remains open.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-visibility-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): source PC cell membership and ordered
 ENTER/LEAVE/MOVE now run through native Ready, movement, confirmed handoff and
 close paths. Actual transient movement and ordinary CanFight feed ENTER; bounded
 owned packets use the existing Asio transport. **INTEGRATED_UNVERIFIED** for

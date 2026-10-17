@@ -36,7 +36,26 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
         if(!recipient)continue;
         std::vector<std::byte> packet;
         MessageId opcode;
-        if(notice.kind==NativeCellNoticeKind::Leave) {
+        if(notice.kind==NativeCellNoticeKind::AddMonster||notice.kind==NativeCellNoticeKind::DeleteMonster) {
+            if(!notice.monster_generation)throw std::runtime_error("Native monster visibility has no source lifetime");
+            if(notice.kind==NativeCellNoticeKind::AddMonster) {
+                const auto observer=ctx.char_state->Get(notice.recipient.char_id);
+                if(!observer){recipient->Close();continue;}
+                if(!notice.monster||notice.monster->id!=notice.monster_id||notice.monster->generation!=notice.monster_generation)
+                    throw std::runtime_error("Native ADDMON projection identity mismatch");
+                const auto aid=observer->payload?observer->payload->aid_country:observer->cluster.aid_country;
+                const NativeMonsterObserver source_observer{notice.recipient.char_id,
+                    observer->cluster.party_type==1?0U:std::uint32_t{observer->cluster.party},
+                    aid!=3?aid:observer->bCountry};
+                opcode=MessageId::CS_ADDMON_ACK;
+                packet=EncodeNativeAddMonAck(*notice.monster,source_observer,notice.flag);
+            } else {
+                opcode=MessageId::CS_DELMON_ACK;packet=EncodeDelMonAck(notice.monster_id,notice.flag?1:0);
+            }
+            // This is an ordered history captured before the next source event.
+            // Do not drop ADD/DEL merely because the slot was subsequently erased
+            // or its DWORD ID reused; the immutable projection owns that lifetime.
+        } else if(notice.kind==NativeCellNoticeKind::Leave) {
             // The actor may already be Closing/TransferOut. The captured
             // generation authorized removal; do not require a live actor here.
             opcode=MessageId::CS_LEAVE_ACK;

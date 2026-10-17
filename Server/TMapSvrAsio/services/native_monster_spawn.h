@@ -3,6 +3,7 @@
 #include "battle_regions.h"
 #include "domain/monster.h"
 #include "native_map_cells.h"
+#include "native_monster_presentation.h"
 #include <array>
 #include <functional>
 #include <map>
@@ -50,7 +51,7 @@ struct NativeMonsterSlot {
     std::uint64_t generation{}; // process-local lifetime, independent of reused source DWORD ID
     std::uint32_t id{},region{};
     std::uint16_t spawn{},map{};
-    std::uint8_t channel{},country{},status{}; // CTMonster starts DISAPPEAR0
+    std::uint8_t channel{},country{3},aid_country{3},status{}; // CTObjBase neutral; CTMonster DISAPPEAR0
     bool essential{},default_inventory_template_present{};
     std::optional<std::uint16_t> monster;
     std::optional<std::uint32_t> attribute;
@@ -60,11 +61,14 @@ struct NativeMonsterSlot {
     std::uint8_t mode{},action{},target_type{1},help_count{},path_id{},path_direction{1};
     std::uint32_t host_key{},host{},target{},helper{},hp{},mp{},keeper{};
     std::uint32_t max_hp{},max_mp{},money{};
+    bool maxima_ready{}; // actual derived-maxima producer, never missing object -> zero bars
+    std::vector<NativeMonsterMaintain> maintained; // CTSkill vector order and raw DWORD clocks
     std::optional<std::uint32_t> last_attack_tick,attack_wait_tick;
     std::optional<std::uint8_t> leave_count;
     std::optional<std::uint16_t> next_skill;
     std::uint8_t keeper_type{};
-    std::uint16_t direction{},regen_delete_spawn{};
+    std::uint16_t pitch{},direction{},regen_delete_spawn{};
+    std::uint8_t mouse{4},key{4}; // TKDIR_N, initialized by CTObjBase
     bool remove{},entered_map{}; // EnterMAP publication, not existence of the owning map
     std::uint8_t can_attack{1},special{};
     float x{},y{},z{},start_x{},start_y{},start_z{},next_x{},next_y{},next_z{},size{0.5f}; // OBJECT_SIZE/2

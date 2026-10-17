@@ -115,9 +115,9 @@ std::vector<std::byte> EncodeEnterAck(
 // defaulted to 0/hostile pending the combat layer; `new_member` is 1
 // when announcing a fresh spawn, 0 when listing the standing crowd to a
 // joining client. max HP/MP default to current HP / 0, and the
-// facing / action / region / maintain-skill fields ship 0 / empty until
-// the AI + combat layer drives them. The wire structure is complete so
-// the client parses cleanly.
+// Development/prototype adapter only: facing/action/region/effects and MP are
+// placeholders. Native source monsters use EncodeNativeAddMonAck and never
+// this MonsterInstance overload. This is not complete source monster support.
 std::vector<std::byte> EncodeAddMonAck(
     const MonsterInstance& m, std::uint8_t level, std::uint8_t country,
     std::uint8_t color, std::uint8_t new_member);

@@ -11,7 +11,23 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-17), baseline `85a9aa2`: native Map now
+Local Phase A continuation (2026-10-17), baseline `7e1339b`: native Map now has
+the complete source ADDMON wire encoder, lazy source GetColor and real-slot
+projection for fresh monsters. Normal monster entry/Remove collect source-ordered
+ADD/DELMON notices; a bounded owned outbox connects actual Regen/Remove callbacks
+to the existing native AI IO turn and Asio packet drain. Template level, real
+HP/MP, orientation and region replace prototype values; full effect records retain
+source DWORD clocks/BYTE prefix rules. Wire/color are **IMPLEMENTED_UNVERIFIED**;
+fresh state/cell/outbox paths are **INTEGRATED_UNVERIFIED** within actor isolation.
+Current live projection refuses nonempty effects without their stat producer.
+Populated processes still cannot admit players: PC monster events, CanHost/
+NotifyHost/SelectSkill, host requests and concrete awake/dead AI remain missing.
+Full player/monster coexistence and full Phase A remain **IMPLEMENTING**. No new
+migration;044–081 remain written/unapplied, next082. No build, test, SQL, import,
+runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-visibility-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `85a9aa2`: native Map now
 uses the actual source PC cell lifecycle for Ready, movement, confirmed ownership
 changes and disconnect. Owned primary/replica identities, enabled/main/extended
 cell predicates, ordered ENTER/LEAVE/channel exits and reverse-neighbor MOVE
@@ -96,17 +112,18 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: source ordinary-monster visibility and full
-SendCS_ADDMON_ACK state/fields, then actual CanHost/NotifyHost and matching client
-host request consumers/concrete awake/dead commands. Extend the now connected PC
-cell graph instead of reintroducing prototype registries or a parallel AOI.
-Add actual source actor move/host/ghost clocks and metadata those commands need.
-Current PC-only Ready/move/handoff/close cell flow is integrated but unverified;
-monster EnterPlayer events remain blocked by the populated-process barrier.
-Retain that barrier until real player/monster coexistence is complete. Then
-continue non-fresh Regen/death/loot, dynamic/quest/battle and party-instance
-lifetime. Full Phase A remains IMPLEMENTING. Next free migration082; no Phase B/C
-execution. See the current evidence handoff above.
+Immediate implementation dependency: player EnterPlayer/LeavePlayer interaction
+with existing monster cells and its actual source AT_ENTER/LeaveAggro/AT_LEAVE
+ordering; real PC CanHost/ghost/move-clock producers; TAICmdSetHost host selection,
+NotifyHost/SelectSkill, CS_MONHOST_ACK and actual host request consumers including
+CS_MONMOVE_REQ; concrete awake/dead AI. Use the now written source ADDMON encoder
+and same cell graph/outbox instead of prototype registries. Nonempty monster
+effects also need their real producer and effect-aware GetMaxHP/GetMaxMP; full
+wire encoding alone does not provide them. Preserve the latched admission barrier
+until actual player/monster coexistence is complete. Then continue non-fresh
+Regen/death/loot, dynamic/quest/battle and party-instance lifetime. Full Phase A
+remains IMPLEMENTING. Next free migration082; no Phase B/C execution. See the
+current evidence handoff above.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

@@ -21,13 +21,7 @@ NativeMapCells::iterator Enabled(NativeMonsterMap& map,std::uint32_t key,std::ui
 // GetNeighbor(MAPTCELL) and GetNeighbor(VPLAYER) both walk z,x ascending;
 // packed DWORD cell keys have that same order. No distance/channel filter.
 std::vector<std::uint32_t> Neighbors(const NativeMonsterMap& map,std::uint32_t position) {
-    const int x=position&65535,z=position>>16;
-    std::vector<std::uint32_t> cells;
-    for(int nz=z-1;nz<=z+1;++nz)for(int nx=x-1;nx<=x+1;++nx)if(nx>=0&&nz>=0) {
-        const auto key=static_cast<std::uint32_t>(nx)|(static_cast<std::uint32_t>(nz)<<16);
-        if(map.cells.contains(key))cells.push_back(key);
-    }
-    return cells;
+    return NativeNeighborCells(map.cells,position);
 }
 void Notice(NativeCellNotices& out,NativeCellNoticeKind kind,const NativeCellPlayer& recipient,
             const NativeCellPlayer& actor,bool flag=false) {

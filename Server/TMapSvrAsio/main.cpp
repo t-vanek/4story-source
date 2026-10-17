@@ -27,6 +27,7 @@
 #include "db/schema_validator.h"
 #include "services/channel_presence.h"
 #include "services/char_state_store.h"
+#include "services/native_cell_runtime.h"
 #include "services/title_relay_queue.h"
 #include "services/companion_service.h"
 #include "services/corpse_registry.h"
@@ -550,6 +551,7 @@ int main(int argc, char** argv)
                         co_await boost::asio::post(io,boost::asio::use_awaitable);
                         if(stopping||native_map->NativeMonsterAiStopped())co_return;
                         native_map->DispatchNativeMonsterAi();
+                        tmapsvr::PublishNativeCellNotices(ctx,native_map->TakeNativeCellNotices());
                         if(native_map->NativeMonsterAiImmediateWork()) {
                             co_await boost::asio::post(io,boost::asio::use_awaitable);
                         }else {

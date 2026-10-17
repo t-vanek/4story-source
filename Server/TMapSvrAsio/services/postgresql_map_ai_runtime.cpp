@@ -2,12 +2,39 @@
 #include "postgresql_map_owner.h"
 #include "legacy_random.h"
 #include <soci/soci.h>
+#include <iterator>
+#include <utility>
 
 namespace tmapsvr {
 NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::uint32_t tick) {
-    return NativeMonsterAiExecutor(m_monster_catalog,m_monster_ai,m_battles,EnterNativeBootstrapMonster,
+    return NativeMonsterAiExecutor(m_monster_catalog,m_monster_ai,m_battles,
+        [this,tick](NativeMonsterMap& map,std::uint32_t id) {
+            StageNativeCellNotices(EnterNativeMonster(map,id,m_monster_catalog,m_monster_ai,tick));
+        },
+        [this](NativeMonsterMap& map,std::uint32_t id,bool exit_map) {
+            StageNativeCellNotices(LeaveNativeMonster(map,id,exit_map));
+        },
         [this](const NativeAiInvocation& call){m_monster_ai_queue.Publish(call);},
         [this](const NativeAiInvocation& call){m_monster_ai_queue.CancelObject(call);},LegacyRandom15,tick);
+}
+void PostgreSQLMapService::StageNativeCellNotices(NativeCellNotices notices) {
+    // Called during boot or while m_monster_ai_mutex is already held. Keep
+    // source ADD/DEL order; overflow is an execution failure, never truncation.
+    constexpr std::size_t max_notices=65536,max_bytes=64*1024*1024;
+    if(notices.size()>max_notices-m_native_cell_notices.size())throw std::runtime_error("Native cell publication count limit");
+    auto bytes=m_native_cell_notice_bytes;
+    for(const auto& notice:notices) {
+        const auto charge=sizeof(NativeCellNotice)+(notice.monster?notice.monster->WireSize():5);
+        if(charge>max_bytes-bytes)throw std::runtime_error("Native cell publication byte limit");
+        bytes+=charge;
+    }
+    m_native_cell_notices.insert(m_native_cell_notices.end(),std::make_move_iterator(notices.begin()),std::make_move_iterator(notices.end()));
+    m_native_cell_notice_bytes=bytes;
+}
+NativeCellNotices PostgreSQLMapService::TakeNativeCellNotices() {
+    std::lock_guard lock(m_monster_ai_mutex);
+    if(m_native_ai_retired){m_native_cell_notices.clear();m_native_cell_notice_bytes=0;return {};}
+    m_native_cell_notice_bytes=0;return std::exchange(m_native_cell_notices,{});
 }
 void PostgreSQLMapService::RequireNativeActorAdmission() const {
     if(m_native_ai_actor_barrier)
@@ -58,5 +85,6 @@ void PostgreSQLMapService::DispatchNativeMonsterAi() {
 void PostgreSQLMapService::StopNativeMonsterAi() {
     m_native_ai_retired=true;
     std::lock_guard lock(m_monster_ai_mutex);m_monster_ai_queue.Stop();
+    m_native_cell_notices.clear();m_native_cell_notice_bytes=0;
 }
 } // namespace tmapsvr

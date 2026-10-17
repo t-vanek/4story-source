@@ -70,6 +70,7 @@ public:
     void CheckNativeMonsterAiAuthority();
     void AdvanceNativeMonsterAi(std::uint32_t tick);
     void DispatchNativeMonsterAi();
+    NativeCellNotices TakeNativeCellNotices();
     bool NativeMonsterAiPending() const;
     bool NativeMonsterAiImmediateWork() const;
     bool NativeMonsterAiStopped() const {return m_native_ai_retired.load();}
@@ -171,6 +172,7 @@ private:
     void CheckNativeMonsterRelease(soci::session&) const;
     void AllocateNativeMonsters();
     NativeMonsterAiExecutor MakeNativeMonsterAiExecutor(std::uint32_t tick);
+    void StageNativeCellNotices(NativeCellNotices);
     void RequireNativeActorAdmission() const;
     void CheckNativeBattleRelease(soci::session&) const;
     bool NativeNpcCanTalk(soci::session&,const CharSnapshot&,std::uint8_t,std::uint16_t) const;
@@ -238,6 +240,8 @@ private:
     NativeMonsterAiCatalog m_monster_ai;
     mutable std::mutex m_monster_ai_mutex;
     NativeMonsterAiQueue m_monster_ai_queue;
+    NativeCellNotices m_native_cell_notices;
+    std::size_t m_native_cell_notice_bytes{}; // conservative per-recipient charge, even for shared projections
     std::atomic<bool> m_native_ai_retired{false};
     bool m_native_ai_actor_barrier{}; // latched before sockets; immutable afterwards
     std::uint64_t m_monster_generation{};

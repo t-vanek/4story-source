@@ -13,7 +13,23 @@ Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside G
 Original server/client sources, backups, applied migrations001–043 and historical
 evidence remain unchanged. New migrations044–081 are **written, not applied**; next082.
 
-Local Phase A continuation (2026-10-17), baseline `85a9aa2`: native Map now
+Local Phase A continuation (2026-10-17), baseline `7e1339b`: native Map now has
+the complete source ADDMON wire encoder, lazy source GetColor and real-slot
+projection for fresh monsters. Normal monster entry/Remove collect source-ordered
+ADD/DELMON notices; a bounded owned outbox connects actual Regen/Remove callbacks
+to the existing native AI IO turn and Asio packet drain. Template level, real
+HP/MP, orientation and region replace prototype values; full effect records retain
+source DWORD clocks/BYTE prefix rules. Wire/color are **IMPLEMENTED_UNVERIFIED**;
+fresh state/cell/outbox paths are **INTEGRATED_UNVERIFIED** within actor isolation.
+Current live projection refuses nonempty effects without their stat producer.
+Populated processes still cannot admit players: PC monster events, CanHost/
+NotifyHost/SelectSkill, host requests and concrete awake/dead AI remain missing.
+Full player/monster coexistence and full Phase A remain **IMPLEMENTING**. No new
+migration;044–081 remain written/unapplied, next082. No build, test, SQL, import,
+runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-visibility-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `85a9aa2`: native Map now
 uses the actual source PC cell lifecycle for Ready, movement, confirmed ownership
 changes and disconnect. Owned primary/replica identities, enabled/main/extended
 cell predicates, ordered ENTER/LEAVE/channel exits and reverse-neighbor MOVE

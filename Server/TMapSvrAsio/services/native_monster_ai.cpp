@@ -16,10 +16,10 @@ std::uint32_t FreshMaximum(std::uint32_t raw) {
 }
 }
 NativeMonsterAiExecutor::NativeMonsterAiExecutor(const NativeMonsterCatalog& catalog,const NativeMonsterAiCatalog& ai,
-    const BattleRegions& regions,EnterMap enter,Schedule schedule,Cancel cancel,Draw draw,std::uint32_t tick)
+    const BattleRegions& regions,EnterMap enter,LeaveMap leave,Schedule schedule,Cancel cancel,Draw draw,std::uint32_t tick)
     :m_catalog(catalog),m_ai(ai),m_regions(regions),m_enter(std::move(enter)),
-     m_schedule(std::move(schedule)),m_cancel(std::move(cancel)),m_draw(std::move(draw)),m_tick(tick) {
-    if(!m_enter||!m_schedule||!m_cancel||!m_draw)throw std::invalid_argument("Actual source AI side-effect consumers required");
+     m_leave(std::move(leave)),m_schedule(std::move(schedule)),m_cancel(std::move(cancel)),m_draw(std::move(draw)),m_tick(tick) {
+    if(!m_enter||!m_leave||!m_schedule||!m_cancel||!m_draw)throw std::invalid_argument("Actual source AI side-effect consumers required");
 }
 void NativeMonsterAiExecutor::Step() {
     // Security limit, not a source gameplay rule. Fail before serving a graph
@@ -82,6 +82,7 @@ std::uint32_t NativeMonsterAiExecutor::Delay(const NativeAiBinding& binding,cons
     }
 }
 void NativeMonsterAiExecutor::Initialize(NativeMonsterMap& map,std::uint32_t id) {
+    if(!map.players.empty())throw std::runtime_error("Native Initialize requires full hosted actor AI before player coexistence");
     // Capture this vector once, as source Initialize does. Regen can replace
     // the monster/AI type but does not change this iteration's command list.
     const auto* bindings=Bindings(map.slots.at(id),6,0); // AT_DELETE
@@ -125,6 +126,7 @@ void NativeMonsterAiExecutor::DoCommand(NativeMonsterMap& map,std::uint32_t id,c
 void NativeMonsterAiExecutor::Acknowledge(NativeMonsterMap& map,const NativeAiInvocation& call) {
     const auto found=map.slots.find(call.monster);
     if(found==map.slots.end()||found->second.generation!=call.generation||found->second.host_key!=call.host_key)return;
+    if(!map.players.empty())throw std::runtime_error("Native AI ACK requires full hosted actor execution before player coexistence");
     const auto binding=m_ai.by_source_row.find(call.binding);
     if(binding==m_ai.by_source_row.end())throw std::runtime_error("Native AI ACK command-instance identity absent");
     const Arguments args{call.event_host,call.real_host,call.real_type};
@@ -143,6 +145,7 @@ bool NativeMonsterAiExecutor::Complete(NativeMonsterMap& map,std::uint32_t id,co
     return binding.loop&&Delay(binding,found->second)!=0;
 }
 void NativeMonsterAiExecutor::ResolveTemplate(NativeMonsterSlot& slot,const NativeMonsterAllocationTemplate& monster) {
+    slot.maxima_ready=false;
     slot.monster=monster.wID;
     slot.level_template=m_catalog.levels.contains(monster.bLevel)?std::optional{monster.bLevel}:std::nullopt;
     slot.class_template=m_catalog.classes.contains(monster.bClass)?std::optional{monster.bClass}:std::nullopt;
@@ -172,7 +175,7 @@ bool NativeMonsterAiExecutor::Execute(NativeMonsterMap& map,std::uint32_t id,con
         auto& spawn=map.spawns.at(slot.spawn);
         if(m_catalog.spawns.at(slot.spawn).bEvent!=0)
             throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"dynamic spawn deletion");
-        LeaveNativeBootstrapMonster(map,id);
+        m_leave(map,id,true);
         NativeAiInvocation identity;identity.monster=id;identity.generation=slot.generation;
         identity.map=map.map_id;identity.channel=map.physical_channel;identity.party=map.party;
         m_cancel(identity); // eager retirement of every stage for this exact lifetime
@@ -216,7 +219,7 @@ bool NativeMonsterAiExecutor::Regen(NativeMonsterMap& map,std::uint32_t id,const
     }
     if(!slot->monster)return false;
     if(!slot->attribute)throw std::runtime_error("Source Regen would dereference absent attribute after prior selection");
-    if(slot->entered_map||slot->regen_delete_spawn||slot->host||slot->target||slot->helper)
+    if(slot->entered_map||slot->regen_delete_spawn||slot->host||slot->target||slot->helper||!slot->maintained.empty())
         throw NativeMonsterInitializationRequired(slot->map,slot->channel,slot->id,"non-fresh Regen lifecycle");
     slot->path_id=0;slot->path_direction=1;
     const auto leader_id=map.spawns.at(slot->spawn).leader;
@@ -251,6 +254,7 @@ bool NativeMonsterAiExecutor::Regen(NativeMonsterMap& map,std::uint32_t id,const
     const auto& attributes=m_catalog.attributes.at(*slot->attribute);
     slot->max_hp=slot->hp=FreshMaximum(attributes.hp);
     slot->max_mp=slot->mp=FreshMaximum(attributes.mp);
+    slot->maxima_ready=true;
     // No source maintained effects/items/host exist in this fresh scope.
     const auto target=slot->id;
     m_enter(map,target); // must actually register cells/visibility or throw

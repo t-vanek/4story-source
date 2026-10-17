@@ -11,9 +11,23 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–080 are **written, not applied**; next081.
+evidence remain unchanged. New migrations044–081 are **written, not applied**; next082.
 
-Local Phase A continuation (2026-10-17), baseline `d61a3ae`: native Map now
+Local Phase A continuation (2026-10-17), baseline `39b94e1`: native Map now
+loads the actual global CTBLChannelList and source TGetServerID join, builds
+primary/extended cells in source order and registers/removes pre-actor monster
+membership. CHECKMAIN and movement/entry/replica connection sets consume this
+owned graph, **INTEGRATED_UNVERIFIED** within those scopes. The two source
+position-conversion orders remain distinct; MAX_CHANNEL51 and ambiguous TOP1
+queries have explicit safety boundaries. Written081/publisher/grants are
+unexecuted;044–081 remain unapplied, next082. Delayed AI publication and surviving
+entered monsters still stop construction at their explicit timer/admitted-actor
+boundaries before listening. Visibility/ADDMON/client hosts, full monster
+lifecycle and full Phase A remain **IMPLEMENTING**. No build, test, SQL, import,
+runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-cells-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `d61a3ae`: native Map now
 loads exact source AI commands, per-command conditions and ordered trigger
 bindings. Actual source Initialize consumes them between slot insertions;
 ordered conditions/base completion and fresh Regen preparation preserve group

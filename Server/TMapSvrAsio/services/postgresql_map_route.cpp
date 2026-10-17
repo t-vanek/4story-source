@@ -7,56 +7,50 @@
 #include <map>
 #include <stdexcept>
 namespace tmapsvr {
-namespace {
-int CellServer(soci::session& sql,const MapSessionClaim& claim,std::uint16_t map,int ux,int uz) {
-    if(ux<0||uz<0||ux>255||uz>255)return 0;
-    const int unit=std::bit_cast<std::int16_t>(static_cast<std::uint16_t>(uz*256+ux));
-    const int map_id=std::bit_cast<std::int16_t>(map),world=claim.group,channel=claim.channel;
-    int count=0,server=0;
-    sql<<"SELECT count(DISTINCT s.\"bServerID\"),COALESCE(min(s.\"bServerID\"),0) FROM app_world.routing_worlds w "
-         "JOIN route_compat.\"TCHANNELCHART\" c ON c.\"bGroupID\"=w.source_group "
-         "JOIN route_compat.\"TSVRCHART\" s ON s.\"bGroup\"=c.\"bGroupID\" AND s.\"bChannel\"=c.\"bPhyChannel\" "
-         "AND s.\"wMapID\"=c.\"wMapID\" AND s.\"wUnitID\"=c.\"wUnitID\" "
-         "WHERE w.group_id=:w AND c.\"bLogChannel\"=:ch AND c.\"wMapID\"=:m AND c.\"wUnitID\"=:u",
-        soci::use(world,"w"),soci::use(channel,"ch"),soci::use(map_id,"m"),soci::use(unit,"u"),soci::into(count),soci::into(server);
-    if(count>1)throw std::runtime_error("Ambiguous cell ownership");
-    return count==1?server:0;
-}
-}
 int PostgreSQLMapService::CellOwner(soci::session& sql,const MapSessionClaim& c,std::uint16_t map,float x,float z) const {
-    if(!std::isfinite(x)||!std::isfinite(z)||x<0||z<0||x>=65536||z>=65536)return 0;
-    return CellServer(sql,c,map,int(x/1024),int(z/1024));
+    if(c.group!=m_config.world||x<0||z<0)return 0;
+    CheckNativeCellRelease(sql);
+    const auto cell=NativeCellAt(x,z);if(!cell)return 0;
+    const auto unit=static_cast<std::uint16_t>(((*cell&65535)/16)|(((*cell>>16)/16)<<8));
+    return m_cells.Server(map,unit,c.channel).value_or(0);
 }
 bool PostgreSQLMapService::OwnsCell(const MapSessionClaim& claim,std::uint16_t map,float x,float z) {
-    if(!std::isfinite(x)||!std::isfinite(z)||x<0||z<0||x>=262144||z>=262144)return false;
+    if(x<0||z<0)return false; // preserve native client coordinate admission
+    const auto key=NativeMainCellAt(x,z);if(!key)return false;
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token,true);
     std::string phase;if(!LockAccount(sql,claim))return false;
     if(claim.role==MapSessionRole::Replica){if(!LockReplica(sql,claim,phase)||phase!="ready")return false;}
     else if(!LockClaim(sql,claim,phase))return false;
-    CheckCatalogs(sql);const int server=CellServer(sql,claim,map,int(x/1024),int(z/1024));
-    const bool owns=server!=0&&server==m_config.server;
+    CheckCatalogs(sql);CheckNativeCellRelease(sql);
+    const auto* cell=FindNativeCell(claim.channel,map,*key,true);
+    const bool owns=cell&&cell->IsMain(claim.channel);
     tx->commit();return owns;
 }
 std::optional<std::vector<std::uint8_t>> PostgreSQLMapService::MovementServers(const MapSessionClaim& c,std::uint16_t map,float x,float z) {
-    if(c.role!=MapSessionRole::Primary)return {};
+    if(c.role!=MapSessionRole::Primary||c.channel>=NativeCellChannels||x<0||z<0)return {};
+    const auto key=NativeCellAt(x,z);if(!key)return {};
     auto lease=m_pool.Acquire();auto& sql=*lease;auto tx=BeginMapTransaction(sql,m_config.world,m_config.server,m_config.owner_token);
     std::string phase;if(!LockAccount(sql,c)||!LockClaim(sql,c,phase)||phase!="ready")return {};
-    CheckCatalogs(sql);const auto owner=CellOwner(sql,c,map,x,z);if(!owner)return {};
+    CheckCatalogs(sql);CheckNativeCellRelease(sql);
+    const auto* cell=FindNativeCell(c.channel,map,*key,false);
     std::vector<std::uint8_t> ids;
-    if(owner==m_config.server){auto neighbors=NeighborServersLocked(sql,c,map,x,z);if(!neighbors)return {};
-        ids=std::move(*neighbors);ids.push_back(m_config.server);}
+    // OnMove sends a real empty CHECKCONNECT set when the new cell is absent,
+    // disabled or extended. That is distinct from an invalid/unauthorized call.
+    if(cell&&cell->IsEnabled(c.channel)&&cell->IsMain(c.channel)) {
+        for(const auto& direction:cell->servers)if(direction[c.channel])ids.push_back(direction[c.channel]);
+        ids.push_back(m_config.server);
+        std::sort(ids.begin(),ids.end());ids.erase(std::unique(ids.begin(),ids.end()),ids.end());
+    }
     tx->commit();return ids;
 }
 std::optional<std::vector<std::uint8_t>> PostgreSQLMapService::NeighborServersLocked(soci::session& sql,const MapSessionClaim& claim,std::uint16_t map,float x,float z) const {
-    if(!std::isfinite(x)||!std::isfinite(z)||x<0||z<0||x>=65536||z>=65536||
-       CellServer(sql,claim,map,int(x/1024),int(z/1024))!=m_config.server)return {};
-    const int ux=int(x)/1024,uz=int(z)/1024,cx=int(x)%1024/64,cz=int(z)%1024/64;
+    CheckNativeCellRelease(sql);
+    if(x<0||z<0)return {};
+    const auto key=NativeCellAt(x,z);if(!key)return {};
+    const auto* cell=FindNativeCell(claim.channel,map,*key,false);
+    if(!cell||!cell->IsEnabled(claim.channel)||!cell->IsMain(claim.channel))return {};
     std::vector<std::uint8_t> out;
-    for(int dz=-1;dz<=1;++dz)for(int dx=-1;dx<=1;++dx){
-        if((!dx&&!dz)||(dx<0&&cx!=0)||(dx>0&&cx!=15)||(dz<0&&cz!=0)||(dz>0&&cz!=15))continue;
-        const int server=CellServer(sql,claim,map,ux+dx,uz+dz);
-        if(server!=0&&server!=m_config.server)out.push_back(static_cast<std::uint8_t>(server));
-    }
+    for(const auto& direction:cell->servers)if(direction[claim.channel])out.push_back(direction[claim.channel]);
     std::sort(out.begin(),out.end());out.erase(std::unique(out.begin(),out.end()),out.end());return out;
 }
 std::optional<std::vector<std::uint8_t>> PostgreSQLMapService::NeighborServers(const MapSessionClaim& claim,std::uint16_t map,float x,float z){

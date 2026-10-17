@@ -48,6 +48,7 @@ void PostgreSQLMapService::CheckNativeBattleRelease(soci::session& sql) const {
         soci::use(m_battles.source_timezone,"z"),soci::into(count);
     if(count!=1)throw std::runtime_error("Native Map battle publication changed or unavailable");
     CheckNativeMonsterRelease(sql);
+    CheckNativeCellRelease(sql);
 }
 void PostgreSQLMapService::LoadNativeBattleRegions(soci::session& sql) {
     const int world=m_config.world,server=m_config.server;

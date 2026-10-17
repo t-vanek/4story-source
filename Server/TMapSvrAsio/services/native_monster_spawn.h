@@ -2,6 +2,7 @@
 
 #include "battle_regions.h"
 #include "domain/monster.h"
+#include "native_map_cells.h"
 #include <array>
 #include <functional>
 #include <map>
@@ -42,8 +43,8 @@ struct NativeMonsterCatalog {
 };
 
 // Owned source allocation/bootstrap state. A missing template is anonymous,
-// never template0. Not a live registry entry before actual EnterMAP/cell/host
-// integration. The empty fresh inventory/effects/aggro context is enforced by
+// never template0. Bootstrap cell membership is not an admitted live actor or
+// prototype registry entry. The empty inventory/effects/aggro context is enforced by
 // NativeMonsterBootstrap, which cannot be called for an admitted game actor.
 struct NativeMonsterSlot {
     std::uint32_t id{},region{};
@@ -63,7 +64,7 @@ struct NativeMonsterSlot {
     std::optional<std::uint16_t> next_skill;
     std::uint8_t keeper_type{};
     std::uint16_t direction{},regen_delete_spawn{};
-    bool remove{},entered_map{};
+    bool remove{},entered_map{}; // EnterMAP publication, not existence of the owning map
     std::uint8_t can_attack{1},special{};
     float x{},y{},z{},start_x{},start_y{},start_z{},next_x{},next_y{},next_z{},size{0.5f}; // OBJECT_SIZE/2
     // Original default inventory always exists and initially has no items;
@@ -78,6 +79,7 @@ struct NativeMonsterSpawn {
     std::optional<std::uint16_t> missing_essential_attribute;
 };
 struct NativeMonsterMap {
+    NativeMapCells cells;
     std::map<std::uint16_t,NativeMonsterSpawn> spawns;
     std::map<std::uint32_t,NativeMonsterSlot> slots;
 };

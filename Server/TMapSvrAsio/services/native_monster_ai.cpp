@@ -152,10 +152,10 @@ bool NativeMonsterBootstrap::Execute(NativeMonsterMap& map,std::uint32_t id,cons
         ++slot.host_key;ResetHost(slot);return false; // no completion event
     }
     if(kind==12) {
-        if(slot.entered_map)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"LeaveMAP/cell removal");
         auto& spawn=map.spawns.at(slot.spawn);
         if(m_catalog.spawns.at(slot.spawn).bEvent!=0)
             throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"dynamic spawn deletion");
+        LeaveNativeBootstrapMonster(map,id);
         std::erase(spawn.slots,id);map.slots.erase(id);return false;
     }
     if(kind<=14)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"concrete awake/dead AI executor");

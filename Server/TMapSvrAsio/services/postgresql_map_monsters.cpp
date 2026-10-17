@@ -147,14 +147,17 @@ void PostgreSQLMapService::AllocateNativeMonsters() {
     if(m_monster_catalog.run_id!=m_battles.run_id||m_monster_catalog.manifest!=m_battles.manifest)
         throw std::runtime_error("Native battle and monster source releases differ");
     NativeMonsterBootstrap bootstrap(m_monster_catalog,m_monster_ai,m_battles,
-        [](NativeMonsterMap& map,std::uint32_t id) {
-            const auto& slot=map.slots.at(id);
-            throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,"EnterMAP/cells/visibility/client host");
-        },[](const NativeAiInvocation& call) {
+        EnterNativeBootstrapMonster,[](const NativeAiInvocation& call) {
             throw NativeMonsterInitializationRequired(call.map,call.channel,call.monster,
                 "AI timer request/ACK queue; binding="+std::to_string(call.binding));
         },LegacyRandom15);
     AddNativeDefaultSpawns(m_monster_catalog,m_battles,m_monster_maps,
         [&](NativeMonsterMap& map,std::uint32_t id){bootstrap.Initialize(map,id);});
+    // Cell registration does not establish native player visibility, complete
+    // ADDMON serialization or client-host authority. Preserve the pre-listen
+    // barrier until those actor producers/consumers replace the prototype.
+    for(const auto& [key,map]:m_monster_maps)for(const auto& [id,slot]:map.slots)
+        if(slot.entered_map)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,
+            "admitted-actor visibility/ADDMON/client host lifecycle");
 }
 } // namespace tmapsvr

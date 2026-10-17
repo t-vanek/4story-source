@@ -28,7 +28,15 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): source AI catalogs now feed actual
+Current Phase A continuation (2026-10-17): actual source channel/owner data
+now builds native primary/extended cells. Pre-actor monster membership and source
+CHECKMAIN/movement connection-selection consumers are **INTEGRATED_UNVERIFIED**.
+Written081/publisher/grants are unexecuted; next082. Delayed AI queues and
+admitted-actor visibility/ADDMON/client hosts remain incomplete and stop native
+construction before listening. Full Phase A remains open.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-cells-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): source AI catalogs now feed actual
 native monster Initialize and fresh Regen calculations, **INTEGRATED_UNVERIFIED**
 within pre-actor bootstrap. Group redirection, weights, FLOAT placement and signed
 Win32 HP/MP clamping follow source. Live cells/visibility/client hosts and delayed

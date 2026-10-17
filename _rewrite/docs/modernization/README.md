@@ -1,6 +1,20 @@
 # Modern server implementation status
 
-Local Phase A continuation (2026-10-17), baseline `d61a3ae`: native Map now
+Local Phase A continuation (2026-10-17), baseline `39b94e1`: native Map now
+loads the actual global CTBLChannelList and source TGetServerID join, builds
+primary/extended cells in source order and registers/removes pre-actor monster
+membership. CHECKMAIN and movement/entry/replica connection sets consume this
+owned graph, **INTEGRATED_UNVERIFIED** within those scopes. The two source
+position-conversion orders remain distinct; MAX_CHANNEL51 and ambiguous TOP1
+queries have explicit safety boundaries. Written081/publisher/grants are
+unexecuted;044–081 remain unapplied, next082. Delayed AI publication and surviving
+entered monsters still stop construction at their explicit timer/admitted-actor
+boundaries before listening. Visibility/ADDMON/client hosts, full monster
+lifecycle and full Phase A remain **IMPLEMENTING**. No build, test, SQL, import,
+runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-cells-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `d61a3ae`: native Map now
 loads exact source AI commands, per-command conditions and ordered trigger
 bindings. Actual source Initialize consumes them between slot insertions;
 ordered conditions/base completion and fresh Regen preparation preserve group

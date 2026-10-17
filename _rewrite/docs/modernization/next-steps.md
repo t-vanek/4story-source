@@ -11,7 +11,21 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-17), baseline `d61a3ae`: native Map now
+Local Phase A continuation (2026-10-17), baseline `39b94e1`: native Map now
+loads the actual global CTBLChannelList and source TGetServerID join, builds
+primary/extended cells in source order and registers/removes pre-actor monster
+membership. CHECKMAIN and movement/entry/replica connection sets consume this
+owned graph, **INTEGRATED_UNVERIFIED** within those scopes. The two source
+position-conversion orders remain distinct; MAX_CHANNEL51 and ambiguous TOP1
+queries have explicit safety boundaries. Written081/publisher/grants are
+unexecuted;044–081 remain unapplied, next082. Delayed AI publication and surviving
+entered monsters still stop construction at their explicit timer/admitted-actor
+boundaries before listening. Visibility/ADDMON/client hosts, full monster
+lifecycle and full Phase A remain **IMPLEMENTING**. No build, test, SQL, import,
+runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-cells-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `d61a3ae`: native Map now
 loads exact source AI commands, per-command conditions and ordered trigger
 bindings. Actual source Initialize consumes them between slot insertions;
 ordered conditions/base completion and fresh Regen preparation preserve group
@@ -53,15 +67,17 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: source InitMap/InitCell/InitExtCell,
-CSPGetServerID ownership, actual EnterMAP/cell registration and client visibility/
-host producers; in parallel dependency order, the source AI request/timer/batch
-ACK queue with host-key and object lifetime fences, cancellation and repeat
-rescheduling. Replace the actual throwing EnterMap/Schedule consumers in
-`AllocateNativeMonsters` only with those full effects. The bootstrap's empty-host
-branch is valid before actors only; extend the engine and concrete commands
-before admitting source-hosted monsters/players. Keep full lifecycle and battle
-support IMPLEMENTING. Next free migration081; no Phase B/C execution.
+Immediate implementation dependency: original DoAICMD/SM_AICMD_REQ/OnTimer/
+SM_AICMD_ACK producer/timer/batch delivery with owned bounded queues, physical
+map/party resolution, source DWORD elapsed arithmetic, stable binding identity,
+host-key and object-generation fences, delayed CanRun and Exec/repeat ordering,
+cancellation and proper Asio ownership/drain. Then actual player cell entry/exit,
+full ADDMON descriptors, CanHost/NotifyHost and host-driven command consumers.
+Bootstrap cell membership now exists; its empty-host/fixed clock0 context remains
+valid before actors only. Replace the remaining timer/admitted-actor barriers
+with real effects; do not publish slots through the prototype registry. Full
+lifecycle/battle support remains IMPLEMENTING. Next free migration082; no Phase
+B/C execution. See the current evidence handoff above.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

@@ -5,7 +5,18 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `d61a3ae`:** written080 adds the exact source AI
+**Current Phase A, baseline `39b94e1`:** written081 adds the actual global
+TCHANNEL query order and exact TGetServerID join for native cell construction.
+The offline `import_map_cells.py` requires the complete pinned full manifest,
+original channel-query order and explicit `TGLOBAL_GSP=TGLOBAL_RAGEZONE` alias.
+Five source receipts and four active routing value/byte equalities bind it to079
+and routing. Native boot, pre-actor monster membership and bounded CHECKMAIN/
+movement routing consume the owned graph, **INTEGRATED_UNVERIFIED**. No archive
+or applied-migration changes.081/tool/grants are unexecuted;044–081 unapplied,
+next082. Timed AI and admitted-actor visibility/host lifecycle remain open.
+[Source contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-cells-20261017/README.md).
+
+**Previous Phase A, baseline `d61a3ae`:** written080 adds the exact source AI
 command/condition/binding publication bound to079 and its actual order SHA.
 The offline `import_map_monster_ai.py` rechecks all ten full source tables and
 seven active content/character equalities before atomic order/receipt publication.

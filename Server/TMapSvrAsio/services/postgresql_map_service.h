@@ -147,6 +147,10 @@ private:
     void LoadNativeBattleRegions(soci::session&);
     void LoadNativeMonsterCatalog(soci::session&);
     void LoadNativeMonsterAi(soci::session&);
+    void LoadNativeCellCatalog(soci::session&);
+    void InitializeNativeCells();
+    void CheckNativeCellRelease(soci::session&) const;
+    const NativeMapCell* FindNativeCell(std::uint8_t logical,std::uint16_t map,std::uint32_t cell,bool allow_template) const;
     void CheckNativeMonsterAiRelease(soci::session&) const;
     void CheckNativeMonsterRelease(soci::session&) const;
     void AllocateNativeMonsters();
@@ -215,6 +219,8 @@ private:
     NativeMonsterCatalog m_monster_catalog;
     NativeMonsterAiCatalog m_monster_ai;
     NativeMonsterMaps m_monster_maps;
+    NativeCellCatalog m_cells;
+    std::map<std::uint32_t,std::uint8_t> m_cell_channels; // source logical -> physical, immutable after boot
     std::atomic<bool> m_battle_current{true};
     PostgreSQLMapConfig m_config;
 };

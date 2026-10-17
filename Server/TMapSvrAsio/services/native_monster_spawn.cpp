@@ -43,7 +43,7 @@ void InitMonster(const NativeMonsterCatalog& catalog,const SpawnPoint& source,
         if(catalog.levels.contains(monster.bLevel))slot.level_template=monster.bLevel;
         if(catalog.classes.contains(monster.bClass))slot.class_template=monster.bClass;
         if(catalog.races.contains(monster.bRace))slot.race_template=monster.bRace;
-        for(const auto skill:monster.skills)if(catalog.skills.contains(skill))slot.skills.insert(skill);
+        for(const auto skill:monster.skills)if(catalog.skills.contains(skill))slot.skills.try_emplace(skill);
         insert(std::move(slot),candidate.bLeader!=0);
     }
 }

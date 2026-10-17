@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase B only: publish native source Map allocation data after079.
+"""Phase B only: publish native source Map allocation after079 and skill proof082.
 
 Requires the complete pinned historical manifest and original query order for
 one server. Does not generate historical rows or certify AI/client support.
@@ -185,6 +185,11 @@ def import_map_monsters(conn, manifest_path, world, server, order_path):
                               'WHERE world_id=%s AND server_id=%s', (world, server)).fetchone()
         if actual != (len(spawn_order), candidate_count, party_count):
             raise RuntimeError('MAP_MONSTER_RUNTIME_SOURCE_COUNTS_DIFFER')
+        #082 derives skill/formula/class/race readers from this same complete
+        # archive. No new live skills/hosts or historical rows are seeded.
+        if not conn.execute('SELECT 1 FROM monster_compat.skill_release WHERE world_id=%s AND server_id=%s',
+                            (world, server)).fetchone():
+            raise RuntimeError('MAP_MONSTER_SKILL_SOURCE_PROOF_REQUIRED')
     return dict(world_id=world, server_id=server, manifest_sha256=fingerprint, order_sha256=digest(encoded),
                 spawn_rows=len(spawn_order), candidate_rows=candidate_count, party_rows=party_count)
 

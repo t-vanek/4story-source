@@ -40,6 +40,7 @@ void PostgreSQLMapService::CheckNativeMonsterRelease(soci::session& sql) const {
         soci::use(m_monster_catalog.manifest,"m"),soci::use(m_monster_catalog.order_sha256,"o"),
         soci::use(m_config.routing_manifest,"r"),soci::use(m_config.character_manifest,"c"),soci::into(count);
     if(count!=1)throw std::runtime_error("Native Map source monster publication changed or unavailable");
+    CheckNativeMonsterSkillRelease(sql);
     CheckNativeMonsterAiRelease(sql);
 }
 void PostgreSQLMapService::LoadNativeMonsterCatalog(soci::session& sql) {
@@ -134,11 +135,8 @@ void PostgreSQLMapService::LoadNativeMonsterCatalog(soci::session& sql) {
         for(const auto& row:rows)if(!target.insert(Byte(row,column)).second)
             throw std::runtime_error("Duplicate source allocation metadata key");
     };
-    load_bytes("SELECT \"bClassID\" FROM monster_compat.\"TCLASSCHART\" WHERE world_id=:w AND server_id=:s","bClassID",catalog.classes);
-    load_bytes("SELECT \"bRaceID\" FROM monster_compat.\"TRACECHART\" WHERE world_id=:w AND server_id=:s","bRaceID",catalog.races);
     load_bytes("SELECT \"bLevel\" FROM monster_compat.\"TLEVELCHART\" WHERE world_id=:w AND server_id=:s","bLevel",catalog.levels);
-    {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wID\" FROM character_compat.\"TSKILLCHART\"");
-     for(const auto& row:rows)if(!catalog.skills.insert(Word(row,"wID")).second)throw std::runtime_error("Duplicate skill template");}
+    LoadNativeMonsterSkills(sql);
     {soci::rowset<soci::row> rows=(sql.prepare<<"SELECT \"wItemID\" FROM character_compat.\"TITEMCHART\"");
      for(const auto& row:rows)if(!catalog.items.insert(Word(row,"wItemID")).second)throw std::runtime_error("Duplicate item template");}
 }

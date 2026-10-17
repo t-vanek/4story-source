@@ -37,7 +37,11 @@ NativePlayerMovePlan PlanNativePlayerHostMove(const NativeCellPlayer&,const Char
 bool NativePlayerCanHost(const NativeCellPlayer&,float monster_x,float monster_z);
 struct NativeMonsterHostChoice {
     std::optional<MapSessionClaim> player;
-    bool activate_first{}; // source fallback's CanHost=TRUE; apply only with complete hosted execution
+    bool activate_first{}; // source fallback's CanHost=TRUE, applied by SetHost/ChkHost command
+    bool keep_current{}; // CHKHOST returns before neighbor selection when old host CanHost
 };
 NativeMonsterHostChoice SelectNativeMonsterHost(const NativeMonsterMap&,float x,float z,std::uint32_t tick);
+std::optional<MapSessionClaim> FindNativeMonsterHost(const NativeMonsterMap&,float x,float z,std::uint32_t id);
+NativeMonsterHostChoice SelectNativeMonsterReplacementHost(const NativeMonsterMap&,float x,float z,
+                                                         const std::optional<MapSessionClaim>& previous);
 } // namespace tmapsvr

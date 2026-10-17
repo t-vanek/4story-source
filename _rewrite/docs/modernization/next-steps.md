@@ -11,7 +11,23 @@ containers, builds, tests, SQL and runtime verification remain deferred; this
 increment uses static source/diff inspection only.
 See [active rewrite status](full-rewrite-status.md).
 
-Local Phase A continuation (2026-10-17), baseline `73a1eea`: native PC-only
+Local Phase A continuation (2026-10-17), baseline `b5c42da`: native monster
+allocation/Regen now produces owned learned skill objects with real constructor
+rank and DWORD reuse clocks. Written082 derives exact skill/formula/class/race
+readers from the pinned079 publication; actual native boot and release checks
+consume them, **INTEGRATED_UNVERIFIED**. Source SelectSkill, CanUseSkillNOW,
+pure resource maxima, FindHost, selected SetHost and distinct CHKHOST branches
+are **IMPLEMENTED_UNVERIFIED** within the stated ordinary PC scope. NotifyHost
+and MONSETSKILL capture owned source-ordered notices through the existing bounded
+outbox and Asio publisher. These recipient branches remain behind unchanged
+player-admission/Initialize/ACK barriers; this is not populated hosted gameplay.
+Populated ResetHost/mode/reset queues, PC-to-monster events, other target/effect
+producers and awake/dead commands remain incomplete. Full Phase A is still
+**IMPLEMENTING**.082/grants/publisher are written only;044–082 unapplied, next083.
+No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-skills-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `73a1eea`: native PC-only
 MOVE now preserves source ghost/body separation, HP0 direction keys, raw CanHost
 transitions and the observed DWORD move clock, including ghost early return.
 Strict speed `>3.40f` uses the existing exact PostgreSQL operator publication.
@@ -127,22 +143,21 @@ link; this is protective refusal, not battle support. No build, test, SQL,
 import, runtime, push or deployment ran.
 [Source contracts and exact handoff](evidence/phase-a-map-battle-regions-20261016/README.md).
 
-Immediate implementation dependency: port CTMonster::SelectSkill with its actual
-learned skill state, CheckPrevAct, GetTargetDistance and CanUseSkillNOW inputs;
-then complete selected-host mutation and NotifyHost/CS_MONHOST_ACK in the same
-source command flow. Existing source SetHost candidate selection and PC-local
-CanHost/ghost/move-clock producers must be consumed without reinitializing them.
-CHKHOST has a different selector; do not reuse SetHost's recency rule for it.
-Complete PC EnterPlayer/LeavePlayer/channel and MoveGhost AT_ENTER/LeaveAggro/
-AT_LEAVE ordering, actual host requests including CS_MONMOVE_REQ, and concrete
-awake/dead AI before enabling player/monster coexistence. Use the existing native
-cell graph, ADDMON encoder and owned outbox. There is no CS_MONHOST_REQ in the
-inspected source. Nonempty monster effects need real mutation/stat producers;
-MOVE stand-hide and position quests remain open. Preserve the latched admission
-barrier until these connected producers/consumers are complete. Continue non-fresh
-Regen/death/loot, dynamic/quest/battle and party-instance lifetime. Full Phase A
-remains IMPLEMENTING. Next migration082; Phase B/C execution stays deferred.
-See the current evidence handoff above.
+Immediate implementation dependency: finish populated CTMonster::ResetHost,
+CTObjBase::ChgMode and SM_RESETHOST_REQ/ACK, including global old-host lookup,
+aggro/damage cleanup, mode notifications and actual monster relocation/cells.
+The selected SetHost/CHKHOST -> NotifyHost -> SelectSkill path now has source
+code and an owned output consumer; retain its ordinary PC target scope and
+constructor-only skill clocks until actual attack/effect/transform producers
+exist. Then implement PC EnterPlayer/LeavePlayer/channel and MoveGhost monster
+AT_ENTER/LeaveAggro/AT_LEAVE sequencing, CS_MONMOVE_REQ and other real host
+requests, and concrete awake/dead commands. Recall/self/companion target size/
+lifetime, nonempty monster effect/stat producers, MOVE stand-hide and position
+quests remain open. Preserve the process admission and actual-player AI guards
+until connected coexistence is complete. Continue non-fresh Regen/death/loot,
+dynamic/quest/battle and party-instance lifetimes against the same native graph.
+There is no CS_MONHOST_REQ in the inspected source. Full Phase A remains
+IMPLEMENTING; next migration083; Phase B/C execution stays deferred.
 
 Previous Phase A continuation (2026-10-16), baseline `8c0b11e`: original World
 battle/time charts, explicit source calendar, defined normal-battle timer branches

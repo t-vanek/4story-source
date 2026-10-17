@@ -19,8 +19,9 @@ struct NativeCellPlayer {
     float x{},z{};
     NativePlayerHostState host;
     std::uint64_t revision{1}; // process-local mutation fence, never persisted
+    float size{0.5f}; // actual CTObjBase constructor OBJECT_SIZE/2; transform producer remains missing
 };
-enum class NativeCellNoticeKind { Enter, Leave, Move, AddMonster, DeleteMonster };
+enum class NativeCellNoticeKind { Enter, Leave, Move, AddMonster, DeleteMonster, MonsterHost, MonsterSkill };
 struct NativeCellNotice {
     NativeCellNoticeKind kind;
     MapSessionClaim recipient,actor;
@@ -28,6 +29,7 @@ struct NativeCellNotice {
     std::uint32_t monster_id{};
     std::uint64_t monster_generation{};
     std::shared_ptr<const NativeMonsterAppearance> monster{};
+    std::uint16_t skill_id{},attack_range{}; // captured MONSETSKILL fields; no mutable slot lookup on delivery
 };
 using NativeCellNotices=std::vector<NativeCellNotice>;
 bool SameNativeCellPlayer(const MapSessionClaim&,const MapSessionClaim&);
@@ -67,6 +69,7 @@ void RebindNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim& previous,co
 NativeCellNotices LeaveNativeCellPlayer(NativeMonsterMap&,const MapSessionClaim&);
 NativeCellNotices ApplyNativePlayerHostMove(NativeMonsterMap&,const NativePlayerMovePlan&,
                                           const std::vector<std::uint8_t>& source_channels);
+void ActivateNativePlayerHost(NativeMonsterMap&,const MapSessionClaim&);
 // Normal OT_MON cell insertion/removal and captured client notices. The full
 // hosted actor path remains guarded at admission. AT_ENTER is emitted by the
 // executor exactly once AFTER entry returns, not once per recipient.

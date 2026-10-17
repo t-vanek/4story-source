@@ -11,9 +11,25 @@ explicitly renewed local Git only: no push or deployment. The incomplete Phase A
 gate and prohibition on builds/tests/runtime/SQL remain in force.
 Pre-existing local `_rewrite/docs/audits/` and private extracts remain outside Git.
 Original server/client sources, backups, applied migrations001–043 and historical
-evidence remain unchanged. New migrations044–081 are **written, not applied**; next082.
+evidence remain unchanged. New migrations044–082 are **written, not applied**; next083.
 
-Local Phase A continuation (2026-10-17), baseline `73a1eea`: native PC-only
+Local Phase A continuation (2026-10-17), baseline `b5c42da`: native monster
+allocation/Regen now produces owned learned skill objects with real constructor
+rank and DWORD reuse clocks. Written082 derives exact skill/formula/class/race
+readers from the pinned079 publication; actual native boot and release checks
+consume them, **INTEGRATED_UNVERIFIED**. Source SelectSkill, CanUseSkillNOW,
+pure resource maxima, FindHost, selected SetHost and distinct CHKHOST branches
+are **IMPLEMENTED_UNVERIFIED** within the stated ordinary PC scope. NotifyHost
+and MONSETSKILL capture owned source-ordered notices through the existing bounded
+outbox and Asio publisher. These recipient branches remain behind unchanged
+player-admission/Initialize/ACK barriers; this is not populated hosted gameplay.
+Populated ResetHost/mode/reset queues, PC-to-monster events, other target/effect
+producers and awake/dead commands remain incomplete. Full Phase A is still
+**IMPLEMENTING**.082/grants/publisher are written only;044–082 unapplied, next083.
+No build, test, SQL, import, runtime, push or deployment ran.
+[Source contracts and exact handoff](evidence/phase-a-map-monster-skills-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17), baseline `73a1eea`: native PC-only
 MOVE now preserves source ghost/body separation, HP0 direction keys, raw CanHost
 transitions and the observed DWORD move clock, including ghost early return.
 Strict speed `>3.40f` uses the existing exact PostgreSQL operator publication.
@@ -1285,7 +1301,14 @@ remain the navigation indexes. Their unreviewed entries are NOT_ANALYZED, not co
 
 ## Activities actually performed
 
-Latest local work based on `73a1eea`: original MOVE/MoveGhost/CanHost/SetHost,
+Latest local work based on `b5c42da`: original monster skill/host selection,
+CTSkill clocks/costs, pure-stat/target inputs, original client ACK consumers,
+PostgreSQL view/loader/publisher/grant text, owned lifetime/output paths and
+CMake/interface/diff/inventory inspection only. Actual backup hashes were re-read.
+No executable verification ran; see
+[current monster skill evidence](evidence/phase-a-map-monster-skills-20261017/README.md).
+
+Previous local work based on `73a1eea`: original MOVE/MoveGhost/CanHost/SetHost,
 actual load/replica/handoff inputs, existing operator SQL-text contracts,
 owned state/call/CMake/diff and inventory review only. Actual local backup hashes
 were re-read. No executable validation ran; see

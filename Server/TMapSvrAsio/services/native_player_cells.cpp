@@ -172,6 +172,17 @@ void RebindNativeCellPlayer(NativeMonsterMap& map,const MapSessionClaim& previou
     if(auto cell=map.cells.find(position);cell!=map.cells.end())
         if(auto member=cell->second.players.find(current.char_id);member!=cell->second.players.end())member->second.claim=current;
 }
+void ActivateNativePlayerHost(NativeMonsterMap& map,const MapSessionClaim& claim) {
+    const auto found=map.players.find(claim.char_id);
+    if(found==map.players.end()||!SameNativeCellPlayer(found->second.claim,claim))
+        throw std::runtime_error("Native host activation has stale player lifetime");
+    auto& player=found->second;
+    const auto position=Position(player.x,player.z);
+    if(player.revision==std::numeric_limits<std::uint64_t>::max())throw std::runtime_error("Native player cell revision exhausted");
+    ++player.revision;player.host.can_host=true;
+    if(auto cell=map.cells.find(position);cell!=map.cells.end())
+        if(auto member=cell->second.players.find(claim.char_id);member!=cell->second.players.end())member->second=player;
+}
 NativeCellNotices LeaveNativeCellPlayer(NativeMonsterMap& map,const MapSessionClaim& claim) {
     const auto found=map.players.find(claim.char_id);
     if(found==map.players.end()||!SameNativeCellPlayer(found->second.claim,claim))return {};

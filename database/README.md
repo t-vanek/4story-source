@@ -5,7 +5,17 @@ the authoritative historical database source. Adapt the derived PostgreSQL
 database to exercised server contracts using numbered migrations and explicit
 transforms. Keep backup contents and the faithful historical snapshot layer intact.
 
-**Current Phase A, baseline `8bc9008`:** source AI queues and delayed execution
+**Current Phase A, baseline `b5c42da`:** written082 adds only derived
+`monster_compat` skill/formula/class/race views and full source/active value+byte
+proofs. Native monster boot and later owner/release checks require this same
+publication; the existing079 offline publisher checks its visibility atomically.
+No live skill/host rows, default metadata or historical changes are seeded.
+`deploy/sql/map-monster-skill-runtime-grants.sql` is written only.044–082 remain
+unapplied, next083; no SQL/import/build/test/runtime execution. Private full
+manifests/query-order evidence and hosted player/monster integration remain open.
+[Source contracts and deferred acceptance](../_rewrite/docs/modernization/evidence/phase-a-map-monster-skills-20261017/README.md).
+
+**Previous Phase A, baseline `8bc9008`:** source AI queues and delayed execution
 now consume existing079/080/081 publications. Job state, generation and source
 DWORD clocks remain process-local; no saved timers or SQL Server dependency are
 introduced. Active turns read current owner/catalog authority before local

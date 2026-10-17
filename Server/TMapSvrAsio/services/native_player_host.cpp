@@ -58,7 +58,8 @@ bool NativePlayerCanHost(const NativeCellPlayer& player,float x,float z) {
         Distance(player.x,player.z,x,z)<32.0f;
     return player.host.can_host;
 }
-NativeMonsterHostChoice SelectNativeMonsterHost(const NativeMonsterMap& map,float x,float z,std::uint32_t tick) {
+namespace {
+std::vector<const NativeCellPlayer*> HostNeighbors(const NativeMonsterMap& map,float x,float z) {
     const auto position=NativeCellAt(x,z);
     if(!position)throw std::runtime_error("Native host selection requires source WORD monster coordinates");
     std::vector<const NativeCellPlayer*> players; // borrowed only during this synchronous, locked turn
@@ -68,20 +69,61 @@ NativeMonsterHostChoice SelectNativeMonsterHost(const NativeMonsterMap& map,floa
             throw std::runtime_error("Native host neighbor index has no matching actor lifetime");
         players.push_back(&actor->second); // no main/role/channel filter in source GetNeighbor
     }
+    return players;
+}
+std::uint32_t HostDistance(const NativeCellPlayer& player,float x,float z) {
+    const float distance=std::abs(x-player.x)+std::abs(z-player.z); // cast AFTER FLOAT Manhattan sum
+    if(!std::isfinite(distance)||std::trunc(static_cast<double>(distance))>4294967295.0)
+        throw std::runtime_error("Native host distance requires defined source DWORD conversion");
+    return static_cast<std::uint32_t>(distance);
+}
+}
+std::optional<MapSessionClaim> FindNativeMonsterHost(const NativeMonsterMap& map,float x,float z,std::uint32_t id) {
+    const auto position=NativeCellAt(x,z);
+    if(!position)throw std::runtime_error("Native FindHost requires source WORD coordinates");
+    for(auto cell:NativeNeighborCells(map.cells,*position)) {
+        const auto found=map.cells.at(cell).players.find(id);
+        if(found==map.cells.at(cell).players.end())continue;
+        const auto actor=map.players.find(id);
+        if(actor==map.players.end()||!SameNativeCellPlayer(actor->second.claim,found->second.claim))
+            throw std::runtime_error("Native FindHost neighbor has stale actor lifetime");
+        return actor->second.claim; // source stops at the first matching cell
+    }
+    return {};
+}
+NativeMonsterHostChoice SelectNativeMonsterHost(const NativeMonsterMap& map,float x,float z,std::uint32_t tick) {
+    const auto players=HostNeighbors(map,x,z);
     const NativeCellPlayer* selected=nullptr;
     std::uint32_t best=std::numeric_limits<std::uint32_t>::max();
     if(!players.empty()&&NativePlayerCanHost(*players.front(),x,z))selected=players.front();
     for(const auto* player:players) {
         if(!NativePlayerCanHost(*player,x,z))continue;
-        const float distance=std::abs(x-player->x)+std::abs(z-player->z); // cast AFTER FLOAT Manhattan sum
-        if(!std::isfinite(distance)||std::trunc(static_cast<double>(distance))>4294967295.0)
-            throw std::runtime_error("Native host distance requires defined source DWORD conversion");
-        const auto local=static_cast<std::uint32_t>(distance);
+        const auto local=HostDistance(*player,x,z);
         if(local<best) {
             if(!player->host.move_tick)throw std::runtime_error("Source host recency needs an observed MOVE tick; initial value is unproven");
             const std::uint32_t elapsed=tick-*player->host.move_tick;
             if(elapsed<3000){selected=player;best=local;}
         }
+    }
+    if(!selected&&!players.empty()&&!players.front()->host.can_host&&!players.front()->host.ghost)
+        return {players.front()->claim,true};
+    return {selected?std::optional<MapSessionClaim>{selected->claim}:std::nullopt,false};
+}
+NativeMonsterHostChoice SelectNativeMonsterReplacementHost(const NativeMonsterMap& map,float x,float z,
+                                                         const std::optional<MapSessionClaim>& previous) {
+    if(previous) {
+        const auto player=map.players.find(previous->char_id);
+        if(player==map.players.end()||!SameNativeCellPlayer(player->second.claim,*previous))
+            throw std::runtime_error("Native CHKHOST previous lifetime is stale");
+        if(NativePlayerCanHost(player->second,x,z))return {previous,false,true};
+    }
+    const auto players=HostNeighbors(map,x,z);
+    const NativeCellPlayer* selected=nullptr;
+    std::uint32_t best=0; // source CHKHOST has no first-player preselection or recency gate
+    for(const auto* player:players) {
+        if(!NativePlayerCanHost(*player,x,z))continue;
+        const auto local=HostDistance(*player,x,z);
+        if(!selected||local<best){selected=player;best=local;}
     }
     if(!selected&&!players.empty()&&!players.front()->host.can_host&&!players.front()->host.ghost)
         return {players.front()->claim,true};

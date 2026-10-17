@@ -28,7 +28,17 @@ live in `Server/T*SvrAsio/`. See the [implementation status](_rewrite/docs/moder
 
 ## Active implementation — Phase A, unverified
 
-Current Phase A continuation (2026-10-17): native PC-only MOVE now implements
+Current Phase A continuation (2026-10-17): actual native monster boot/Regen now
+creates source learned skill objects and loads exact skill/formula/stat inputs.
+Source SelectSkill, pure resource costs, selected SetHost/CHKHOST and ordered
+MONHOST/MONSETSKILL publication are written and connected to the existing native
+AI/outbox/Asio paths, **IMPLEMENTED_UNVERIFIED / INTEGRATED_UNVERIFIED** as scoped
+in the inventory. Populated player admission remains blocked: ResetHost/events,
+other targets and awake/dead gameplay are incomplete. Written082/grants/publisher
+are unexecuted;044–082 unapplied, next083. Full Phase A remains open.
+[Current scope and exact handoff](_rewrite/docs/modernization/evidence/phase-a-map-monster-skills-20261017/README.md).
+
+Previous Phase A continuation (2026-10-17): native PC-only MOVE now implements
 source ghost/body separation, CanHost transitions, observed move clocks and the
 strict speed/operator gate through existing PostgreSQL authority. Load/handoff
 preserve local state; owned move preparation is fenced across DB/World waits.

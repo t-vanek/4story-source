@@ -1,4 +1,12 @@
-> Current Phase A:080, `sql/map-monster-ai-runtime-grants.sql` and offline
+> Current Phase A:082 and `sql/map-monster-skill-runtime-grants.sql` are
+> written, unexecuted. Existing079 full publication now also gates exact skill/
+> formula/class/race inputs through082; the same offline publisher requires it.
+> Skill selection and host notifications use native AI and bounded Asio output,
+> but actual populated actor admission remains blocked pending ResetHost/events/
+> awake/dead dependencies.044–082 remain unapplied, next083. No Phase B/C run.
+> [Scope and handoff](../_rewrite/docs/modernization/evidence/phase-a-map-monster-skills-20261017/README.md).
+
+> Previous Phase A:080, `sql/map-monster-ai-runtime-grants.sql` and offline
 > `tools/database/import_map_monster_ai.py` are written, unexecuted.079 is a
 > mandatory exact source/order prerequisite. AI bootstrap calculations are
 > integrated but unverified; native construction still refuses missing cell/

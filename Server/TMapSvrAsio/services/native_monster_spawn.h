@@ -4,6 +4,8 @@
 #include "domain/monster.h"
 #include "native_map_cells.h"
 #include "native_monster_presentation.h"
+#include "domain/skill.h"
+#include "domain/stat.h"
 #include <array>
 #include <functional>
 #include <map>
@@ -36,13 +38,21 @@ struct NativeMonsterCatalog {
     std::map<std::uint16_t,std::vector<MapMonEntry>> candidates;
     std::map<std::uint16_t,NativeMonsterAllocationTemplate> monsters;
     std::map<std::uint32_t,NativeMonsterBaseVitals> attributes; // MAKELONG(attribute FAMILY,level)
-    std::set<std::uint16_t> skills,items,extra_spawn_ids;
-    std::set<std::uint8_t> levels,classes,races;
+    std::map<std::uint16_t,SkillTemplate> skills;
+    std::set<std::uint16_t> items,extra_spawn_ids;
+    std::set<std::uint8_t> levels;
+    std::map<std::uint8_t,StatBlock> classes,races;
+    std::map<std::uint8_t,FormulaRow> formulas;
     std::string order_sha256;
     std::string manifest;
     std::int64_t run_id{};
 };
 
+// Owned source learned object; live Use producers remain a separate contract.
+struct NativeMonsterSkill {
+    std::uint8_t level{1};
+    std::uint32_t use_tick{},delay_tick{}; // CTSkill constructor, original DWORD reuse clocks
+};
 // Owned source allocation/bootstrap state. A missing template is anonymous,
 // never template0. Bootstrap cell membership is not an admitted live actor or
 // prototype registry entry. The empty inventory/effects/aggro context is enforced by
@@ -57,7 +67,7 @@ struct NativeMonsterSlot {
     std::optional<std::uint32_t> attribute;
     std::optional<std::uint8_t> level_template,class_template,race_template;
     std::optional<std::uint8_t> level;
-    std::set<std::uint16_t> skills; // original existing templates, level1
+    std::map<std::uint16_t,NativeMonsterSkill> skills; // source WORD map; duplicate insert retains object/clocks
     std::uint8_t mode{},action{},target_type{1},help_count{},path_id{},path_direction{1};
     std::uint32_t host_key{},host{},target{},helper{},hp{},mp{},keeper{};
     std::uint32_t max_hp{},max_mp{},money{};

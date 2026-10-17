@@ -166,6 +166,8 @@ private:
     void CheckNativeRpsRelease(soci::session&) const;
     void LoadNativeBattleRegions(soci::session&);
     void LoadNativeMonsterCatalog(soci::session&);
+    void LoadNativeMonsterSkills(soci::session&);
+    void CheckNativeMonsterSkillRelease(soci::session&) const;
     void LoadNativeMonsterAi(soci::session&);
     void LoadNativeCellCatalog(soci::session&);
     void InitializeNativeCells();

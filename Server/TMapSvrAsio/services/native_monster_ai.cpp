@@ -1,4 +1,5 @@
 #include "native_monster_ai.h"
+#include "native_monster_skills.h"
 #include <algorithm>
 #include <bit>
 #include <cmath>
@@ -16,10 +17,10 @@ std::uint32_t FreshMaximum(std::uint32_t raw) {
 }
 }
 NativeMonsterAiExecutor::NativeMonsterAiExecutor(const NativeMonsterCatalog& catalog,const NativeMonsterAiCatalog& ai,
-    const BattleRegions& regions,EnterMap enter,LeaveMap leave,Schedule schedule,Cancel cancel,Draw draw,std::uint32_t tick)
+    const BattleRegions& regions,EnterMap enter,LeaveMap leave,Publish publish,Schedule schedule,Cancel cancel,Draw draw,std::uint32_t tick)
     :m_catalog(catalog),m_ai(ai),m_regions(regions),m_enter(std::move(enter)),
-     m_leave(std::move(leave)),m_schedule(std::move(schedule)),m_cancel(std::move(cancel)),m_draw(std::move(draw)),m_tick(tick) {
-    if(!m_enter||!m_leave||!m_schedule||!m_cancel||!m_draw)throw std::invalid_argument("Actual source AI side-effect consumers required");
+     m_leave(std::move(leave)),m_publish(std::move(publish)),m_schedule(std::move(schedule)),m_cancel(std::move(cancel)),m_draw(std::move(draw)),m_tick(tick) {
+    if(!m_enter||!m_leave||!m_publish||!m_schedule||!m_cancel||!m_draw)throw std::invalid_argument("Actual source AI side-effect consumers required");
 }
 void NativeMonsterAiExecutor::Step() {
     // Security limit, not a source gameplay rule. Fail before serving a graph
@@ -55,11 +56,12 @@ bool NativeMonsterAiExecutor::CanRun(const NativeAiCommand& command,const Native
     switch(command.kind) {
     case 0:if(slot.status!=0||slot.remove)return false;break; // REGEN
     case 2:if(slot.mode==1||slot.status==3)return false;break; // SETHOST
+    case 3:if(slot.status!=1)return false;break; // CHKHOST; distinct selector below
     case 12:return true; // REMOVE bypasses even base conditions
     case 1:case 14: // LEAVE/LOTTERY: first source predicate is DEAD
         if(slot.status!=3)return false;
         throw NativeMonsterInitializationRequired(slot.map,slot.channel,slot.id,"dead-object AI/loot lifecycle");
-    case 3:case 4:case 5:case 6:case 7:case 8:case 9:case 10:case 11:case 13:
+    case 4:case 5:case 6:case 7:case 8:case 9:case 10:case 11:case 13:
         // The source first tests WAKEUP in every one of these commands. No
         // actor is admitted in this bounded executor; no-host SetHost never wakes.
         if(slot.status!=1)return false;
@@ -154,7 +156,7 @@ void NativeMonsterAiExecutor::ResolveTemplate(NativeMonsterSlot& slot,const Nati
     slot.attribute=m_catalog.attributes.contains(key)?std::optional{key}:std::nullopt;
     if(slot.attribute) {
         slot.level=monster.bLevel;
-        for(const auto skill:monster.skills)if(m_catalog.skills.contains(skill))slot.skills.insert(skill);
+        for(const auto skill:monster.skills)if(m_catalog.skills.contains(skill))slot.skills.try_emplace(skill);
     }
 }
 void NativeMonsterAiExecutor::ResetHost(NativeMonsterSlot& slot) {
@@ -168,13 +170,24 @@ bool NativeMonsterAiExecutor::Execute(NativeMonsterMap& map,std::uint32_t id,con
     auto& slot=map.slots.at(id);
     const auto kind=m_ai.commands.at(binding.command).kind;
     if(kind==0)return Regen(map,id,binding,args);
-    if(kind==2) {
-        const auto choice=SelectNativeMonsterHost(map,slot.x,slot.z,m_tick);
-        if(choice.player)throw NativeMonsterInitializationRequired(slot.map,slot.channel,id,
-            "actual selected-host SelectSkill/NotifyHost and awake command consumers");
-        // Selected-host mutation remains protected until those real consumers
-        // exist. No synthetic host grant or successful empty skill ACK.
-        ++slot.host_key;ResetHost(slot);return false; // no completion event
+    if(kind==2||kind==3) {
+        std::optional<MapSessionClaim> old;
+        NativeMonsterHostChoice choice;
+        if(kind==3) {
+            old=FindNativeMonsterHost(map,slot.x,slot.z,slot.host);
+            choice=SelectNativeMonsterReplacementHost(map,slot.x,slot.z,old);
+        } else choice=SelectNativeMonsterHost(map,slot.x,slot.z,m_tick);
+        if(choice.keep_current)return false; // CHKHOST valid old host, before selection/mutation
+        if(choice.activate_first&&choice.player)ActivateNativePlayerHost(map,*choice.player);
+        if(kind==2)old=FindNativeMonsterHost(map,slot.x,slot.z,slot.host);
+        if(!choice.player){++slot.host_key;ResetHost(slot);return false;}
+        if(old&&SameNativeCellPlayer(*old,*choice.player))return false;
+        ++slot.host_key;slot.host=choice.player->char_id;
+        if(kind==2)slot.status=1; // only SETHOST establishes OS_WAKEUP
+        m_publish(NotifyNativeMonsterHost(map,slot,old)); // previous FALSE before reverse neighbors
+        if(auto skill=SelectNativeMonsterSkill(m_catalog,map,slot,choice.player,true,m_tick))
+            m_publish(NativeCellNotices{std::move(*skill)});
+        return Complete(map,id,binding,args); // source base completion/repeat contract
     }
     if(kind==12) {
         auto& spawn=map.spawns.at(slot.spawn);

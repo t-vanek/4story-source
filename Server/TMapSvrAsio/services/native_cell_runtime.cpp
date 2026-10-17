@@ -36,7 +36,8 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
         if(!recipient)continue;
         std::vector<std::byte> packet;
         MessageId opcode;
-        if(notice.kind==NativeCellNoticeKind::AddMonster||notice.kind==NativeCellNoticeKind::DeleteMonster) {
+        if(notice.kind==NativeCellNoticeKind::AddMonster||notice.kind==NativeCellNoticeKind::DeleteMonster||
+           notice.kind==NativeCellNoticeKind::MonsterHost||notice.kind==NativeCellNoticeKind::MonsterSkill) {
             if(!notice.monster_generation)throw std::runtime_error("Native monster visibility has no source lifetime");
             if(notice.kind==NativeCellNoticeKind::AddMonster) {
                 const auto observer=ctx.char_state->Get(notice.recipient.char_id);
@@ -49,8 +50,16 @@ void PublishNativeCellNotices(const HandlerContext& ctx,const NativeCellNotices&
                     aid!=3?aid:observer->bCountry};
                 opcode=MessageId::CS_ADDMON_ACK;
                 packet=EncodeNativeAddMonAck(*notice.monster,source_observer,notice.flag);
-            } else {
+            } else if(notice.kind==NativeCellNoticeKind::DeleteMonster) {
                 opcode=MessageId::CS_DELMON_ACK;packet=EncodeDelMonAck(notice.monster_id,notice.flag?1:0);
+            } else {
+                wire::WritePOD(packet,notice.monster_id);
+                if(notice.kind==NativeCellNoticeKind::MonsterHost) {
+                    opcode=MessageId::CS_MONHOST_ACK;wire::WritePOD<std::uint8_t>(packet,notice.flag?1:0);
+                } else {
+                    opcode=MessageId::CS_MONSETSKILL_ACK;
+                    wire::WritePOD(packet,notice.skill_id);wire::WritePOD(packet,notice.attack_range);
+                }
             }
             // This is an ordered history captured before the next source event.
             // Do not drop ADD/DEL merely because the slot was subsequently erased

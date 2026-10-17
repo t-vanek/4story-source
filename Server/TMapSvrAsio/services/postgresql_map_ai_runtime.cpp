@@ -14,6 +14,7 @@ NativeMonsterAiExecutor PostgreSQLMapService::MakeNativeMonsterAiExecutor(std::u
         [this](NativeMonsterMap& map,std::uint32_t id,bool exit_map) {
             StageNativeCellNotices(LeaveNativeMonster(map,id,exit_map));
         },
+        [this](NativeCellNotices notices){StageNativeCellNotices(std::move(notices));},
         [this](const NativeAiInvocation& call){m_monster_ai_queue.Publish(call);},
         [this](const NativeAiInvocation& call){m_monster_ai_queue.CancelObject(call);},LegacyRandom15,tick);
 }
@@ -24,7 +25,8 @@ void PostgreSQLMapService::StageNativeCellNotices(NativeCellNotices notices) {
     if(notices.size()>max_notices-m_native_cell_notices.size())throw std::runtime_error("Native cell publication count limit");
     auto bytes=m_native_cell_notice_bytes;
     for(const auto& notice:notices) {
-        const auto charge=sizeof(NativeCellNotice)+(notice.monster?notice.monster->WireSize():5);
+        const auto charge=sizeof(NativeCellNotice)+(notice.monster?notice.monster->WireSize():
+            notice.kind==NativeCellNoticeKind::MonsterSkill?8:5);
         if(charge>max_bytes-bytes)throw std::runtime_error("Native cell publication byte limit");
         bytes+=charge;
     }

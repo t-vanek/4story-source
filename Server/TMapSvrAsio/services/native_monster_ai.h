@@ -38,11 +38,12 @@ public:
     // after this consumer succeeds. It must not emit a duplicate AI event.
     using EnterMap=std::function<void(NativeMonsterMap&,std::uint32_t)>;
     using LeaveMap=std::function<void(NativeMonsterMap&,std::uint32_t,bool)>;
+    using Publish=std::function<void(NativeCellNotices)>;
     using Schedule=std::function<void(const NativeAiInvocation&)>;
     using Cancel=std::function<void(const NativeAiInvocation&)>;
     using Draw=std::function<std::uint32_t()>;
     NativeMonsterAiExecutor(const NativeMonsterCatalog&,const NativeMonsterAiCatalog&,
-                           const BattleRegions&,EnterMap,LeaveMap,Schedule,Cancel,Draw,std::uint32_t tick);
+                           const BattleRegions&,EnterMap,LeaveMap,Publish,Schedule,Cancel,Draw,std::uint32_t tick);
     void Initialize(NativeMonsterMap&,std::uint32_t);
     void Acknowledge(NativeMonsterMap&,const NativeAiInvocation&);
 private:
@@ -65,6 +66,7 @@ private:
     const BattleRegions& m_regions;
     EnterMap m_enter;
     LeaveMap m_leave;
+    Publish m_publish;
     Schedule m_schedule;
     Cancel m_cancel;
     Draw m_draw;
